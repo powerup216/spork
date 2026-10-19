@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PowerMic tester, MicDrop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link href="bs-theme.css" rel="stylesheet">
+<script src="bs-skeletons.js" defer></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-size: 16px; line-height: 1.5; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+  .panel { background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-top: 16px; }
+  .connect { background: var(--lightbox); color: var(--lightbox-ink); border: 0; border-radius: 6px; padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+  .connect:hover { background: #a6e1f0; }
+  .connect:focus-visible { outline: 2px solid var(--marker); outline-offset: 2px; }
+  #status { margin-top: 12px; font-weight: 600; color: var(--muted); }
+  #status.ok { color: #4cc283; }
+  .grid { display: grid; gap: 10px; margin-top: 12px; }
+  .tile { border: 1px solid var(--line); border-radius: 8px; padding: 12px; text-align: center; background: var(--film); }
+  .tile small { display: block; color: var(--muted); font-size: .75rem; }
+  .tile.on { background: var(--marker); color: #1b1600; border-color: var(--marker); box-shadow: 0 0 18px rgba(242, 200, 75, .45); }
+  .tile.on small { color: #1b1600; }
+  #log { font-size: .85rem; max-height: 220px; overflow: auto; color: var(--muted); white-space: pre-wrap; margin: 8px 0 0; font-family: inherit; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <h1 class="bs-title">MicDrop<small>PowerMic tester</small></h1>
+  <p>Checks that the PowerMic buttons work, without PowerScribe. Set the emulated device type to "Mouse and keyboard + PowerMic II", save, and replug the remapper. Use Chrome or Edge.</p>
+  <div class="panel">
+    <button class="connect" id="connect">Connect PowerMic</button>
+    <div id="status">Not connected.</div>
+  </div>
+  <div class="panel">
+    <div class="grid" id="buttons" style="margin-top:0;grid-template-columns: repeat(auto-fill, minmax(150px, 1fr))"></div>
+  </div>
+  <div class="panel">
+    <strong>Event log</strong>
+    <pre id="log"></pre>
+  </div>
+  <p style="margin-top:16px"><a href="index.html">Back to the configurator</a></p>
+</main>
+<script>(()=>{const n={names:["Transcribe","Previous Field","Dictate","Next Field","Rewind","Fast Forward","Stop/Play","Custom Left","Enter/Select","Custom Right","Button 11","Button 12","Button 13","Button 14"],label:"PowerMic",v:1364,q:4097,p:1,u:0,missing:"No PowerMic selected. Set the emulated device type to PowerMic II, save, and replug the remapper.",decode:(t,e)=>{const o=e.length===3?e:Uint8Array.from([0,...e]);return o[1]|(o[2]&63)<<8}},s=document.getElementById("status"),d=document.getElementById("log"),u=document.getElementById("buttons"),g=n.names.map(t=>{const e=document.createElement("div");return e.className="tile",e.textContent=t,u.appendChild(e),e});let i=0;function a(t){d.textContent=`${new Date().toLocaleTimeString()}  ${t}
+`+d.textContent}function m(t){g.forEach((e,o)=>e.classList.toggle("on",!!(t&1<<o)));for(let e=0;e<n.names.length;e++){const o=1<<e;t&o&&!(i&o)&&a(`${n.names[e]} pressed`),!(t&o)&&i&o&&a(`${n.names[e]} released`)}i=t}const c=t=>t.vendorId===n.v&&t.collections.some(e=>e.usagePage===n.p&&e.usage===n.u);async function r(t){t.opened||await t.open(),t.addEventListener("inputreport",e=>{const o=new Uint8Array(e.data.buffer,e.data.byteOffset,e.data.byteLength),l=n.decode(e.reportId,o);l!==null&&m(l)}),s.textContent=`Connected: ${n.label}. Press a mapped key.`,s.className="ok",a("connected")}document.getElementById("connect").addEventListener("click",async()=>{if(!("hid"in navigator)){s.textContent="This browser has no WebHID. Open this page in Chrome or Edge.";return}try{const t=await navigator.hid.requestDevice({filters:[{vendorId:n.v,productId:n.q,usagePage:n.p,usage:n.u}]}),e=t.find(c)||t[0];if(!e){s.textContent=n.missing;return}await r(e)}catch(t){s.textContent="Could not open the device: "+t.message}}),"hid"in navigator&&(navigator.hid.getDevices().then(t=>{const e=t.find(c);e&&r(e)}),navigator.hid.addEventListener("disconnect",()=>{s.textContent="Disconnected.",s.className="",a("disconnected")}))})();</script>
+</body>
+</html>

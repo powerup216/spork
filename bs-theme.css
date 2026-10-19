@@ -1,0 +1,163 @@
+/* MicDrop: X-ray lightbox theme over Bootstrap 5.1 */
+:root {
+    --film: #0c171c;        /* radiograph film, page background */
+    --panel: #13232a;       /* raised surfaces: inputs, modals, tabs */
+    --panel-2: #1a2f37;     /* hover / secondary surfaces */
+    --line: #2a434c;        /* borders */
+    --bone: #e6eef0;        /* text and skeletons */
+    --muted: #8aa3ab;       /* secondary text */
+    --lightbox: #7fd0e6;    /* links, primary buttons */
+    --lightbox-ink: #062028;/* text on lightbox cyan */
+    --marker: #f2c84b;      /* PACS marker yellow: focus and selection only */
+    --danger: #ff7a6b;
+    color-scheme: dark;
+}
+
+html, body {
+    background: var(--film);
+    color: var(--bone);
+}
+body {
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    position: relative;
+    min-height: 100vh;
+}
+/* faint lightbox glow behind the content column */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 70% at 50% 35%, rgba(127, 208, 230, 0.07), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+#bs-skeletons {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+#bs-skeletons svg { position: absolute; overflow: visible; }
+body > .container, body > main { position: relative; z-index: 1; }
+
+/* Title: set like the label printed on a film */
+.bs-title {
+    font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+    font-weight: 700;
+    font-size: clamp(2.6rem, 7vw, 4.2rem);
+    line-height: 0.95;
+    letter-spacing: 0.01em;
+    color: var(--bone);
+    text-shadow: 0 0 24px rgba(127, 208, 230, 0.35);
+    margin-bottom: 0.4rem;
+}
+.bs-title small {
+    display: block;
+    font-weight: 500;
+    font-size: 0.42em;
+    letter-spacing: 0.02em;
+    color: var(--lightbox);
+    text-shadow: none;
+    margin-top: 0.35rem;
+}
+
+.lead, p { color: var(--bone); }
+.text-muted, .form-text, small.text-muted { color: var(--muted) !important; }
+a { color: var(--lightbox); }
+a:hover { color: #b3e6f3; }
+hr { border-color: var(--line); opacity: 1; }
+
+/* Buttons */
+.btn-primary {
+    background: var(--lightbox);
+    border-color: var(--lightbox);
+    color: var(--lightbox-ink);
+    font-weight: 600;
+}
+.btn-primary:hover, .btn-primary:active, .btn-primary.active {
+    background: #a6e1f0;
+    border-color: #a6e1f0;
+    color: var(--lightbox-ink);
+}
+.btn-primary:disabled, .btn-primary.disabled {
+    background: var(--panel-2);
+    border-color: var(--line);
+    color: var(--muted);
+}
+.btn-secondary, .btn-outline-secondary, .btn-light {
+    background: var(--panel-2);
+    border-color: var(--line);
+    color: var(--bone);
+}
+.btn-danger, .btn-outline-danger { border-color: var(--danger); color: var(--danger); background: transparent; }
+.btn-danger:hover, .btn-outline-danger:hover { background: var(--danger); color: var(--film); }
+.btn:focus, .btn:focus-visible, .form-control:focus, .form-select:focus, .form-check-input:focus, .nav-link:focus-visible {
+    outline: 2px solid var(--marker);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+/* Form controls */
+.form-control, .form-select, .input-group-text {
+    background-color: var(--panel);
+    border-color: var(--line);
+    color: var(--bone);
+}
+.form-control::placeholder { color: var(--muted); }
+.form-control:focus, .form-select:focus { background-color: var(--panel); color: var(--bone); border-color: var(--lightbox); }
+.form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23e6eef0' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+}
+.form-select option { background: var(--panel); color: var(--bone); }
+.form-check-input { background-color: var(--panel); border-color: var(--muted); }
+.form-check-input:checked { background-color: var(--marker); border-color: var(--marker); }
+.form-control:disabled, .form-select:disabled { background-color: var(--film); color: var(--muted); }
+
+/* Tabs */
+.nav-tabs { border-bottom-color: var(--line); }
+.nav-tabs .nav-link { color: var(--muted); border-color: transparent; }
+.nav-tabs .nav-link:hover { color: var(--bone); border-color: var(--line) var(--line) transparent; }
+.nav-tabs .nav-link.active {
+    color: var(--bone);
+    background: var(--panel);
+    border-color: var(--line) var(--line) var(--panel);
+    box-shadow: inset 0 2px 0 var(--marker);
+}
+
+/* Lists, tables, alerts, badges */
+.list-group-item {
+    background: var(--panel);
+    border-color: var(--line);
+    color: var(--bone);
+}
+.list-group-item-action:hover { background: var(--panel-2); color: var(--bone); }
+.table { color: var(--bone); border-color: var(--line); }
+.alert-danger { background: #3a1714; border-color: #6b2a23; color: #ffc9c1; }
+.alert-info, .alert-secondary, .alert-warning { background: var(--panel); border-color: var(--line); color: var(--bone); }
+.bg-info { background-color: var(--lightbox) !important; color: var(--lightbox-ink); }
+.bg-success { background-color: #4cc283 !important; }
+
+/* Modals (output picker) */
+.modal-content {
+    background: var(--panel);
+    color: var(--bone);
+    border: 1px solid var(--line);
+}
+.modal-header, .modal-footer { border-color: var(--line); }
+.modal-title { color: var(--lightbox); }
+.btn-close { filter: invert(1) grayscale(1) brightness(1.6); }
+.modal-backdrop.show { opacity: 0.75; }
+/* usage buttons inside the picker: quieter than the primary actions */
+.modal .btn-primary {
+    background: var(--panel-2);
+    border-color: var(--line);
+    color: var(--bone);
+    font-weight: 400;
+}
+.modal .btn-primary:hover { background: var(--lightbox); border-color: var(--lightbox); color: var(--lightbox-ink); }
+.modal .powermic_usages .btn-primary { border-color: var(--marker); }
+
+@media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+}
