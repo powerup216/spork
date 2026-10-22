@@ -248,16 +248,7 @@ const examples = [
                 }
             ],
             "macros": [
-                [
-                    [
-                        "0x000700e2",
-                        "0x0007002b"
-                    ],
-                    [],
-                    [
-                        "0x0007003d"
-                    ]
-                ],
+                [],
                 [],
                 [],
                 [],
@@ -321,7 +312,7 @@ const examples = [
             "tap_hold_threshold": 200000,
             "gpio_debounce_time_ms": 5,
             "interval_override": 0,
-            "our_descriptor_number": 6,
+            "our_descriptor_number": 8,
             "ignore_auth_dev_inputs": false,
             "macro_entry_duration": 100,
             "gpio_output_mode": 1,
@@ -486,16 +477,7 @@ const examples = [
                 }
             ],
             "macros": [
-                [
-                    [
-                        "0x000700e2",
-                        "0x0007002b"
-                    ],
-                    [],
-                    [
-                        "0x0007003d"
-                    ]
-                ],
+                [],
                 [],
                 [],
                 [],

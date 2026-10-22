@@ -29,7 +29,7 @@ The firmware includes every mode, so you can switch between them in the configur
 
 1. **Plug in your keyboard and mouse** to the board, and the board into the workstation.
 2. **Open the [configurator](https://powerup216.github.io/spork/)** in Chrome or Edge and click **Open device**.
-3. **Pick a mode** in Settings: *PowerMic II (PowerScribe 360)*, *PowerMic II (PowerScribe One)* or *foot pedal*.
+3. **Pick a mode** in Settings: *PowerMic II (PowerScribe 360)*, *PowerMic II (PowerScribe One)* or *Foot Pedal*.
 4. **Map your keys** in Mappings. The PowerMic and pedal buttons have their own section in the output list. The Examples tab has ready-made setups.
 5. **Save to device**, then unplug and replug the board.
 
