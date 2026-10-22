@@ -671,5 +671,6 @@ const footpedal_usages = {
     "0xff020003": { 'name': 'Foot pedal right', 'class': 'powermic' },
 };
 usages[7] = { ...usages[0], ...footpedal_usages };
+usages[8] = usages[6];
 
 export default usages;

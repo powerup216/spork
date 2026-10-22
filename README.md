@@ -21,13 +21,15 @@ Everything else on the keyboard and mouse passes through as normal.
 | Buttons you can map | Dictate, Previous/Next Field, Transcribe, Rewind, Fast Forward, Stop/Play, Enter/Select, Custom Left/Right | Left, middle, right pedal |
 | Default keys | F1 Previous Field, F2 Dictate, F3 Next Field, F4 Custom Left | F1 left, F2 middle, F3 right |
 
-The firmware includes both modes, so you can switch between them in the configurator without reflashing.
+PowerMic mode comes in two flavours: **PowerScribe 360** (buttons only) and **PowerScribe One**, which also shows up as a microphone in Windows Sound settings, the way a real PowerMic II does. Pick the one that matches your PowerScribe.
+
+The firmware includes every mode, so you can switch between them in the configurator without reflashing.
 
 ## Reading-room setup
 
 1. **Plug in your keyboard and mouse** to the board, and the board into the workstation.
 2. **Open the [configurator](https://powerup216.github.io/spork/)** in Chrome or Edge and click **Open device**.
-3. **Pick a mode** in Settings: *Mouse and keyboard + PowerMic II* or *Mouse and keyboard + foot pedal*.
+3. **Pick a mode** in Settings: *PowerMic II (PowerScribe 360)*, *PowerMic II (PowerScribe One)* or *foot pedal*.
 4. **Map your keys** in Mappings. The PowerMic and pedal buttons have their own section in the output list. The Examples tab has ready-made setups.
 5. **Save to device**, then unplug and replug the board.
 
