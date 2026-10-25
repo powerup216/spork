@@ -245,6 +245,45 @@ const examples = [
                     "hold": false,
                     "source_port": 0,
                     "target_port": 0
+                },
+                {
+                    "target_usage": "0xff01000a",
+                    "source_usage": "0x00070041",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff010002",
+                    "source_usage": "0x0007003f",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff010004",
+                    "source_usage": "0x00070040",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
                 }
             ],
             "macros": [
@@ -474,6 +513,45 @@ const examples = [
                     "hold": false,
                     "source_port": 0,
                     "target_port": 0
+                },
+                {
+                    "target_usage": "0xff01000a",
+                    "source_usage": "0x00070041",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff010002",
+                    "source_usage": "0x0007003f",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff010004",
+                    "source_usage": "0x00070040",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
                 }
             ],
             "macros": [
@@ -511,8 +589,8 @@ const examples = [
                 []
             ],
             "expressions": [
-                "",
-                "",
+                "1000 recall eol eol 2000 recall eol 0x00090001 input_state_binary not eol mul eol bitwise_or eol eol 1000 recall eol 0x00090001 prev_input_state_binary eol mul eol 0x00090001 input_state_binary not eol mul eol not eol mul eol eol 1000 store",
+                "0x00090003 tap_state 2000 store",
                 "0x0007001e prev_input_state_binary 0x0007001e input_state_binary not mul 11000 recall not 11000 recall ifte 11000 store 0x0007001e input_state_binary 11000 recall not mul 21000 store 0x0007001e input_state_binary 11000 recall mul",
                 "0x0007001f prev_input_state_binary 0x0007001f input_state_binary not mul 12000 recall not 12000 recall ifte 12000 store 0x0007001f input_state_binary 12000 recall not mul 22000 store 0x0007001f input_state_binary 12000 recall mul",
                 "0x00070020 prev_input_state_binary 0x00070020 input_state_binary not mul 13000 recall not 13000 recall ifte 13000 store 0x00070020 input_state_binary 13000 recall not mul 23000 store 0x00070020 input_state_binary 13000 recall mul",
