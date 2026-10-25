@@ -181,6 +181,7 @@ let modal_return_element = null;
 
 document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("open_device").addEventListener("click", open_device);
+    document.getElementById("open_serial_device").addEventListener("click", open_serial_device);
     document.getElementById("load_from_device").addEventListener("click", load_from_device);
     document.getElementById("save_to_device").addEventListener("click", save_to_device);
     document.getElementById("add_mapping").addEventListener("click", add_mapping_onclick);
@@ -218,6 +219,15 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("output-column-header").addEventListener("click", sort_by(['target_usage', 'source_port', 'source_usage', 'layers']));
     document.getElementById("layer-column-header").addEventListener("click", sort_by(['layers', 'source_port', 'source_usage', 'target_usage']));
 
+    if ("serial" in navigator) {
+        navigator.serial.addEventListener('disconnect', (event) => {
+            if ((device instanceof SerialLink) && (event.target === device.port)) {
+                device.close();
+                device = null;
+                device_buttons_set_disabled_state(true);
+            }
+        });
+    }
     if ("hid" in navigator) {
         navigator.hid.addEventListener('disconnect', hid_on_disconnect);
     } else {
@@ -252,14 +262,7 @@ async function open_device() {
                 await device.open().catch((err) => { display_error(err + "\nIf you're on Linux, you might need to give yourself permissions to the appropriate /dev/hidraw* device."); });
             }
             success = device.opened;
-            success &&= await check_device_version();
-            if (success) {
-                device.addEventListener('inputreport', input_report_received);
-                await set_monitor_enabled(monitor_enabled);
-                await get_usages_from_device();
-                setup_usages_modals();
-                bluetooth_buttons_set_visibility(device.productName.includes("Bluetooth"));
-            }
+            success &&= await device_opened();
         }
     } catch (e) {
         display_error(e);
@@ -272,6 +275,162 @@ async function open_device() {
     }
 
     busy = false;
+}
+
+async function open_serial_device() {
+    if (busy) {
+        return;
+    }
+    busy = true;
+
+    clear_error();
+    let success = false;
+
+    try {
+        const port = await navigator.serial.requestPort({
+            filters: [{ usbVendorId: 0x05F3, usbProductId: 0x00FF }]
+        });
+        const link = new SerialLink(port);
+        await link.open();
+        device = link;
+        success = await device_opened();
+    } catch (e) {
+        if (e.name != 'NotFoundError') {
+            display_error(e);
+        }
+    }
+
+    device_buttons_set_disabled_state(!success);
+
+    if (!success) {
+        if (device instanceof SerialLink) {
+            await device.close();
+        }
+        device = null;
+    }
+
+    busy = false;
+}
+
+async function device_opened() {
+    if (!await check_device_version()) {
+        return false;
+    }
+    device.addEventListener('inputreport', input_report_received);
+    await set_monitor_enabled(monitor_enabled);
+    await get_usages_from_device();
+    setup_usages_modals();
+    bluetooth_buttons_set_visibility(device.productName.includes("Bluetooth"));
+    return true;
+}
+
+// Foot pedal mode has no settings HID interface; the same 32-byte packets
+// travel over its serial port. This wraps the port in the few HIDDevice
+// calls the rest of the page uses.
+class SerialLink {
+    constructor(port) {
+        this.port = port;
+        this.opened = false;
+        this.productName = 'MicDrop foot pedal';
+        this.collections = [];
+        this.listeners = [];
+        this.rx = [];
+        this.replies = [];
+    }
+
+    async open() {
+        await this.port.open({ baudRate: 115200 });
+        await this.port.setSignals({ dataTerminalReady: true, requestToSend: true }).catch(() => { });
+        this.writer = this.port.writable.getWriter();
+        this.reader = this.port.readable.getReader();
+        this.opened = true;
+        this.read_loop();
+        await this.writer.write(new Uint8Array(33));
+    }
+
+    async close() {
+        this.opened = false;
+        try { await this.reader?.cancel(); } catch (e) { }
+        try { this.reader?.releaseLock(); } catch (e) { }
+        try { this.writer?.releaseLock(); } catch (e) { }
+        try { await this.port.close(); } catch (e) { }
+    }
+
+    async read_loop() {
+        try {
+            while (this.opened) {
+                const { value, done } = await this.reader.read();
+                if (done) {
+                    break;
+                }
+                for (const b of value) {
+                    this.rx.push(b);
+                }
+                this.parse();
+            }
+        } catch (e) {
+        }
+        this.opened = false;
+        for (const r of this.replies.splice(0)) {
+            r.reject(new Error('Device disconnected.'));
+        }
+        if (device === this) {
+            device = null;
+            device_buttons_set_disabled_state(true);
+        }
+    }
+
+    parse() {
+        while (this.rx.length > 0) {
+            const type = this.rx[0];
+            if (type == 0x52) {
+                if (this.rx.length < 33) {
+                    return;
+                }
+                const frame = this.rx.splice(0, 33);
+                const r = this.replies.shift();
+                if (r) {
+                    clearTimeout(r.timer);
+                    r.resolve(Uint8Array.from([REPORT_ID_CONFIG, ...frame.slice(1)]));
+                }
+            } else if (type == 0x4D) {
+                if (this.rx.length < 65) {
+                    return;
+                }
+                const frame = this.rx.splice(0, 65);
+                const event = { reportId: frame[1], data: new DataView(Uint8Array.from(frame.slice(2)).buffer) };
+                for (const l of this.listeners) {
+                    l(event);
+                }
+            } else {
+                this.rx.shift();
+            }
+        }
+    }
+
+    addEventListener(name, listener) {
+        if (name == 'inputreport' && !this.listeners.includes(listener)) {
+            this.listeners.push(listener);
+        }
+    }
+
+    async sendFeatureReport(report_id, data) {
+        const bytes = new Uint8Array(data instanceof ArrayBuffer ? data : data.buffer);
+        await this.writer.write(Uint8Array.from([0x53, ...bytes.slice(0, CONFIG_SIZE)]));
+    }
+
+    async receiveFeatureReport(report_id) {
+        const reply = new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this.replies = this.replies.filter(r => r.timer !== timer);
+                reject(new Error('No answer from the device.'));
+            }, 3000);
+            this.replies.push({ resolve, reject, timer });
+        });
+        await this.writer.write(Uint8Array.from([0x47]));
+        const bytes = await reply;
+        return new DataView(bytes.buffer);
+    }
 }
 
 async function load_from_device() {

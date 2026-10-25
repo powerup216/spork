@@ -17,7 +17,7 @@ const examples = [
             "tap_hold_threshold": 200000,
             "gpio_debounce_time_ms": 5,
             "interval_override": 0,
-            "our_descriptor_number": 6,
+            "our_descriptor_number": 8,
             "ignore_auth_dev_inputs": false,
             "macro_entry_duration": 100,
             "gpio_output_mode": 1,
@@ -881,7 +881,7 @@ const examples = [
                 "tap_hold_threshold": 200000,
                 "gpio_debounce_time_ms": 5,
                 "interval_override": 0,
-                "our_descriptor_number": 6,
+                "our_descriptor_number": 8,
                 "ignore_auth_dev_inputs": false,
                 "input_labels": 0,
                 "mappings": [
@@ -998,7 +998,7 @@ const examples = [
                 "tap_hold_threshold": 200000,
                 "gpio_debounce_time_ms": 5,
                 "interval_override": 0,
-                "our_descriptor_number": 6,
+                "our_descriptor_number": 8,
                 "ignore_auth_dev_inputs": false,
                 "input_labels": 0,
                 "mappings": [

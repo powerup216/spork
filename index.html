@@ -22,11 +22,14 @@
 
         <h1 class="bs-title mt-sm-5 mt-3">MicDrop<small>Put the handheld mic down. Keep dictating.</small></h1>
         <p class="lead">MicDrop turns the keyboard, mouse or buttons you already use into a PowerMic or a dictation foot pedal. PowerScribe hears every press even while you're scrolling through images in another window, so you never have to click back to start dictating.</p>
-        <p>Set it up in three steps: in <strong>Settings</strong>, choose <strong>Mouse and keyboard + PowerMic II</strong> or <strong>Mouse and keyboard + foot pedal</strong>; map your keys in <strong>Mappings</strong>; then click <strong>Save to device</strong> and replug it. You can check it without PowerScribe in the <a href="powermic-test.html">PowerMic tester</a> or the <a href="footpedal-test.html">foot pedal tester</a>. Use Chrome or Edge.</p>
+        <p>Connect with <strong>Open PowerMic</strong> or <strong>Open foot pedal</strong>, depending on the mode the board is in (a new board starts as a foot pedal). In <strong>Settings</strong>, choose <strong>PowerMic II</strong> or <strong>Foot Pedal</strong>; map your keys in <strong>Mappings</strong>; then click <strong>Save to device</strong> and replug it. You can check it without PowerScribe in the <a href="powermic-test.html">PowerMic tester</a> or the <a href="footpedal-test.html">foot pedal tester</a>. Use Chrome or Edge.</p>
 
         <div class="row my-4">
             <div class="col">
-                <button id="open_device" type="button" class="btn btn-primary w-100">Open device</button>
+                <button id="open_device" type="button" class="btn btn-primary w-100">Open PowerMic</button>
+            </div>
+            <div class="col">
+                <button id="open_serial_device" type="button" class="btn btn-primary w-100">Open foot pedal</button>
             </div>
             <div class="col">
                 <button id="load_from_device" type="button" class="btn btn-primary w-100">Load from device</button>
@@ -193,9 +196,8 @@
                             <option value="3">PS4 arcade stick</option>
                             <option value="4">Stadia controller</option>
                             <option value="5">XAC/Flex compatible</option>
-                            <option value="6">PowerMic II (PowerScribe 360)</option>
                             <option value="7">Foot Pedal</option>
-                            <option value="8">PowerMic II (PowerScribe One)</option>
+                            <option value="8">PowerMic II</option>
                         </select>
                     </div>
                 </div>
