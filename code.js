@@ -288,7 +288,7 @@ async function open_serial_device() {
 
     try {
         const port = await navigator.serial.requestPort({
-            filters: [{ usbVendorId: 0x05F3, usbProductId: 0x00FF }, { usbVendorId: 0x0554, usbProductId: 0x1001 }]
+            filters: [{ usbVendorId: 0x05F3, usbProductId: 0x00FF }, { usbVendorId: 0x0554, usbProductId: 0x1001 }, { usbVendorId: 0x0554, usbProductId: 0x0064 }]
         });
         const link = new SerialLink(port);
         await link.open();

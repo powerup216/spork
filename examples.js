@@ -949,6 +949,131 @@ const examples = [
     },
 
         {
+        'description': "PowerScribe: F1 tab backward, F2 dictate, F3 tab forward, F4 enter/select (PowerMic 4)",
+        'config': {
+            "version": 18,
+            "unmapped_passthrough_layers": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ],
+            "partial_scroll_timeout": 1000000,
+            "tap_hold_threshold": 200000,
+            "gpio_debounce_time_ms": 5,
+            "interval_override": 0,
+            "our_descriptor_number": 9,
+            "ignore_auth_dev_inputs": false,
+            "macro_entry_duration": 100,
+            "gpio_output_mode": 0,
+            "input_labels": 0,
+            "normalize_gamepad_inputs": true,
+            "mappings": [
+                {
+                    "target_usage": "0xff030005",
+                    "source_usage": "0x0007003a",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff030001",
+                    "source_usage": "0x0007003b",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff030004",
+                    "source_usage": "0x0007003c",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff030008",
+                    "source_usage": "0x0007003d",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                }
+            ],
+            "macros": [
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                []
+            ],
+            "expressions": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "quirks": []
+        }
+    },
+    {
             'description': "PowerScribe: F1 previous field, F2 dictate, F3 next field, F4 custom left (PowerMic II)",
             'config': {
                 "version": 16,
