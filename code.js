@@ -288,7 +288,7 @@ async function open_serial_device() {
 
     try {
         const port = await navigator.serial.requestPort({
-            filters: [{ usbVendorId: 0x05F3, usbProductId: 0x00FF }]
+            filters: [{ usbVendorId: 0x05F3, usbProductId: 0x00FF }, { usbVendorId: 0x0554, usbProductId: 0x1001 }]
         });
         const link = new SerialLink(port);
         await link.open();
@@ -324,14 +324,14 @@ async function device_opened() {
     return true;
 }
 
-// Foot pedal mode has no settings HID interface; the same 32-byte packets
+// The PowerMic and foot pedal modes have no settings HID interface; the same 32-byte packets
 // travel over its serial port. This wraps the port in the few HIDDevice
 // calls the rest of the page uses.
 class SerialLink {
     constructor(port) {
         this.port = port;
         this.opened = false;
-        this.productName = 'MicDrop foot pedal';
+        this.productName = 'MicDrop';
         this.collections = [];
         this.listeners = [];
         this.rx = [];
