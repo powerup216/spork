@@ -602,6 +602,274 @@ const examples = [
         }
     },
     {
+        'description': "Change-PACS setup (PowerMic 4)",
+        'config': {
+            "version": 18,
+            "unmapped_passthrough_layers": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ],
+            "partial_scroll_timeout": 1000000,
+            "tap_hold_threshold": 200000,
+            "gpio_debounce_time_ms": 5,
+            "interval_override": 0,
+            "our_descriptor_number": 9,
+            "ignore_auth_dev_inputs": false,
+            "macro_entry_duration": 100,
+            "gpio_output_mode": 1,
+            "input_labels": 0,
+            "normalize_gamepad_inputs": true,
+            "mappings": [
+                {
+                    "target_usage": "0xff030001",
+                    "source_usage": "0x0007003d",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff030004",
+                    "source_usage": "0x0007003a",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff030005",
+                    "source_usage": "0x0007003b",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff03000a",
+                    "source_usage": "0x0007003c",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x0007001e",
+                    "source_usage": "0xfff50015",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070022",
+                    "source_usage": "0xfff30003",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x0007001f",
+                    "source_usage": "0xfff50016",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070023",
+                    "source_usage": "0xfff30004",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070020",
+                    "source_usage": "0xfff50017",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070024",
+                    "source_usage": "0xfff30005",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070021",
+                    "source_usage": "0xfff50018",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070025",
+                    "source_usage": "0xfff30006",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff03000b",
+                    "source_usage": "0x00070041",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff030005",
+                    "source_usage": "0x0007003f",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0xff030004",
+                    "source_usage": "0x00070040",
+                    "scaling": 1000,
+                    "layers": [
+                        0
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                }
+            ],
+            "macros": [
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                []
+            ],
+            "expressions": [
+                "1000 recall eol eol 2000 recall eol 0x00090001 input_state_binary not eol mul eol bitwise_or eol eol 1000 recall eol 0x00090001 prev_input_state_binary eol mul eol 0x00090001 input_state_binary not eol mul eol not eol mul eol eol 1000 store",
+                "0x00090003 tap_state 2000 store",
+                "0x0007001e prev_input_state_binary 0x0007001e input_state_binary not mul 11000 recall not 11000 recall ifte 11000 store 0x0007001e input_state_binary 11000 recall not mul 21000 store 0x0007001e input_state_binary 11000 recall mul",
+                "0x0007001f prev_input_state_binary 0x0007001f input_state_binary not mul 12000 recall not 12000 recall ifte 12000 store 0x0007001f input_state_binary 12000 recall not mul 22000 store 0x0007001f input_state_binary 12000 recall mul",
+                "0x00070020 prev_input_state_binary 0x00070020 input_state_binary not mul 13000 recall not 13000 recall ifte 13000 store 0x00070020 input_state_binary 13000 recall not mul 23000 store 0x00070020 input_state_binary 13000 recall mul",
+                "0x00070021 prev_input_state_binary 0x00070021 input_state_binary not mul 14000 recall not 14000 recall ifte 14000 store 0x00070021 input_state_binary 14000 recall not mul 24000 store 0x00070021 input_state_binary 14000 recall mul",
+                "",
+                ""
+            ],
+            "quirks": []
+        }
+    },
+    {
         'description': "Change-PACS Foot Pedal",
         'config': {
             "version": 18,
