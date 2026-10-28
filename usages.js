@@ -673,25 +673,20 @@ const footpedal_usages = {
 usages[7] = { ...usages[0], ...footpedal_usages };
 usages[8] = usages[6];
 
-// PowerMic 4 buttons (Mouse Left/Right, the pointing device and Trigger 2
-// are ordinary mouse buttons and use the normal mouse targets).
+// PowerMic 4 buttons that PowerScribe uses (Mouse Left/Right, the pointing
+// device and Trigger 2 are ordinary mouse buttons and use the mouse targets).
 const powermic4_usages = {
     "0xff030001": { 'name': 'PowerMic 4 Dictate', 'class': 'powermic' },
-    "0xff030002": { 'name': 'PowerMic 4 Button 2', 'class': 'powermic' },
     "0xff030003": { 'name': 'PowerMic 4 Play/Pause', 'class': 'powermic' },
-    "0xff030004": { 'name': 'PowerMic 4 Tab Forward', 'class': 'powermic' },
-    "0xff030005": { 'name': 'PowerMic 4 Tab Backward', 'class': 'powermic' },
     "0xff030006": { 'name': 'PowerMic 4 Rewind', 'class': 'powermic' },
-    "0xff030007": { 'name': 'PowerMic 4 Fast Forward', 'class': 'powermic' },
+    "0xff030007": { 'name': 'PowerMic 4 Forward', 'class': 'powermic' },
+    "0xff030005": { 'name': 'PowerMic 4 Tab Backward', 'class': 'powermic' },
+    "0xff030004": { 'name': 'PowerMic 4 Tab Forward', 'class': 'powermic' },
     "0xff030008": { 'name': 'PowerMic 4 Enter/Select', 'class': 'powermic' },
-    "0xff030009": { 'name': 'PowerMic 4 Button 9', 'class': 'powermic' },
-    "0xff03000a": { 'name': 'PowerMic 4 A', 'class': 'powermic' },
-    "0xff03000b": { 'name': 'PowerMic 4 B', 'class': 'powermic' },
-    "0xff03000c": { 'name': 'PowerMic 4 C', 'class': 'powermic' },
-    "0xff03000d": { 'name': 'PowerMic 4 D', 'class': 'powermic' },
-    "0xff03000e": { 'name': 'PowerMic 4 Trigger 1', 'class': 'powermic' },
-    "0xff03000f": { 'name': 'PowerMic 4 Button 15', 'class': 'powermic' },
-    "0xff030010": { 'name': 'PowerMic 4 Button 16', 'class': 'powermic' },
+    "0xff03000a": { 'name': 'PowerMic 4 Function A', 'class': 'powermic' },
+    "0xff03000b": { 'name': 'PowerMic 4 Function B', 'class': 'powermic' },
+    "0xff03000c": { 'name': 'PowerMic 4 Function C', 'class': 'powermic' },
+    "0xff03000d": { 'name': 'PowerMic 4 Function D', 'class': 'powermic' },
 };
 usages[9] = { ...usages[0], ...powermic4_usages };
 
