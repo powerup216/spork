@@ -312,10 +312,17 @@ async function open_serial_device() {
     busy = false;
 }
 
+let running_device_type = null;
+
 async function device_opened() {
     if (!await check_device_version()) {
         return false;
     }
+    // Remember which device type the board is running, so a save that changes
+    // it can say the board will restart (it re-enumerates as the new device).
+    await send_feature_command(GET_CONFIG);
+    const running = await read_config_feature([UINT8, UINT8, UINT8, UINT32, UINT16, UINT32, UINT32, UINT8, UINT32, UINT8, UINT8]);
+    running_device_type = running[10];
     device.addEventListener('inputreport', input_report_received);
     await set_monitor_enabled(monitor_enabled);
     await get_usages_from_device();
@@ -712,6 +719,10 @@ async function save_to_device() {
 
         switch (persist_config_return_code) {
             case PERSIST_CONFIG_SUCCESS:
+                if ((running_device_type !== null) && (config['our_descriptor_number'] != running_device_type)) {
+                    display_info('Saved. The board is restarting as the new device type. Wait a few seconds, then click Open device again (with older firmware, unplug and replug the board first).');
+                    running_device_type = null;
+                }
                 document.getElementById('save_to_device_checkmark').classList.remove('d-none');
                 save_to_device_checkmark_timeout_id = setTimeout(() => {
                     document.getElementById('save_to_device_checkmark').classList.add('d-none');
@@ -1125,9 +1136,18 @@ async function read_config_feature(fields = []) {
 
 function clear_error() {
     document.getElementById("error").classList.add("d-none");
+    document.getElementById("error").classList.replace("alert-info", "alert-danger");
+}
+
+function display_info(message) {
+    const e = document.getElementById("error");
+    e.innerText = message;
+    e.classList.replace("alert-danger", "alert-info");
+    e.classList.remove("d-none");
 }
 
 function display_error(message) {
+    document.getElementById("error").classList.replace("alert-info", "alert-danger");
     document.getElementById("error").innerText = message;
     document.getElementById("error").classList.remove("d-none");
 }
