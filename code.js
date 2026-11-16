@@ -231,7 +231,13 @@ document.addEventListener("DOMContentLoaded", function () {
     if ("hid" in navigator) {
         navigator.hid.addEventListener('disconnect', hid_on_disconnect);
     } else {
-        display_error("Your browser doesn't support WebHID. Try Chrome (desktop version) or a Chrome-based browser.");
+        // No WebHID (e.g. Firefox): the MicDrop modes connect over Web Serial,
+        // only the standard HID Remapper modes need WebHID.
+        document.getElementById("open_device").disabled = true;
+        document.getElementById("open_device").title = "Needs Chrome or Edge (WebHID)";
+    }
+    if (!("serial" in navigator) && !("hid" in navigator)) {
+        display_error("This browser can't talk to USB devices. Use a recent Chrome, Edge or Firefox.");
     }
 
     setup_examples();

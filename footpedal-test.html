@@ -30,7 +30,7 @@
 <body>
 <main>
   <h1 class="bs-title">MicDrop<small>Foot pedal tester</small></h1>
-  <p>Checks that the foot pedal buttons work, without PowerScribe. Set the emulated device type to "Mouse and keyboard + foot pedal", save, and replug the remapper. Use Chrome or Edge.</p>
+  <p>Checks that the foot pedal buttons work, without PowerScribe. Set the device type to Foot Pedal and save. Works in Chrome, Edge and Firefox (Firefox needs the current MicDrop firmware).</p>
   <div class="panel">
     <button class="connect" id="connect">Connect foot pedal</button>
     <div id="status">Not connected.</div>
@@ -44,7 +44,42 @@
   </div>
   <p style="margin-top:16px"><a href="index.html">Back to the configurator</a></p>
 </main>
-<script>(()=>{const n={names:["Left pedal","Middle pedal","Right pedal"],label:"foot pedal",v:1523,q:255,p:12,u:3,missing:"No foot pedal selected. Set the emulated device type to foot pedal, save, and replug the remapper.",decode:(t,e)=>t===4?e[0]&7:null},a=document.getElementById("status"),i=document.getElementById("log"),g=document.getElementById("buttons"),p=n.names.map(t=>{const e=document.createElement("div");return e.className="tile",e.textContent=t,g.appendChild(e),e});let d=0;function s(t){i.textContent=`${new Date().toLocaleTimeString()}  ${t}
-`+i.textContent}function u(t){p.forEach((e,o)=>e.classList.toggle("on",!!(t&1<<o)));for(let e=0;e<n.names.length;e++){const o=1<<e;t&o&&!(d&o)&&s(`${n.names[e]} pressed`),!(t&o)&&d&o&&s(`${n.names[e]} released`)}d=t}const c=t=>t.vendorId===n.v&&t.collections.some(e=>e.usagePage===n.p&&e.usage===n.u);async function l(t){t.opened||await t.open(),t.addEventListener("inputreport",e=>{const o=new Uint8Array(e.data.buffer,e.data.byteOffset,e.data.byteLength),r=n.decode(e.reportId,o);r!==null&&u(r)}),a.textContent=`Connected: ${n.label}. Press a mapped key.`,a.className="ok",s("connected")}document.getElementById("connect").addEventListener("click",async()=>{if(!("hid"in navigator)){a.textContent="This browser has no WebHID. Open this page in Chrome or Edge.";return}try{const t=await navigator.hid.requestDevice({filters:[{vendorId:n.v,productId:n.q,usagePage:n.p,usage:n.u}]}),e=t.find(c)||t[0];if(!e){a.textContent=n.missing;return}await l(e)}catch(t){a.textContent="Could not open the device: "+t.message}}),"hid"in navigator&&(navigator.hid.getDevices().then(t=>{const e=t.find(c);e&&l(e)}),navigator.hid.addEventListener("disconnect",()=>{a.textContent="Disconnected.",a.className="",s("disconnected")}))})();</script>
+<script>(()=>{
+const C={first:"fp",missing:"No foot pedal selected. Set the device type to Foot Pedal, save, and try again.",kinds:{
+fp:{label:"foot pedal",v:0x05f3,q:0x00ff,p:12,u:3,echo:2,names:["Left pedal","Middle pedal","Right pedal"],
+hid:(id,d)=>id===4?d[0]&7:null,serial:d=>d[1]&7}}};
+const st=document.getElementById("status"),lg=document.getElementById("log"),grid=document.getElementById("buttons");
+let kind=null,tiles=[],prev=0;
+function log(t){lg.textContent=`${new Date().toLocaleTimeString()}  ${t}\n`+lg.textContent}
+function useKind(k){if(kind===k)return;kind=k;grid.innerHTML="";prev=0;
+tiles=C.kinds[k].names.map(n=>{if(!n)return null;const e=document.createElement("div");e.className="tile",e.textContent=n,grid.appendChild(e);return e})}
+function show(bits){const names=C.kinds[kind].names;
+tiles.forEach((e,i)=>e&&e.classList.toggle("on",!!(bits&1<<i)));
+names.forEach((n,i)=>{if(!n)return;const b=1<<i;bits&b&&!(prev&b)&&log(`${n} pressed`),!(bits&b)&&prev&b&&log(`${n} released`)});prev=bits}
+function connected(how){st.textContent=`Connected (${how}): ${C.kinds[kind].label}. Press a mapped key.`,st.className="ok",log("connected")}
+useKind(C.first);
+const hidKind=d=>{for(const k in C.kinds){const x=C.kinds[k];if(d.vendorId===x.v&&d.productId===x.q&&d.collections.some(c=>c.usagePage===x.p&&c.usage===x.u))return k}return null};
+async function openHid(d){const k=hidKind(d);if(!k)return false;d.opened||await d.open();useKind(k);
+d.addEventListener("inputreport",e=>{const o=new Uint8Array(e.data.buffer,e.data.byteOffset,e.data.byteLength),b=C.kinds[k].hid(e.reportId,o);b!==null&&show(b)});connected("USB");return true}
+async function openSerial(){
+const port=await navigator.serial.requestPort({filters:Object.values(C.kinds).map(x=>({usbVendorId:x.v,usbProductId:x.q}))});
+await port.open({baudRate:115200});try{await port.setSignals({dataTerminalReady:true,requestToSend:true})}catch(e){}
+const w=port.writable.getWriter();await w.write(Uint8Array.from([0x45,1]));w.releaseLock();
+const info=port.getInfo?port.getInfo():{};for(const k in C.kinds){const x=C.kinds[k];if(x.v===info.usbVendorId&&x.q===info.usbProductId)useKind(k)}
+connected("serial");const r=port.readable.getReader();let buf=[];
+try{for(;;){const{value:v,done:dn}=await r.read();if(dn)break;for(const b of v)buf.push(b);
+while(buf.length){if(buf[0]!==0x50){buf.shift();continue}if(buf.length<3)break;const n=buf[2];if(buf.length<3+n)break;const f=buf.splice(0,3+n);
+for(const k in C.kinds)if(C.kinds[k].echo===f[1]){useKind(k);show(C.kinds[k].serial(Uint8Array.from(f.slice(3))))}}}}
+catch(e){}st.textContent="Disconnected.",st.className="",log("disconnected")}
+document.getElementById("connect").addEventListener("click",async()=>{
+try{
+if("hid"in navigator){const ds=await navigator.hid.requestDevice({filters:Object.values(C.kinds).map(x=>({vendorId:x.v,productId:x.q,usagePage:x.p,usage:x.u}))});
+for(const d of ds)if(await openHid(d))return;if(ds.length)st.textContent=C.missing;return}
+if("serial"in navigator){await openSerial();return}
+st.textContent="This browser can't talk to USB devices. Use a recent Chrome, Edge or Firefox."
+}catch(e){if(e.name!=="NotFoundError")st.textContent="Could not open the device: "+e.message}});
+"hid"in navigator&&(navigator.hid.getDevices().then(async ds=>{for(const d of ds)if(await openHid(d))return}),
+navigator.hid.addEventListener("disconnect",()=>{st.textContent="Disconnected.",st.className="",log("disconnected")}));
+})();</script>
 </body>
 </html>
