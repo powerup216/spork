@@ -668,7 +668,8 @@ const examples = [
                     "source_usage": "0x0007003d",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -681,7 +682,8 @@ const examples = [
                     "source_usage": "0x0007003a",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -694,7 +696,8 @@ const examples = [
                     "source_usage": "0x0007003b",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -707,7 +710,8 @@ const examples = [
                     "source_usage": "0x0007003c",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -720,7 +724,8 @@ const examples = [
                     "source_usage": "0xfff50015",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -733,7 +738,8 @@ const examples = [
                     "source_usage": "0xfff30003",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -746,7 +752,8 @@ const examples = [
                     "source_usage": "0xfff50016",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -759,7 +766,8 @@ const examples = [
                     "source_usage": "0xfff30004",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -772,7 +780,8 @@ const examples = [
                     "source_usage": "0xfff50017",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -785,7 +794,8 @@ const examples = [
                     "source_usage": "0xfff30005",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -798,7 +808,8 @@ const examples = [
                     "source_usage": "0xfff50018",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -811,7 +822,8 @@ const examples = [
                     "source_usage": "0xfff30006",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -824,7 +836,8 @@ const examples = [
                     "source_usage": "0x00070041",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -837,7 +850,8 @@ const examples = [
                     "source_usage": "0x0007003f",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -850,7 +864,64 @@ const examples = [
                     "source_usage": "0x00070040",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070050",
+                    "source_usage": "0xfff50004",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x0007004f",
+                    "source_usage": "0xfff50005",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00000000",
+                    "source_usage": "0x00070050",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00000000",
+                    "source_usage": "0x0007004f",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -900,7 +971,7 @@ const examples = [
                 "0x0007001f prev_input_state_binary 0x0007001f input_state_binary not mul 12000 recall not 12000 recall ifte 12000 store 0x0007001f input_state_binary 12000 recall not mul 22000 store 0x0007001f input_state_binary 12000 recall mul",
                 "0x00070020 prev_input_state_binary 0x00070020 input_state_binary not mul 13000 recall not 13000 recall ifte 13000 store 0x00070020 input_state_binary 13000 recall not mul 23000 store 0x00070020 input_state_binary 13000 recall mul",
                 "0x00070021 prev_input_state_binary 0x00070021 input_state_binary not mul 14000 recall not 14000 recall ifte 14000 store 0x00070021 input_state_binary 14000 recall not mul 24000 store 0x00070021 input_state_binary 14000 recall mul",
-                "",
+                "0 port 0x00070050 prev_input_state_binary not 0x00070050 input_state_binary mul 3000 recall 1000 eq not 3000 recall ifte 3000 store 0x0007004f prev_input_state_binary not 0x0007004f input_state_binary mul 3000 recall 2000 eq not 2000 mul 3000 recall ifte 3000 store 0 0x00070004 input_state_binary add 0x00070005 input_state_binary add 0x00070006 input_state_binary add 0x00070007 input_state_binary add 0x00070008 input_state_binary add 0x00070009 input_state_binary add 0x0007000a input_state_binary add 0x0007000b input_state_binary add 0x0007000c input_state_binary add 0x0007000d input_state_binary add 0x0007000e input_state_binary add 0x0007000f input_state_binary add 0x00070010 input_state_binary add 0x00070011 input_state_binary add 0x00070012 input_state_binary add 0x00070013 input_state_binary add 0x00070014 input_state_binary add 0x00070015 input_state_binary add 0x00070016 input_state_binary add 0x00070017 input_state_binary add 0x00070018 input_state_binary add 0x00070019 input_state_binary add 0x0007001a input_state_binary add 0x0007001b input_state_binary add 0x0007001c input_state_binary add 0x0007001d input_state_binary add 0x0007001e input_state_binary add 0x0007001f input_state_binary add 0x00070020 input_state_binary add 0x00070021 input_state_binary add 0x00070022 input_state_binary add 0x00070023 input_state_binary add 0x00070024 input_state_binary add 0x00070025 input_state_binary add 0x00070026 input_state_binary add 0x00070027 input_state_binary add 0x00070028 input_state_binary add 0x00070029 input_state_binary add 0x0007002a input_state_binary add 0x0007002b input_state_binary add 0x0007002c input_state_binary add 0x0007002d input_state_binary add 0x0007002e input_state_binary add 0x0007002f input_state_binary add 0x00070030 input_state_binary add 0x00070031 input_state_binary add 0x00070032 input_state_binary add 0x00070033 input_state_binary add 0x00070034 input_state_binary add 0x00070035 input_state_binary add 0x00070036 input_state_binary add 0x00070037 input_state_binary add 0x00070038 input_state_binary add 0x00070039 input_state_binary add 0x0007003a input_state_binary add 0x0007003b input_state_binary add 0x0007003c input_state_binary add 0x0007003d input_state_binary add 0x0007003e input_state_binary add 0x0007003f input_state_binary add 0x00070040 input_state_binary add 0x00070041 input_state_binary add 0x00070042 input_state_binary add 0x00070043 input_state_binary add 0x00070044 input_state_binary add 0x00070045 input_state_binary add 0x00070046 input_state_binary add 0x00070047 input_state_binary add 0x00070048 input_state_binary add 0x00070049 input_state_binary add 0x0007004a input_state_binary add 0x0007004b input_state_binary add 0x0007004c input_state_binary add 0x0007004d input_state_binary add 0x0007004e input_state_binary add 0x00070051 input_state_binary add 0x00070052 input_state_binary add 0x00070053 input_state_binary add 0x00070054 input_state_binary add 0x00070055 input_state_binary add 0x00070056 input_state_binary add 0x00070057 input_state_binary add 0x00070058 input_state_binary add 0x00070059 input_state_binary add 0x0007005a input_state_binary add 0x0007005b input_state_binary add 0x0007005c input_state_binary add 0x0007005d input_state_binary add 0x0007005e input_state_binary add 0x0007005f input_state_binary add 0x00070060 input_state_binary add 0x00070061 input_state_binary add 0x00070062 input_state_binary add 0x00070063 input_state_binary add 0x00070064 input_state_binary add 0x00070065 input_state_binary add 0x00070068 input_state_binary add 0x00070069 input_state_binary add 0x0007006a input_state_binary add 0x0007006b input_state_binary add 0x0007006c input_state_binary add 0x0007006d input_state_binary add 0x0007006e input_state_binary add 0x0007006f input_state_binary add 0x00070070 input_state_binary add 0x00070071 input_state_binary add 0x00070072 input_state_binary add 0x00070073 input_state_binary add 0x000700e0 input_state_binary add 0x000700e1 input_state_binary add 0x000700e2 input_state_binary add 0x000700e3 input_state_binary add 0x000700e4 input_state_binary add 0x000700e5 input_state_binary add 0x000700e6 input_state_binary add 0x000700e7 input_state_binary add 0x00090001 input_state_binary add 0x00090002 input_state_binary add 0x00090003 input_state_binary add 0x00090004 input_state_binary add 0x00090005 input_state_binary add 0x00090006 input_state_binary add 0x00090007 input_state_binary add 0x00090008 input_state_binary add 0 3000 recall ifte 3000 store 3000 recall 1000 eq 4000 store 3000 recall 2000 eq 5000 store 0",
                 ""
             ],
             "quirks": []
@@ -1632,6 +1703,62 @@ const examples = [
                     "hold": false,
                     "source_port": 0,
                     "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070052",
+                    "source_usage": "0xfff50004",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070051",
+                    "source_usage": "0xfff50005",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00000000",
+                    "source_usage": "0x00070050",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00000000",
+                    "source_usage": "0x0007004f",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
                 }
             ],
             "macros": [
@@ -1675,7 +1802,7 @@ const examples = [
                 "0x0007001f prev_input_state_binary 0x0007001f input_state_binary not mul 12000 recall not 12000 recall ifte 12000 store 0x0007001f input_state_binary 12000 recall not mul 22000 store 0x0007001f input_state_binary 12000 recall mul",
                 "0x00070020 prev_input_state_binary 0x00070020 input_state_binary not mul 13000 recall not 13000 recall ifte 13000 store 0x00070020 input_state_binary 13000 recall not mul 23000 store 0x00070020 input_state_binary 13000 recall mul",
                 "0x00070021 prev_input_state_binary 0x00070021 input_state_binary not mul 14000 recall not 14000 recall ifte 14000 store 0x00070021 input_state_binary 14000 recall not mul 24000 store 0x00070021 input_state_binary 14000 recall mul",
-                "",
+                "0 port 0x00070050 prev_input_state_binary not 0x00070050 input_state_binary mul 3000 recall 1000 eq not 3000 recall ifte 3000 store 0x0007004f prev_input_state_binary not 0x0007004f input_state_binary mul 3000 recall 2000 eq not 2000 mul 3000 recall ifte 3000 store 0 0x00070004 input_state_binary add 0x00070005 input_state_binary add 0x00070006 input_state_binary add 0x00070007 input_state_binary add 0x00070008 input_state_binary add 0x00070009 input_state_binary add 0x0007000a input_state_binary add 0x0007000b input_state_binary add 0x0007000c input_state_binary add 0x0007000d input_state_binary add 0x0007000e input_state_binary add 0x0007000f input_state_binary add 0x00070010 input_state_binary add 0x00070011 input_state_binary add 0x00070012 input_state_binary add 0x00070013 input_state_binary add 0x00070014 input_state_binary add 0x00070015 input_state_binary add 0x00070016 input_state_binary add 0x00070017 input_state_binary add 0x00070018 input_state_binary add 0x00070019 input_state_binary add 0x0007001a input_state_binary add 0x0007001b input_state_binary add 0x0007001c input_state_binary add 0x0007001d input_state_binary add 0x0007001e input_state_binary add 0x0007001f input_state_binary add 0x00070020 input_state_binary add 0x00070021 input_state_binary add 0x00070022 input_state_binary add 0x00070023 input_state_binary add 0x00070024 input_state_binary add 0x00070025 input_state_binary add 0x00070026 input_state_binary add 0x00070027 input_state_binary add 0x00070028 input_state_binary add 0x00070029 input_state_binary add 0x0007002a input_state_binary add 0x0007002b input_state_binary add 0x0007002c input_state_binary add 0x0007002d input_state_binary add 0x0007002e input_state_binary add 0x0007002f input_state_binary add 0x00070030 input_state_binary add 0x00070031 input_state_binary add 0x00070032 input_state_binary add 0x00070033 input_state_binary add 0x00070034 input_state_binary add 0x00070035 input_state_binary add 0x00070036 input_state_binary add 0x00070037 input_state_binary add 0x00070038 input_state_binary add 0x00070039 input_state_binary add 0x0007003a input_state_binary add 0x0007003b input_state_binary add 0x0007003c input_state_binary add 0x0007003d input_state_binary add 0x0007003e input_state_binary add 0x0007003f input_state_binary add 0x00070040 input_state_binary add 0x00070041 input_state_binary add 0x00070042 input_state_binary add 0x00070043 input_state_binary add 0x00070044 input_state_binary add 0x00070045 input_state_binary add 0x00070046 input_state_binary add 0x00070047 input_state_binary add 0x00070048 input_state_binary add 0x00070049 input_state_binary add 0x0007004a input_state_binary add 0x0007004b input_state_binary add 0x0007004c input_state_binary add 0x0007004d input_state_binary add 0x0007004e input_state_binary add 0x00070051 input_state_binary add 0x00070052 input_state_binary add 0x00070053 input_state_binary add 0x00070054 input_state_binary add 0x00070055 input_state_binary add 0x00070056 input_state_binary add 0x00070057 input_state_binary add 0x00070058 input_state_binary add 0x00070059 input_state_binary add 0x0007005a input_state_binary add 0x0007005b input_state_binary add 0x0007005c input_state_binary add 0x0007005d input_state_binary add 0x0007005e input_state_binary add 0x0007005f input_state_binary add 0x00070060 input_state_binary add 0x00070061 input_state_binary add 0x00070062 input_state_binary add 0x00070063 input_state_binary add 0x00070064 input_state_binary add 0x00070065 input_state_binary add 0x00070068 input_state_binary add 0x00070069 input_state_binary add 0x0007006a input_state_binary add 0x0007006b input_state_binary add 0x0007006c input_state_binary add 0x0007006d input_state_binary add 0x0007006e input_state_binary add 0x0007006f input_state_binary add 0x00070070 input_state_binary add 0x00070071 input_state_binary add 0x00070072 input_state_binary add 0x00070073 input_state_binary add 0x000700e0 input_state_binary add 0x000700e1 input_state_binary add 0x000700e2 input_state_binary add 0x000700e3 input_state_binary add 0x000700e4 input_state_binary add 0x000700e5 input_state_binary add 0x000700e6 input_state_binary add 0x000700e7 input_state_binary add 0x00090001 input_state_binary add 0x00090002 input_state_binary add 0x00090003 input_state_binary add 0x00090004 input_state_binary add 0x00090005 input_state_binary add 0x00090006 input_state_binary add 0x00090007 input_state_binary add 0x00090008 input_state_binary add 0 3000 recall ifte 3000 store 3000 recall 1000 eq 4000 store 3000 recall 2000 eq 5000 store 0",
                 ""
             ],
             "quirks": []
@@ -2350,7 +2477,8 @@ const examples = [
                     "source_usage": "0x0007003d",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2363,7 +2491,8 @@ const examples = [
                     "source_usage": "0x0007003a",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2376,7 +2505,8 @@ const examples = [
                     "source_usage": "0x0007003b",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2389,7 +2519,8 @@ const examples = [
                     "source_usage": "0x0007003c",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2402,7 +2533,8 @@ const examples = [
                     "source_usage": "0xfff50015",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2415,7 +2547,8 @@ const examples = [
                     "source_usage": "0xfff30003",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2428,7 +2561,8 @@ const examples = [
                     "source_usage": "0xfff50016",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2441,7 +2575,8 @@ const examples = [
                     "source_usage": "0xfff30004",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2454,7 +2589,8 @@ const examples = [
                     "source_usage": "0xfff50017",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2467,7 +2603,8 @@ const examples = [
                     "source_usage": "0xfff30005",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2480,7 +2617,8 @@ const examples = [
                     "source_usage": "0xfff50018",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2493,7 +2631,8 @@ const examples = [
                     "source_usage": "0xfff30006",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2506,7 +2645,8 @@ const examples = [
                     "source_usage": "0x00070041",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2519,7 +2659,8 @@ const examples = [
                     "source_usage": "0x0007003f",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2532,7 +2673,64 @@ const examples = [
                     "source_usage": "0x00070040",
                     "scaling": 1000,
                     "layers": [
-                        0
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070050",
+                    "source_usage": "0xfff50004",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x0007004f",
+                    "source_usage": "0xfff50005",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00000000",
+                    "source_usage": "0x00070050",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00000000",
+                    "source_usage": "0x0007004f",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
                     ],
                     "sticky": false,
                     "tap": false,
@@ -2582,7 +2780,7 @@ const examples = [
                 "0x0007001f prev_input_state_binary 0x0007001f input_state_binary not mul 12000 recall not 12000 recall ifte 12000 store 0x0007001f input_state_binary 12000 recall not mul 22000 store 0x0007001f input_state_binary 12000 recall mul",
                 "0x00070020 prev_input_state_binary 0x00070020 input_state_binary not mul 13000 recall not 13000 recall ifte 13000 store 0x00070020 input_state_binary 13000 recall not mul 23000 store 0x00070020 input_state_binary 13000 recall mul",
                 "0x00070021 prev_input_state_binary 0x00070021 input_state_binary not mul 14000 recall not 14000 recall ifte 14000 store 0x00070021 input_state_binary 14000 recall not mul 24000 store 0x00070021 input_state_binary 14000 recall mul",
-                "",
+                "0 port 0x00070050 prev_input_state_binary not 0x00070050 input_state_binary mul 3000 recall 1000 eq not 3000 recall ifte 3000 store 0x0007004f prev_input_state_binary not 0x0007004f input_state_binary mul 3000 recall 2000 eq not 2000 mul 3000 recall ifte 3000 store 0 0x00070004 input_state_binary add 0x00070005 input_state_binary add 0x00070006 input_state_binary add 0x00070007 input_state_binary add 0x00070008 input_state_binary add 0x00070009 input_state_binary add 0x0007000a input_state_binary add 0x0007000b input_state_binary add 0x0007000c input_state_binary add 0x0007000d input_state_binary add 0x0007000e input_state_binary add 0x0007000f input_state_binary add 0x00070010 input_state_binary add 0x00070011 input_state_binary add 0x00070012 input_state_binary add 0x00070013 input_state_binary add 0x00070014 input_state_binary add 0x00070015 input_state_binary add 0x00070016 input_state_binary add 0x00070017 input_state_binary add 0x00070018 input_state_binary add 0x00070019 input_state_binary add 0x0007001a input_state_binary add 0x0007001b input_state_binary add 0x0007001c input_state_binary add 0x0007001d input_state_binary add 0x0007001e input_state_binary add 0x0007001f input_state_binary add 0x00070020 input_state_binary add 0x00070021 input_state_binary add 0x00070022 input_state_binary add 0x00070023 input_state_binary add 0x00070024 input_state_binary add 0x00070025 input_state_binary add 0x00070026 input_state_binary add 0x00070027 input_state_binary add 0x00070028 input_state_binary add 0x00070029 input_state_binary add 0x0007002a input_state_binary add 0x0007002b input_state_binary add 0x0007002c input_state_binary add 0x0007002d input_state_binary add 0x0007002e input_state_binary add 0x0007002f input_state_binary add 0x00070030 input_state_binary add 0x00070031 input_state_binary add 0x00070032 input_state_binary add 0x00070033 input_state_binary add 0x00070034 input_state_binary add 0x00070035 input_state_binary add 0x00070036 input_state_binary add 0x00070037 input_state_binary add 0x00070038 input_state_binary add 0x00070039 input_state_binary add 0x0007003a input_state_binary add 0x0007003b input_state_binary add 0x0007003c input_state_binary add 0x0007003d input_state_binary add 0x0007003e input_state_binary add 0x0007003f input_state_binary add 0x00070040 input_state_binary add 0x00070041 input_state_binary add 0x00070042 input_state_binary add 0x00070043 input_state_binary add 0x00070044 input_state_binary add 0x00070045 input_state_binary add 0x00070046 input_state_binary add 0x00070047 input_state_binary add 0x00070048 input_state_binary add 0x00070049 input_state_binary add 0x0007004a input_state_binary add 0x0007004b input_state_binary add 0x0007004c input_state_binary add 0x0007004d input_state_binary add 0x0007004e input_state_binary add 0x00070051 input_state_binary add 0x00070052 input_state_binary add 0x00070053 input_state_binary add 0x00070054 input_state_binary add 0x00070055 input_state_binary add 0x00070056 input_state_binary add 0x00070057 input_state_binary add 0x00070058 input_state_binary add 0x00070059 input_state_binary add 0x0007005a input_state_binary add 0x0007005b input_state_binary add 0x0007005c input_state_binary add 0x0007005d input_state_binary add 0x0007005e input_state_binary add 0x0007005f input_state_binary add 0x00070060 input_state_binary add 0x00070061 input_state_binary add 0x00070062 input_state_binary add 0x00070063 input_state_binary add 0x00070064 input_state_binary add 0x00070065 input_state_binary add 0x00070068 input_state_binary add 0x00070069 input_state_binary add 0x0007006a input_state_binary add 0x0007006b input_state_binary add 0x0007006c input_state_binary add 0x0007006d input_state_binary add 0x0007006e input_state_binary add 0x0007006f input_state_binary add 0x00070070 input_state_binary add 0x00070071 input_state_binary add 0x00070072 input_state_binary add 0x00070073 input_state_binary add 0x000700e0 input_state_binary add 0x000700e1 input_state_binary add 0x000700e2 input_state_binary add 0x000700e3 input_state_binary add 0x000700e4 input_state_binary add 0x000700e5 input_state_binary add 0x000700e6 input_state_binary add 0x000700e7 input_state_binary add 0x00090001 input_state_binary add 0x00090002 input_state_binary add 0x00090003 input_state_binary add 0x00090004 input_state_binary add 0x00090005 input_state_binary add 0x00090006 input_state_binary add 0x00090007 input_state_binary add 0x00090008 input_state_binary add 0 3000 recall ifte 3000 store 3000 recall 1000 eq 4000 store 3000 recall 2000 eq 5000 store 0",
                 ""
             ],
             "quirks": []
@@ -3314,6 +3512,62 @@ const examples = [
                     "hold": false,
                     "source_port": 0,
                     "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070052",
+                    "source_usage": "0xfff50004",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00070051",
+                    "source_usage": "0xfff50005",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00000000",
+                    "source_usage": "0x00070050",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
+                },
+                {
+                    "target_usage": "0x00000000",
+                    "source_usage": "0x0007004f",
+                    "scaling": 1000,
+                    "layers": [
+                        0,
+                        1
+                    ],
+                    "sticky": false,
+                    "tap": false,
+                    "hold": false,
+                    "source_port": 0,
+                    "target_port": 0
                 }
             ],
             "macros": [
@@ -3357,7 +3611,7 @@ const examples = [
                 "0x0007001f prev_input_state_binary 0x0007001f input_state_binary not mul 12000 recall not 12000 recall ifte 12000 store 0x0007001f input_state_binary 12000 recall not mul 22000 store 0x0007001f input_state_binary 12000 recall mul",
                 "0x00070020 prev_input_state_binary 0x00070020 input_state_binary not mul 13000 recall not 13000 recall ifte 13000 store 0x00070020 input_state_binary 13000 recall not mul 23000 store 0x00070020 input_state_binary 13000 recall mul",
                 "0x00070021 prev_input_state_binary 0x00070021 input_state_binary not mul 14000 recall not 14000 recall ifte 14000 store 0x00070021 input_state_binary 14000 recall not mul 24000 store 0x00070021 input_state_binary 14000 recall mul",
-                "",
+                "0 port 0x00070050 prev_input_state_binary not 0x00070050 input_state_binary mul 3000 recall 1000 eq not 3000 recall ifte 3000 store 0x0007004f prev_input_state_binary not 0x0007004f input_state_binary mul 3000 recall 2000 eq not 2000 mul 3000 recall ifte 3000 store 0 0x00070004 input_state_binary add 0x00070005 input_state_binary add 0x00070006 input_state_binary add 0x00070007 input_state_binary add 0x00070008 input_state_binary add 0x00070009 input_state_binary add 0x0007000a input_state_binary add 0x0007000b input_state_binary add 0x0007000c input_state_binary add 0x0007000d input_state_binary add 0x0007000e input_state_binary add 0x0007000f input_state_binary add 0x00070010 input_state_binary add 0x00070011 input_state_binary add 0x00070012 input_state_binary add 0x00070013 input_state_binary add 0x00070014 input_state_binary add 0x00070015 input_state_binary add 0x00070016 input_state_binary add 0x00070017 input_state_binary add 0x00070018 input_state_binary add 0x00070019 input_state_binary add 0x0007001a input_state_binary add 0x0007001b input_state_binary add 0x0007001c input_state_binary add 0x0007001d input_state_binary add 0x0007001e input_state_binary add 0x0007001f input_state_binary add 0x00070020 input_state_binary add 0x00070021 input_state_binary add 0x00070022 input_state_binary add 0x00070023 input_state_binary add 0x00070024 input_state_binary add 0x00070025 input_state_binary add 0x00070026 input_state_binary add 0x00070027 input_state_binary add 0x00070028 input_state_binary add 0x00070029 input_state_binary add 0x0007002a input_state_binary add 0x0007002b input_state_binary add 0x0007002c input_state_binary add 0x0007002d input_state_binary add 0x0007002e input_state_binary add 0x0007002f input_state_binary add 0x00070030 input_state_binary add 0x00070031 input_state_binary add 0x00070032 input_state_binary add 0x00070033 input_state_binary add 0x00070034 input_state_binary add 0x00070035 input_state_binary add 0x00070036 input_state_binary add 0x00070037 input_state_binary add 0x00070038 input_state_binary add 0x00070039 input_state_binary add 0x0007003a input_state_binary add 0x0007003b input_state_binary add 0x0007003c input_state_binary add 0x0007003d input_state_binary add 0x0007003e input_state_binary add 0x0007003f input_state_binary add 0x00070040 input_state_binary add 0x00070041 input_state_binary add 0x00070042 input_state_binary add 0x00070043 input_state_binary add 0x00070044 input_state_binary add 0x00070045 input_state_binary add 0x00070046 input_state_binary add 0x00070047 input_state_binary add 0x00070048 input_state_binary add 0x00070049 input_state_binary add 0x0007004a input_state_binary add 0x0007004b input_state_binary add 0x0007004c input_state_binary add 0x0007004d input_state_binary add 0x0007004e input_state_binary add 0x00070051 input_state_binary add 0x00070052 input_state_binary add 0x00070053 input_state_binary add 0x00070054 input_state_binary add 0x00070055 input_state_binary add 0x00070056 input_state_binary add 0x00070057 input_state_binary add 0x00070058 input_state_binary add 0x00070059 input_state_binary add 0x0007005a input_state_binary add 0x0007005b input_state_binary add 0x0007005c input_state_binary add 0x0007005d input_state_binary add 0x0007005e input_state_binary add 0x0007005f input_state_binary add 0x00070060 input_state_binary add 0x00070061 input_state_binary add 0x00070062 input_state_binary add 0x00070063 input_state_binary add 0x00070064 input_state_binary add 0x00070065 input_state_binary add 0x00070068 input_state_binary add 0x00070069 input_state_binary add 0x0007006a input_state_binary add 0x0007006b input_state_binary add 0x0007006c input_state_binary add 0x0007006d input_state_binary add 0x0007006e input_state_binary add 0x0007006f input_state_binary add 0x00070070 input_state_binary add 0x00070071 input_state_binary add 0x00070072 input_state_binary add 0x00070073 input_state_binary add 0x000700e0 input_state_binary add 0x000700e1 input_state_binary add 0x000700e2 input_state_binary add 0x000700e3 input_state_binary add 0x000700e4 input_state_binary add 0x000700e5 input_state_binary add 0x000700e6 input_state_binary add 0x000700e7 input_state_binary add 0x00090001 input_state_binary add 0x00090002 input_state_binary add 0x00090003 input_state_binary add 0x00090004 input_state_binary add 0x00090005 input_state_binary add 0x00090006 input_state_binary add 0x00090007 input_state_binary add 0x00090008 input_state_binary add 0 3000 recall ifte 3000 store 3000 recall 1000 eq 4000 store 3000 recall 2000 eq 5000 store 0",
                 ""
             ],
             "quirks": []
