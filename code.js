@@ -231,10 +231,10 @@ document.addEventListener("DOMContentLoaded", function () {
     if ("hid" in navigator) {
         navigator.hid.addEventListener('disconnect', hid_on_disconnect);
     } else {
-        // No WebHID (e.g. Firefox): the MicDrop modes connect over Web Serial,
-        // only the standard HID Remapper modes need WebHID.
+        // No WebHID (e.g. Firefox): every mode connects over Web Serial; only
+        // boards on older firmware need WebHID.
         document.getElementById("open_device").disabled = true;
-        document.getElementById("open_device").title = "Needs Chrome or Edge (WebHID)";
+        document.getElementById("open_device").title = "Needs Chrome or Edge (WebHID); only for older firmware";
     }
     if (!("serial" in navigator) && !("hid" in navigator)) {
         display_error("This browser can't talk to USB devices. Use a recent Chrome, Edge or Firefox.");
@@ -294,7 +294,10 @@ async function open_serial_device() {
 
     try {
         const port = await navigator.serial.requestPort({
-            filters: [{ usbVendorId: 0x05F3, usbProductId: 0x00FF }, { usbVendorId: 0x0554, usbProductId: 0x1001 }, { usbVendorId: 0x0554, usbProductId: 0x0064 }]
+            filters: [{ usbVendorId: 0x05F3, usbProductId: 0x00FF }, { usbVendorId: 0x0554, usbProductId: 0x1001 }, { usbVendorId: 0x0554, usbProductId: 0x0064 },
+                // standard HID Remapper device types
+                { usbVendorId: 0xCAFE, usbProductId: 0xBAF2 }, { usbVendorId: 0x0F0D, usbProductId: 0x00C1 },
+                { usbVendorId: 0x054C, usbProductId: 0x1234 }, { usbVendorId: 0x18D1, usbProductId: 0x9400 }]
         });
         const link = new SerialLink(port);
         await link.open();
