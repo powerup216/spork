@@ -37,7 +37,7 @@ The firmware includes every mode, so you can switch between them in the configur
 ## If something's off
 
 - **PowerScribe doesn't react.** First check the board in the matching tester. If the tester sees it, check that PowerScribe has the PowerMic or foot pedal enabled as an input device.
-- **The board isn't in the list.** Replug it; for a board on older firmware, use **Open (older firmware)** (Chrome or Edge).
+- **The board isn't in the list.** Replug it. A board on older firmware needs the current MicDrop firmware first.
 - **Unplug other dictation devices** (a real PowerMic, another pedal) while you use MicDrop. PowerScribe may only listen to the first one it finds.
 - **A key stopped typing.** That's expected: mapped keys are taken over. Remove or change the mapping in the configurator.
 

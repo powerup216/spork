@@ -180,7 +180,6 @@ let modal_return_mapping = null;
 let modal_return_element = null;
 
 document.addEventListener("DOMContentLoaded", function () {
-    document.getElementById("open_device").addEventListener("click", open_device);
     document.getElementById("open_serial_device").addEventListener("click", open_serial_device);
     document.getElementById("load_from_device").addEventListener("click", load_from_device);
     document.getElementById("save_to_device").addEventListener("click", save_to_device);
@@ -230,11 +229,6 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     if ("hid" in navigator) {
         navigator.hid.addEventListener('disconnect', hid_on_disconnect);
-    } else {
-        // No WebHID (e.g. Firefox): every mode connects over Web Serial; only
-        // boards on older firmware need WebHID.
-        document.getElementById("open_device").disabled = true;
-        document.getElementById("open_device").title = "Needs Chrome or Edge (WebHID); only for older firmware";
     }
     if (!("serial" in navigator) && !("hid" in navigator)) {
         display_error("This browser can't talk to USB devices. Use a recent Chrome, Edge or Firefox.");
