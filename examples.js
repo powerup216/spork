@@ -353,7 +353,7 @@ const examples = [
                     "sticky": false,
                     "tap": false,
                     "hold": false,
-                    "source_port": 3,
+                    "source_port": 0,
                     "target_port": 0
                 },
                 {
@@ -1265,7 +1265,7 @@ const examples = [
                     "sticky": false,
                     "tap": false,
                     "hold": false,
-                    "source_port": 3,
+                    "source_port": 0,
                     "target_port": 0
                 },
                 {
@@ -2162,7 +2162,7 @@ const examples = [
                     "sticky": false,
                     "tap": false,
                     "hold": false,
-                    "source_port": 3,
+                    "source_port": 0,
                     "target_port": 0
                 },
                 {
@@ -3074,7 +3074,7 @@ const examples = [
                     "sticky": false,
                     "tap": false,
                     "hold": false,
-                    "source_port": 3,
+                    "source_port": 0,
                     "target_port": 0
                 },
                 {
