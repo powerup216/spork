@@ -50,6 +50,7 @@
         <div class="nav nav-tabs" id="nav-tab" role="tablist">
             <button class="nav-link active" id="nav-mappings-tab" data-bs-toggle="tab" data-bs-target="#nav-mappings" type="button" role="tab">Mappings</button>
             <button class="nav-link" id="nav-profiles-tab" data-bs-toggle="tab" data-bs-target="#nav-profiles" type="button" role="tab">Profiles</button>
+            <button class="nav-link" id="nav-live-tab" data-bs-toggle="tab" data-bs-target="#nav-live" type="button" role="tab">Live test</button>
             <button class="nav-link" id="nav-settings-tab" data-bs-toggle="tab" data-bs-target="#nav-settings" type="button" role="tab">Settings</button>
             <button class="nav-link" id="nav-macros-tab" data-bs-toggle="tab" data-bs-target="#nav-macros" type="button" role="tab">Macros</button>
             <button class="nav-link" id="nav-expressions-tab" data-bs-toggle="tab" data-bs-target="#nav-expressions" type="button" role="tab">Expressions</button>
@@ -148,7 +149,70 @@
                 <p class="small text-muted mt-4">To switch profiles with a key, pedal or button, map it to <strong>Profile 1</strong>&ndash;<strong>Profile 8</strong>, <strong>Next profile</strong> or <strong>Previous profile</strong> (in the output list). Map that key in every profile, or you can't switch back. A switch made with a key lasts until the board is unplugged; it always starts in the default profile. Switching to a profile with a different device type restarts the board.</p>
             </div>
 
+            <div class="tab-pane" id="nav-live" role="tabpanel" tabindex="0">
+                <div class="md-live">
+                    <section class="md-live-dev" aria-label="Emulated device">
+                        <div class="md-live-head">
+                            <h2 class="md-card-title">What PowerScribe sees</h2>
+                            <span id="live_type" class="md-card-sub"></span>
+                        </div>
+                        <div class="md-live-card">
+                            <div id="live_device"></div>
+                            <p id="live_device_note" class="md-dev-note text-center mb-0 mt-3"></p>
+                        </div>
+                    </section>
+                    <section class="md-live-log" aria-label="Event log">
+                        <div class="md-live-head">
+                            <h2 class="md-card-title me-auto">Presses, newest first</h2>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" role="switch" id="live_raw" checked>
+                                <label class="form-check-label" for="live_raw">Show raw values</label>
+                            </div>
+                            <button id="live_clear" type="button" class="btn btn-sm btn-outline-secondary">Clear</button>
+                        </div>
+                        <div class="md-ev md-ev-head"><span>Time</span><span>Input</span><span>Sent as</span><span>Port</span></div>
+                        <div id="live_log" aria-live="polite"></div>
+                        <p id="live_empty" class="md-live-empty">Open the board, then press something on a connected keyboard, mouse or pedal.</p>
+                        <div class="md-live-foot"><span class="md-live-swatch"></span>Lit = pressed now. "Sent as" is worked out from the mappings on this page; save them to the board first.</div>
+                    </section>
+                </div>
+            </div>
+
             <div class="tab-pane" id="nav-settings" role="tabpanel" tabindex="0">
+
+                <section class="md-board" aria-labelledby="board_title">
+                    <div class="md-board-head">
+                        <h2 id="board_title" class="md-card-title">Board settings</h2>
+                    </div>
+                    <div class="md-board-body">
+                        <div class="md-board-sec">
+                            <h3 class="md-board-lbl">What your computer sees</h3>
+                            <div id="board_types" class="md-board-tiles"></div>
+                            <p class="md-board-p">Keyboard and mouse always pass through. Other types (gamepads, absolute mouse) are under "Emulated device type" further down. After you save a new type the board restarts by itself, and PowerScribe picks it up in a few seconds.</p>
+                        </div>
+                        <div class="md-board-sec">
+                            <h3 class="md-board-lbl">This board</h3>
+                            <div id="board_facts" class="md-board-facts"></div>
+                            <div class="form-check">
+                                <input type="checkbox" id="board_passthrough" class="form-check-input">
+                                <label for="board_passthrough" class="form-check-label">Pass through keys that aren't remapped</label>
+                            </div>
+                        </div>
+                        <div class="md-board-sec">
+                            <h3 class="md-board-lbl">Restart and clean up</h3>
+                            <div class="md-board-btns">
+                                <button id="board_bootsel" type="button" class="btn btn-outline-secondary">Restart into firmware update mode</button>
+                                <button id="board_erase" type="button" class="btn btn-outline-danger">Delete all other profiles…</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="md-board-foot">
+                        <span id="board_change" class="md-board-change me-auto"></span>
+                        <button id="board_save" type="button" class="btn btn-primary">Save to board</button>
+                    </div>
+                </section>
+
+                <h3 class="md-board-lbl mt-4">All settings</h3>
 
                 <div class="row mt-4">
                     <div class="col-4 text-end">

@@ -1650,6 +1650,8 @@ function interval_override_onchange() {
 function our_descriptor_number_onchange() {
     config['our_descriptor_number'] = parseInt(document.getElementById("our_descriptor_number_dropdown").value, 10);
     set_ui_state();
+    render_live_device();
+    render_board_settings();
 }
 
 function gpio_output_mode_onchange() {
@@ -1872,6 +1874,7 @@ function input_report_received(event) {
             if (usage != 0) {
                 update_monitor_ui(usage, value, hub_port);
                 kb_hit(usage, value, hub_port);
+                live_hit(usage, value, hub_port);
             }
         }
     }
@@ -2312,16 +2315,30 @@ const ROW_A = [['Caps', 0x39, 1.75], ['A', 0x04], ['S', 0x16], ['D', 0x07], ['F'
 const ROW_Z = [['Shift', 0xe1, 2.25], ['Z', 0x1d], ['X', 0x1b], ['C', 0x06], ['V', 0x19], ['B', 0x05], ['N', 0x11], ['M', 0x10], [',', 0x36], ['.', 0x37], ['/', 0x38]];
 const F_KEYS = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => ['F' + (from + i), 0x3a + from + i - 1]);
 
-function mouse_keys(extra = []) {
+// Outlines are SVG drawn behind the keys, in the same key units (viewBox 0 0 w h).
+// Classes: b = body, b2 = second body shade (wrist rest, thumb rest), plate = keypad
+// plate, ball = trackball, line = seam/detail.
+
+// Direction keys: a part of a wheel or knob that only means one way (tilt left,
+// jog clockwise...). The board can't map "one way" on its own, so clicking one
+// fills in an expression for it (see dir_expressions) and maps that expression.
+//   sign: the input is a signed movement or position (tilt, shuttle ring)
+//   wrap: the input is a 0-255 position that wraps around (ShuttleXpress jog)
+const DIR = (axis, kind, sign) => ({ axis, kind, sign });
+
+function mouse_keys(extra = [], wheel_x = 2.6) {
     return [
-        ['Left', 0x00090001, 0.7, 0.3, 2.2, 3.2],
-        ['Right', 0x00090002, 3.1, 0.3, 2.2, 3.2],
-        ['⇕', 0x00010038, 2.65, 0.7, 0.7, 1.6, true],
-        ['Mid', 0x00090003, 2.55, 2.45, 0.9, 0.7],
-        ['Fwd', 0x00090005, 0, 3.9, 0.75, 1.1],
-        ['Back', 0x00090004, 0, 5.15, 0.75, 1.1],
+        ['Left', 0x00090001, 0.45, 0.4, wheel_x - 0.5, 3.3, false, 'lb'],
+        ['Right', 0x00090002, wheel_x + 0.45, 0.4, 5.15 - wheel_x - 0.45, 3.3, false, 'rb'],
+        ['⇕', 0x00010038, wheel_x, 0.8, 0.4, 1.4, false, 'wheel'],
+        ['Click', 0x00090003, wheel_x - 0.15, 2.35, 0.7, 0.5],
+        ['Fwd', 0x00090005, -0.05, 3.9, 0.6, 0.85, false, 'side'],
+        ['Back', 0x00090004, -0.05, 4.85, 0.6, 0.85, false, 'side'],
     ].concat(extra);
 }
+
+const MOUSE_SVG = '<path class="b" d="M2.8 0.15C4.6 0.15 5.4 1.4 5.4 3.4C5.4 6.2 4.8 8.85 2.8 8.85C0.8 8.85 0.2 6.2 0.2 3.4C0.2 1.4 1 0.15 2.8 0.15Z"/>' +
+    '<path class="line" d="M2.8 3.75V0.2"/>';
 
 const DEVICES = {
     full: {
@@ -2357,35 +2374,78 @@ const DEVICES = {
         note: 'Fn is handled inside the keyboard, so it can\'t be mapped. Esc may send ` on some 68-key boards.',
     },
     km16: {
+        // MMD KM16 Pro: aluminium case, two small knobs and a large dial above a 4x4 grid
         shape: 'km16',
-        code: 6, name: 'MMD KM16 Pro', unit: 52, w: 4.3, h: 5.9,
-        // three knobs: press in the middle, turn left / right underneath
+        code: 6, name: 'MMD KM16 Pro', unit: 64, w: 4.5, h: 6.15,
+        svg: '<rect class="b" x="0.05" y="0.05" width="4.4" height="6.05" rx="0.32"/>' +
+            '<rect class="plate" x="0.17" y="1.68" width="4.16" height="4.3" rx="0.12"/>' +
+            '<circle class="knob" cx="0.72" cy="0.68" r="0.38"/><circle class="knob" cx="1.82" cy="0.68" r="0.38"/>' +
+            '<circle class="knob big" cx="3.3" cy="0.82" r="0.7"/>',
         keys: [
-            ['W', 0x1a, 0.3, 0, 0.8, 0.8, true], ['‹A', 0x04, 0, 0.85, 0.7, 0.5], ['D›', 0x07, 0.72, 0.85, 0.7, 0.5],
-            ['Layer', null, 1.75, 0, 0.8, 0.8, true], ['‹;', 0x33, 1.45, 0.85, 0.7, 0.5], ["'›", 0x34, 2.17, 0.85, 0.7, 0.5],
-            ['F9', 0x42, 3.2, 0, 0.8, 0.8, true], ['‹−', 0x000c00ea, 2.9, 0.85, 0.7, 0.5], ['+›', 0x000c00e9, 3.62, 0.85, 0.7, 0.5],
+            ['W', 0x1a, 0.4, 0.36, 0.64, 0.64, true],
+            ['↺ A', 0x04, 0.2, 1.1, 0.52, 0.42, false, 'turn'], ['↻ D', 0x07, 0.73, 1.1, 0.52, 0.42, false, 'turn'],
+            ['Layer', null, 1.5, 0.36, 0.64, 0.64, true],
+            ['↺ ;', 0x33, 1.3, 1.1, 0.52, 0.42, false, 'turn'], ["↻ '", 0x34, 1.83, 1.1, 0.52, 0.42, false, 'turn'],
+            ['F9', 0x42, 2.83, 0.35, 0.94, 0.94, true],
+            ['↺ Vol−', 0x000c00ea, 2.35, 1.2, 0.66, 0.42, false, 'turn'], ['↻ Vol+', 0x000c00e9, 3.6, 1.2, 0.66, 0.42, false, 'turn'],
         ].concat(kb_rows([
             [['F4', 0x3d], ['F1', 0x3a], ['F2', 0x3b], ['F3', 0x3c]],
             [['1', 0x1e], ['2', 0x1f], ['3', 0x20], ['4', 0x21]],
             [['R', 0x15], ['Q', 0x14], ['E', 0x08], ['W', 0x1a]],
             [['N', 0x11], ['Z', 0x1d], ['←', 0x50], ['→', 0x4f]],
-        ], 0.15, 1.6, 1.05)),
-        note: 'Keys and knobs as your VIA layout sets them (knob turns send A/D, ;/\' and Volume−/+, knob presses W, layer, F9). Change the layout in VIA and these labels won\'t match.',
+        ], 0.25, 1.78, 1.04)),
+        note: 'Keys and knobs as your VIA layout sets them: each knob\'s press is the circle, its turns are ↺ and ↻ under it (they send keys, so they map like keys). If you change the layout in VIA, these labels won\'t match.',
     },
-    mouse: { code: 7, name: 'Regular mouse', unit: 34, w: 6, h: 9, shape: 'mouse', keys: mouse_keys() },
+    mouse: { code: 7, name: 'Regular mouse', unit: 40, w: 5.6, h: 9, shape: 'mouse', svg: MOUSE_SVG, keys: mouse_keys() },
     g502: {
-        code: 3, name: 'Logitech G502', unit: 34, w: 6, h: 9, shape: 'mouse',
-        keys: mouse_keys([
-            ['Tilt', 0x000c0238, 2.55, 3.3, 0.9, 0.6],
-            ['G7', 0x00090006, 0.85, 3.65, 0.8, 0.6], ['G8', 0x00090007, 0.85, 4.35, 0.8, 0.6],
-            ['G9', 0x00090008, 0, 6.5, 0.75, 1],
-        ]),
-        note: 'G7, G8 and G9 only reach the board if G HUB sets them to mouse buttons 6, 7 and 8 (by default they change DPI inside the mouse). Wheel tilt is horizontal scrolling.',
+        // Logitech G502 (HERO / LIGHTSPEED / X): top view, thumb rest on the left
+        code: 3, name: 'Logitech G502', unit: 40, w: 6.4, h: 10, shape: 'mouse',
+        svg: '<path class="b" d="M1 1C1.3 0.3 2.6 0.05 3.4 0.1C4.3 0.1 5.4 0.3 5.7 1C6 2 5.8 4.4 5.55 5.6C5.4 6.6 5.95 8 5.6 9C5.1 9.9 2.8 10 1.8 9.6C1 9.3 0.15 8.9 0.15 8C0.15 7.3 0.5 6.9 0.45 6.4C0.35 5.6 0.3 4.6 0.5 4C0.7 3 0.8 1.6 1 1Z"/>' +
+            '<path class="b2" d="M0.45 6.5C0.5 7 0.15 7.3 0.15 8C0.15 8.9 1 9.3 1.8 9.6C1.5 8.6 1.4 7.4 1.6 6.4C1.2 6.3 0.8 6.3 0.45 6.5Z"/>' +
+            '<path class="line" d="M1.55 4.05H5.5M3.4 4.05V0.15"/>' +
+            '<circle class="line" cx="3.55" cy="7.4" r="0.55"/>',
+        keys: [
+            ['Left', 0x00090001, 1.55, 0.45, 1.3, 3.55, false, 'lb'],
+            ['Right', 0x00090002, 3.95, 0.45, 1.6, 3.55, false, 'rb'],
+            ['G7', 0x00090006, 0.95, 1.2, 0.58, 0.78, false, 'side'],
+            ['G8', 0x00090007, 0.95, 2.05, 0.58, 0.78, false, 'side'],
+            ['◀', null, 2.88, 1.0, 0.32, 1.05, false, 'tilt', DIR(0x000c0238, 'sign', -1)],
+            ['⇕', 0x00010038, 3.2, 0.7, 0.44, 1.65, false, 'wheel'],
+            ['▶', null, 3.62, 1.0, 0.32, 1.05, false, 'tilt', DIR(0x000c0238, 'sign', 1)],
+            ['Click', 0x00090003, 3.05, 2.4, 0.74, 0.46],
+            ['Mode', null, 3.02, 2.9, 0.8, 0.38],
+            ['G9', 0x00090008, 3.07, 3.32, 0.7, 0.5],
+            ['G6', 0x00090009, 0.38, 4.0, 0.55, 0.72, false, 'side sniper'],
+            ['Fwd', 0x00090005, 0.3, 4.8, 0.6, 0.72, false, 'side'],
+            ['Back', 0x00090004, 0.3, 5.56, 0.6, 0.72, false, 'side'],
+        ],
+        note: '◀ and ▶ are the wheel tilts: clicking one sets up an expression so tilt left and tilt right can do different things. G6–G9 only reach the board if G HUB sets them to mouse buttons (by default they change DPI or show the battery inside the mouse). Wheel mode is handled inside the mouse.',
     },
-    g303: { code: 4, name: 'Logitech G303', unit: 34, w: 6, h: 9, shape: 'mouse', keys: mouse_keys(), note: 'The DPI button works inside the mouse, so it can\'t be mapped.' },
+    g303: {
+        code: 4, name: 'Logitech G303', unit: 40, w: 5.6, h: 9.4, shape: 'mouse',
+        svg: '<path class="b" d="M1.2 0.3L4.4 0.3L5.3 1.6L5 4.6L5.4 7.6L4.4 9.1L1.2 9.1L0.2 7.6L0.6 4.6L0.3 1.6Z"/><path class="line" d="M2.8 3.75V0.35M1.2 9.1L1.6 4.4M4.4 9.1L4 4.4"/>',
+        keys: mouse_keys([['DPI', null, 2.5, 2.95, 0.6, 0.45]]),
+        note: 'The DPI button works inside the mouse, so it can\'t be mapped.',
+    },
     em06: {
-        code: 5, name: 'ProtoArc EM06', unit: 34, w: 6, h: 9, shape: 'trackball', keys: mouse_keys(),
-        note: 'Its receiver also has a keyboard part: buttons set to send keys show up in the list below the picture.',
+        // ProtoArc EM06: ambidextrous, 55 mm ball in the middle, wrist rest built in,
+        // 7 buttons (two of them on the left side). Button positions are our best
+        // reading of ProtoArc's description; what each sends is set in ProtoArc's tool.
+        code: 5, name: 'ProtoArc EM06', unit: 52, w: 4.7, h: 7.0, shape: 'trackball',
+        svg: '<path class="b" d="M0.55 0.5C1.2 0.1 3.5 0.1 4.15 0.5C4.6 0.9 4.62 2.6 4.5 4.2C4.42 5.6 4.3 6.6 3.7 6.85C2.9 7 1.8 7 1 6.85C0.4 6.6 0.28 5.6 0.2 4.2C0.08 2.6 0.1 0.9 0.55 0.5Z"/>' +
+            '<path class="b2" d="M0.24 4.75C1.4 4.45 3.3 4.45 4.46 4.75C4.4 5.7 4.25 6.6 3.7 6.85C2.9 7 1.8 7 1 6.85C0.45 6.6 0.3 5.7 0.24 4.75Z"/>' +
+            '<circle class="ball" cx="2.35" cy="2.75" r="1.1"/>',
+        keys: [
+            ['Left', 0x00090001, 0.4, 0.42, 1.35, 1.1, false, 'lb'],
+            ['Middle', 0x00090003, 1.82, 0.32, 1.06, 0.52],
+            ['Right', 0x00090002, 2.95, 0.42, 1.35, 1.1, false, 'rb'],
+            ['Ball scroll ⇕', 0x00010038, 1.6, 2.0, 1.5, 1.5, true, 'ballkey'],
+            ['Btn 4', 0x00090004, 0.35, 3.15, 0.95, 1.05],
+            ['Btn 5', 0x00090005, 3.4, 3.15, 0.95, 1.05],
+            ['Side 6', 0x00090006, -0.06, 1.9, 0.45, 0.62, false, 'side'],
+            ['Side 7', 0x00090007, -0.06, 2.6, 0.45, 0.62, false, 'side'],
+        ],
+        note: 'Button positions are a best guess from ProtoArc\'s description, and ProtoArc\'s own tool decides what each button sends. Turn on "Light up keys as I press them" and press each button to see which one lights up. Buttons set to send keys show up in the list below the picture.',
     },
     magscroll: {
         code: 8, name: 'MagScroll', unit: 50, w: 4, h: 3.4, shape: 'knob',
@@ -2393,13 +2453,18 @@ const DEVICES = {
         note: 'The knob scrolls like a mouse wheel. Set it up on the MagScroll page.',
     },
     shuttle: {
-        code: 9, name: 'Contour ShuttleXpress', unit: 46, w: 4.8, h: 4.3, shape: 'shuttle',
+        code: 9, name: 'Contour ShuttleXpress', unit: 46, w: 4.8, h: 5.0, shape: 'shuttle',
+        svg: '<path class="b" d="M2.4 0.05C3.9 0.05 4.75 0.9 4.75 2.3C4.75 3.9 3.8 4.95 2.4 4.95C1 4.95 0.05 3.9 0.05 2.3C0.05 0.9 0.9 0.05 2.4 0.05Z"/>',
         keys: [
-            ['1', 0x00090005, 0.1, 1.5, 0.8, 0.7], ['2', 0x00090006, 0.75, 0.5, 0.8, 0.7], ['3', 0x00090007, 2, 0.1, 0.8, 0.7],
-            ['4', 0x00090008, 3.25, 0.5, 0.8, 0.7], ['5', 0x00090009, 3.9, 1.5, 0.8, 0.7],
-            ['Shuttle ring', 0x00010038, 1.1, 1.3, 2.6, 2.6, true, 'ring'], ['Jog', 0x00010037, 1.75, 1.95, 1.3, 1.3, true],
+            ['1', 0x00090005, 0.2, 1.4, 0.75, 0.62], ['2', 0x00090006, 0.8, 0.45, 0.75, 0.62], ['3', 0x00090007, 2.02, 0.12, 0.75, 0.62],
+            ['4', 0x00090008, 3.25, 0.45, 0.75, 0.62], ['5', 0x00090009, 3.85, 1.4, 0.75, 0.62],
+            ['Shuttle ring', 0x00010038, 1.15, 1.25, 2.5, 2.5, true, 'ring'], ['Jog', 0x00010037, 1.8, 1.9, 1.2, 1.2, true],
+            ['◀ ring', null, 0.12, 2.25, 0.95, 0.55, false, 'dirk', DIR(0x00010038, 'sign', -1)],
+            ['ring ▶', null, 3.73, 2.25, 0.95, 0.55, false, 'dirk', DIR(0x00010038, 'sign', 1)],
+            ['↺ jog', null, 1.3, 3.95, 1.0, 0.55, false, 'dirk', DIR(0x00010037, 'wrap', -1)],
+            ['jog ↻', null, 2.5, 3.95, 1.0, 0.55, false, 'dirk', DIR(0x00010037, 'wrap', 1)],
         ],
-        note: 'Needs a board that handles low-speed USB: the Feather works, the Waveshare RP2350 doesn\'t.',
+        note: '◀ ring / ring ▶ and ↺ jog / jog ↻ set up expressions so each direction can do its own thing (e.g. jog ↻ = Right arrow). Needs a board that handles low-speed USB: the Feather works, the Waveshare RP2350 doesn\'t.',
     },
 };
 const DEVICE_ORDER = ['full', 'k75', 'k68', 'km16', 'mouse', 'g502', 'g303', 'em06', 'magscroll', 'shuttle'];
@@ -2542,20 +2607,30 @@ function render_device_picture() {
         pic.style.height = (device.h * u) + 'px';
         pic.className = 'md-dev md-dev-' + (device.shape || 'keyboard');
         pic.setAttribute('aria-label', device.name);
-        if (device.shape == 'mouse' || device.shape == 'trackball') {
-            pic.appendChild(md_element('div', { class: 'md-dev-body', 'aria-hidden': 'true' }));
-            if (device.shape == 'trackball') {
-                pic.appendChild(md_element('div', { class: 'md-dev-ball', 'aria-hidden': 'true' }));
-            }
+        if (device.svg) {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('class', 'md-dev-svg');
+            svg.setAttribute('viewBox', '0 0 ' + device.w + ' ' + device.h);
+            svg.setAttribute('aria-hidden', 'true');
+            svg.innerHTML = device.svg;
+            pic.appendChild(svg);
         }
-        for (const [label, usage, x, y, w = 1, h = 1, round = false, extra = ''] of device.keys) {
-            const key = md_element('button', { type: 'button', class: 'md-key' + (round ? ' round' : '') + (usage === null ? ' fixed' : '') + (extra ? ' ' + extra : '') });
+        for (const [label, usage, x, y, w = 1, h = 1, round = false, extra = '', dir = null] of device.keys) {
+            const fixed = usage === null && !dir;
+            const key = md_element('button', { type: 'button', class: 'md-key' + (round ? ' round' : '') + (fixed ? ' fixed' : '') + (extra ? ' ' + extra : '') });
             key.style.left = (x * u + 2) + 'px';
             key.style.top = (y * u + 2) + 'px';
             key.style.width = (w * u - 4) + 'px';
             key.style.height = (h * u - 4) + 'px';
             key.appendChild(md_element('span', {}, label));
-            if (usage === null) {
+            if (dir) {
+                // its mapping source is an expression, found or made on click (dir_expressions)
+                key.dataset.axis = key_usage(dir.axis);
+                key.dataset.kind = dir.kind;
+                key.dataset.sign = String(dir.sign);
+                key.setAttribute('aria-label', readable_usage_name(key_usage(dir.axis)) + ' ' + label);
+                key.addEventListener('click', () => dir_key_clicked(dir));
+            } else if (fixed) {
                 key.disabled = true;
                 key.title = label + ': handled inside the device, can\'t be mapped';
             } else {
@@ -2583,6 +2658,101 @@ function kb_key_clicked(usage) {
     md_select(mapping, true);
 }
 
+// Expressions behind a direction key, in the saved (x1000) form. The first is the
+// one that gets mapped; a "wrap" input also needs a helper that remembers the last
+// position, which must run after it (expressions run in order), in register 32 - port.
+function dir_expressions(dir, port) {
+    const p = (port * 1000) + ' port ';
+    const a = '0x' + (dir.axis >>> 0).toString(16).padStart(8, '0');
+    const cmp = dir.sign > 0 ? 'gt' : 'lt';
+    if (dir.kind == 'sign') {
+        return { main: p + a + ' input_state 0 ' + cmp + ' 0 port', helper: null };
+    }
+    const r = ((32 - port) * 1000) + '';
+    return {
+        main: p + a + ' input_state_binary ' + a + ' input_state ' + r + ' recall sub 384000 add 256000 mod 128000 sub mul 0 ' + cmp + ' 0 port',
+        helper: p + a + ' input_state ' + a + ' input_state ' + r + ' recall ifte ' + r + ' store 0 port',
+    };
+}
+
+function expr_norm(text) {
+    return (text || '').trim().split(/\s+/).join(' ');
+}
+
+function find_expression(text) {
+    const want = expr_norm(text);
+    return config['expressions'].findIndex((e, i) => i < device_nexpressions() && expr_norm(e) == want);
+}
+
+// the expression usage (0xfff3000N) a direction key is mapped through, or null
+function dir_key_usage(dir, port) {
+    const i = find_expression(dir_expressions(dir, port).main);
+    return i < 0 ? null : '0xfff3' + (i + 1).toString(16).padStart(4, '0');
+}
+
+function dir_key_clicked(dir) {
+    const port = parseInt(current_port);
+    const ex = dir_expressions(dir, port);
+    const n = device_nexpressions();
+    const free = () => config['expressions'].findIndex((e, i) => i < n && expr_norm(e) == '');
+    let main = find_expression(ex.main);
+    if (main < 0) {
+        main = free();
+        if (main < 0) {
+            alert('All ' + n + ' expressions are in use. Clear one on the Expressions tab first.');
+            return;
+        }
+        config['expressions'][main] = ex.main;
+    }
+    if (ex.helper) {
+        let helper = find_expression(ex.helper);
+        if (helper < main) {
+            // it has to run after the expression it feeds: use the last free slot
+            const last_free = config['expressions'].map((e, i) => (i < n && i > main && expr_norm(e) == '') ? i : -1).filter((i) => i >= 0).pop();
+            if (last_free === undefined) {
+                if (helper < 0) {
+                    config['expressions'][main] = '';
+                }
+                alert('This needs two free expressions (one after the other). Clear some on the Expressions tab first.');
+                return;
+            }
+            if (helper >= 0) {
+                config['expressions'][helper] = '';
+            }
+            config['expressions'][last_free] = ex.helper;
+        }
+    }
+    set_expressions_ui_state();
+    const usage = '0xfff3' + (main + 1).toString(16).padStart(4, '0');
+    let mapping = config['mappings'].find((m) => m['source_usage'] == usage);
+    if (!mapping) {
+        add_empty_mapping(usage);
+        mapping = config['mappings'][config['mappings'].length - 1];
+        set_mappings_ui_state();
+    }
+    selected_mapping = mapping;
+    md_refresh();
+    const row = mapping_row(mapping);
+    if (row) {
+        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+}
+
+// the port a mapping's input listens to; for an expression made by a direction key,
+// the port in its "N port" prefix
+function mapping_port(m) {
+    const usage = m['source_usage'];
+    if (usage.startsWith('0xfff3')) {
+        const e = config['expressions'][(parseInt(usage, 16) & 0xFFFF) - 1];
+        const match = /^(\d+) port /.exec(expr_norm(e));
+        if (match) {
+            return parseInt(match[1]) / 1000;
+        }
+    }
+    return m['source_port'] || 0;
+}
+
+const kb_last_value = {};
 // called for each input the board reports while the monitor is on
 function kb_hit(usage, value, hub_port = 0) {
     if ((current_port != '0') && (String(hub_port) != current_port)) {
@@ -2597,6 +2767,22 @@ function kb_hit(usage, value, hub_port = 0) {
             element._hit_timer = setTimeout(() => element.classList.remove('hit'), 400);
         }
     });
+    // direction keys: light the one that matches the way it moved
+    const last = kb_last_value[usage];
+    kb_last_value[usage] = value;
+    document.querySelectorAll('#kb_picture .md-key[data-axis="' + usage + '"]').forEach((element) => {
+        let way = Math.sign(value);
+        if (element.dataset.kind == 'wrap') {
+            way = (last === undefined) ? 0 : Math.sign(((value - last + 384) % 256) - 128);
+        }
+        if (way != 0 && way == parseInt(element.dataset.sign)) {
+            element.classList.add('hit');
+            clearTimeout(element._hit_timer);
+            element._hit_timer = setTimeout(() => element.classList.remove('hit'), 400);
+        } else if (element.dataset.kind == 'sign') {
+            element.classList.remove('hit');
+        }
+    });
 }
 
 function md_refresh() {
@@ -2605,6 +2791,8 @@ function md_refresh() {
     }
     render_port_bar();
     render_device_picture();
+    render_live_device();
+    render_board_settings();
     const port = parseInt(current_port);
     const first_index = {};
     config['mappings'].forEach((m, i) => {
@@ -2613,13 +2801,37 @@ function md_refresh() {
         }
     });
     const on_picture = new Set();
+    // direction keys are mapped through an expression (on "any port"; the port is inside it)
+    const any_index = {};
+    config['mappings'].forEach((m, i) => {
+        if (((m['source_port'] || 0) == 0) && !(m['source_usage'] in any_index)) {
+            any_index[m['source_usage']] = i;
+        }
+    });
+    document.querySelectorAll('#kb_picture .md-key[data-axis]').forEach((key) => {
+        const dir = { axis: parseInt(key.dataset.axis, 16), kind: key.dataset.kind, sign: parseInt(key.dataset.sign) };
+        const usage = dir_key_usage(dir, port);
+        if (usage) {
+            key.dataset.usage = usage;
+            key.dataset.expr = '1';
+        } else {
+            delete key.dataset.usage;
+            key.classList.remove('m', 'sel');
+            const badge = key.querySelector('.md-badge');
+            if (badge) {
+                badge.remove();
+            }
+            key.title = key.getAttribute('aria-label') + ' (not mapped: click to set it up)';
+        }
+    });
     document.querySelectorAll('#kb_picture .md-key[data-usage]').forEach((key) => {
         const usage = key.dataset.usage;
+        const via_expr = key.dataset.expr == '1';
         on_picture.add(usage);
-        const i = first_index[usage];
+        const i = via_expr ? any_index[usage] : first_index[usage];
         const mapped = i !== undefined;
         key.classList.toggle('m', mapped);
-        key.classList.toggle('sel', !!selected_mapping && selected_mapping['source_usage'] == usage && (selected_mapping['source_port'] || 0) == port);
+        key.classList.toggle('sel', !!selected_mapping && selected_mapping['source_usage'] == usage && (via_expr || (selected_mapping['source_port'] || 0) == port));
         let badge = key.querySelector('.md-badge');
         if (mapped) {
             if (!badge) {
@@ -2627,12 +2839,12 @@ function md_refresh() {
                 key.appendChild(badge);
             }
             badge.innerText = i + 1;
-            key.title = readable_usage_name(usage) + ' → ' + readable_target_usage_name(config['mappings'][i]['target_usage']);
+            key.title = (via_expr ? key.getAttribute('aria-label') : readable_usage_name(usage)) + ' → ' + readable_target_usage_name(config['mappings'][i]['target_usage']);
         } else {
             if (badge) {
                 badge.remove();
             }
-            key.title = readable_usage_name(usage) + ' (not mapped)';
+            key.title = (via_expr ? key.getAttribute('aria-label') : readable_usage_name(usage)) + ' (not mapped)';
         }
     });
     // this port's mappings whose input isn't on the picture
@@ -2665,7 +2877,7 @@ function md_refresh() {
                 if (mapping) {
                     selected_mapping = mapping;
                     // show the picture of the port this mapping listens to
-                    current_port = String(mapping['source_port'] || 0);
+                    current_port = String(mapping_port(mapping));
                     md_refresh_soon();
                 }
             });
@@ -2711,6 +2923,8 @@ function md_select(mapping, scroll = false) {
 
 function md_setup() {
     dev_setup();
+    live_setup();
+    board_setup();
     document.getElementById('kb_live').addEventListener('change', kb_live_onchange);
     document.getElementById('side_manage_profiles').addEventListener('click', () => {
         const tab = document.getElementById('nav-profiles-tab');
@@ -2943,6 +3157,7 @@ function render_inspector() {
 }
 
 function render_side_profiles() {
+    render_board_settings();
     const list = document.getElementById('side_profiles');
     const note = document.getElementById('side_profiles_note');
     if (!list) {
@@ -2976,4 +3191,313 @@ function render_side_profiles() {
         }
         list.appendChild(button);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Live test tab: a picture of the device the board pretends to be, lit by what
+// the mappings on this page send, and a log of inputs as the board reports them.
+
+const LIVE_DEVICES = {
+    powermic2: {
+        name: 'PowerMic II',
+        rows: [
+            [['Transcribe', '0xff010001']],
+            [['◂ Prev field', '0xff010002'], ['Next field ▸', '0xff010004']],
+            [['● Dictate', '0xff010003', 'rec']],
+            [['Rewind', '0xff010005'], ['Stop / Play', '0xff010007'], ['Fast fwd', '0xff010006']],
+            [['Custom L', '0xff010008'], ['Enter', '0xff010009'], ['Custom R', '0xff01000a']],
+        ],
+    },
+    powermic4: {
+        name: 'PowerMic 4',
+        rows: [
+            [['Fn A', '0xff03000a'], ['Fn B', '0xff03000b']],
+            [['◂ Tab back', '0xff030005'], ['Tab fwd ▸', '0xff030004']],
+            [['● Dictate', '0xff030001', 'rec']],
+            [['Rewind', '0xff030006'], ['Play / Pause', '0xff030003'], ['Forward', '0xff030007']],
+            [['Fn C', '0xff03000c'], ['Enter', '0xff030008'], ['Fn D', '0xff03000d']],
+        ],
+    },
+    pedal: {
+        name: 'Foot pedal',
+        rows: [[['Left', '0xff020001', 'ped'], ['Middle', '0xff020002', 'ped'], ['Right', '0xff020003', 'ped']]],
+    },
+};
+
+const DESCRIPTOR_NAMES = {
+    0: 'Mouse and keyboard', 1: 'Absolute mouse and keyboard', 2: 'Switch gamepad', 3: 'PS4 arcade stick',
+    4: 'Stadia controller', 5: 'XAC/Flex compatible', 6: 'PowerMic II (no microphone)', 7: 'Foot pedal',
+    8: 'PowerMic II with microphone', 9: 'PowerMic 4',
+};
+
+function live_device_id() {
+    const n = parseInt(config['our_descriptor_number']);
+    return (n == 6 || n == 8) ? 'powermic2' : n == 9 ? 'powermic4' : n == 7 ? 'pedal' : null;
+}
+
+function render_live_device() {
+    const box = document.getElementById('live_device');
+    const id = live_device_id();
+    document.getElementById('live_type').innerText = 'Board is set to: ' + (DESCRIPTOR_NAMES[config['our_descriptor_number']] || 'type ' + config['our_descriptor_number']);
+    if (box.dataset.device === String(id)) {
+        return;
+    }
+    box.dataset.device = String(id);
+    clear_children(box);
+    const note = document.getElementById('live_device_note');
+    if (!id) {
+        box.className = 'md-live-none';
+        box.appendChild(md_element('p', {}, 'This type sends ordinary keyboard, mouse or gamepad input, so there\'s no button picture. What each press sends is in the log.'));
+        note.innerText = '';
+        return;
+    }
+    const d = LIVE_DEVICES[id];
+    box.className = id == 'pedal' ? 'md-live-pedal' : 'md-live-mic';
+    if (id != 'pedal') {
+        box.appendChild(md_element('div', { class: 'md-live-grille', 'aria-hidden': 'true' }));
+    }
+    for (const row of d.rows) {
+        const r = md_element('div', { class: 'md-live-row' });
+        for (const [label, usage, cls] of row) {
+            const b = md_element('div', { class: 'md-pb' + (cls ? ' ' + cls : '') }, label);
+            b.dataset.target = usage;
+            r.appendChild(b);
+        }
+        box.appendChild(r);
+    }
+    note.innerText = d.name + ' · button map simplified, not to scale';
+}
+
+function live_port_ok(m, hub_port) {
+    const p = m['source_port'] || 0;
+    return p == 0 || p == hub_port;
+}
+
+// what the mappings on this page make of one input: [{ text, target }]
+function live_resolve(usage, hub_port) {
+    const out = [];
+    for (const m of config['mappings']) {
+        if (m['source_usage'] == usage && live_port_ok(m, hub_port) && m['target_usage'] != '0x00000000') {
+            const layers = m['layers'] || [0];
+            const on = layers.length == 1 && layers[0] == 0 ? '' : ' (layer ' + layers.join(', ') + ')';
+            out.push({ text: readable_target_usage_name(m['target_usage']) + on, target: m['target_usage'] });
+        } else if (m['source_usage'] == usage && live_port_ok(m, hub_port)) {
+            out.push({ text: 'blocked (mapped to Nothing)', target: null });
+        }
+    }
+    // inputs read by expressions: name the expression and what it's mapped to
+    config['expressions'].forEach((e, i) => {
+        if (i >= device_nexpressions() || !e || !e.includes(usage)) {
+            return;
+        }
+        const eu = '0xfff3' + (i + 1).toString(16).padStart(4, '0');
+        const targets = config['mappings'].filter((m) => m['source_usage'] == eu && m['target_usage'] != '0x00000000');
+        if (targets.length) {
+            for (const m of targets) {
+                out.push({ text: readable_target_usage_name(m['target_usage']) + ' (via Expression ' + (i + 1) + ')', target: m['target_usage'] });
+            }
+        } else {
+            out.push({ text: 'read by Expression ' + (i + 1), target: null });
+        }
+    });
+    return out;
+}
+
+const LIVE_AXES = new Set(['0x00010030', '0x00010031', '0x00010032', '0x00010035', '0x00010036', '0x00010037', '0x00010038', '0x000c0238']);
+const live_lit = {};
+let live_count = 0;
+
+function live_light(target, on, fade) {
+    document.querySelectorAll('#live_device .md-pb[data-target="' + target + '"]').forEach((b) => {
+        clearTimeout(b._t);
+        b.classList.toggle('hit', on);
+        if (on && fade) {
+            b._t = setTimeout(() => b.classList.remove('hit'), 350);
+        }
+    });
+}
+
+function live_hit(usage, value, hub_port) {
+    const pane = document.getElementById('nav-live');
+    if (!pane || !pane.classList.contains('active')) {
+        return;
+    }
+    const port = (hub_port == HUB_PORT_NONE) ? 0 : hub_port;
+    const axis = LIVE_AXES.has(usage);
+    const resolved = live_resolve(usage, port);
+    for (const r of resolved) {
+        if (r.target) {
+            live_light(r.target, value != 0, axis);
+        }
+    }
+    const log = document.getElementById('live_log');
+    document.getElementById('live_empty').classList.add('d-none');
+    const now = new Date();
+    const t = now.toTimeString().slice(0, 8) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+    let sent;
+    if (resolved.length) {
+        sent = (!axis && value == 0) ? resolved.map((r) => r.text).join(', ') + ' released' : resolved.map((r) => r.text).join(', ');
+    } else {
+        const page = usage.slice(0, 6);
+        const passes = ['0x0007', '0x0009', '0x0001', '0x000c'].includes(page) && (config['unmapped_passthrough_layers'] || []).length;
+        sent = passes ? 'not mapped · passed through as is' : 'nothing (not mapped)';
+    }
+    const top = log.firstElementChild;
+    // movement (mouse, wheels, knobs) updates one row instead of filling the log
+    if (axis && top && top.dataset.key == usage + '_' + port && (Date.now() - top._at) < 600) {
+        top.querySelector('.st').innerText = value;
+        top.querySelector('.raw').innerText = usage + ' = ' + value;
+        top.querySelector('.tm').innerText = t;
+        top._at = Date.now();
+        return;
+    }
+    if (top) {
+        top.classList.remove('new');
+    }
+    const row = md_element('div', { class: 'md-ev new' });
+    row.dataset.key = usage + '_' + port;
+    row._at = Date.now();
+    row.appendChild(md_element('span', { class: 'tm' }, t));
+    const input = md_element('span', {});
+    input.appendChild(md_element('strong', {}, readable_usage_name(usage)));
+    input.appendChild(document.createTextNode(' '));
+    input.appendChild(md_element('span', { class: 'st' }, axis ? String(value) : (value ? 'down' : 'up')));
+    row.appendChild(input);
+    const out = md_element('span', { class: 'out' });
+    out.appendChild(md_element('span', {}, sent));
+    out.appendChild(md_element('span', { class: 'raw' }, usage + ' = ' + value));
+    row.appendChild(out);
+    row.appendChild(md_element('span', { class: 'pt' }, port == 0 ? '–' : String(port)));
+    log.insertBefore(row, log.firstChild);
+    while (log.children.length > 200) {
+        log.lastElementChild.remove();
+    }
+    live_count++;
+}
+
+function live_setup() {
+    const tab = document.getElementById('nav-live-tab');
+    tab.addEventListener('shown.bs.tab', async () => {
+        render_live_device();
+        try {
+            await set_monitor_enabled(true);
+        } catch (e) {
+            display_error(e);
+        }
+    });
+    tab.addEventListener('hide.bs.tab', async () => {
+        try {
+            await set_monitor_enabled(document.getElementById('kb_live').checked);
+        } catch (e) {
+            display_error(e);
+        }
+    });
+    document.getElementById('live_clear').addEventListener('click', () => {
+        clear_children(document.getElementById('live_log'));
+        document.getElementById('live_empty').classList.remove('d-none');
+        document.querySelectorAll('#live_device .md-pb.hit').forEach((b) => b.classList.remove('hit'));
+    });
+    const raw = document.getElementById('live_raw');
+    const apply_raw = () => document.getElementById('live_log').classList.toggle('no-raw', !raw.checked);
+    raw.addEventListener('change', apply_raw);
+    apply_raw();
+    render_live_device();
+}
+
+// ---------------------------------------------------------------------------
+// Board settings (top of the Settings tab): the device type as tiles, what is
+// known about the board, the two everyday switches, and restart / clean-up.
+
+const BOARD_TYPES = [
+    { name: 'PowerMic II', desc: 'PowerScribe One. Buttons, plus a silent microphone so Windows sees a recording device.', id: '0554:1001', types: [8, 6], set: 8 },
+    { name: 'PowerMic 4', desc: 'Newer PowerScribe One installs that expect a PowerMic 4.', id: '0554:0064', types: [9], set: 9 },
+    { name: 'Foot pedal', desc: 'Three-pedal transcription foot pedal (left, middle, right).', id: '05F3:00FF', types: [7], set: 7 },
+    { name: 'Standard HID Remapper', desc: 'Plain keyboard and mouse. No PowerScribe buttons.', id: 'CAFE:BAF2', types: [0], set: 0 },
+];
+
+function board_type_label(n) {
+    return DESCRIPTOR_NAMES[n] || ('type ' + n);
+}
+
+function render_board_settings() {
+    const tiles = document.getElementById('board_types');
+    if (!tiles) {
+        return;
+    }
+    const n = parseInt(config['our_descriptor_number']);
+    clear_children(tiles);
+    for (const t of BOARD_TYPES) {
+        const on = t.types.includes(n);
+        const b = md_element('button', { type: 'button', class: 'md-tile' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false' });
+        b.appendChild(md_element('span', { class: 'n' }, t.name));
+        b.appendChild(md_element('span', { class: 'd' }, t.desc));
+        b.appendChild(md_element('span', { class: 'i' }, t.id));
+        b.addEventListener('click', () => board_set_type(t.types.includes(n) ? n : t.set));
+        tiles.appendChild(b);
+    }
+    // facts
+    const facts = document.getElementById('board_facts');
+    clear_children(facts);
+    const active = profiles.find((p) => p.active);
+    const devices = Object.entries(port_devices()).filter(([, id]) => id in DEVICES)
+        .map(([port, id]) => DEVICES[id].name + ' · ' + port_name(port).toLowerCase());
+    const add = (label, value, mono = false) => {
+        const f = md_element('div', { class: 'md-fact' });
+        f.appendChild(md_element('span', { class: 'l' }, label));
+        f.appendChild(md_element('span', { class: 'v' + (mono ? ' mono' : '') }, value));
+        facts.appendChild(f);
+    };
+    add('Board', device == null ? 'Not open' : (running_device_type != null ? 'Running as ' + board_type_label(running_device_type) : 'Open'));
+    add('Settings version', device == null ? '–' : (device_version >= 19 ? 'v' + device_version + ' (profiles, 8 layers, 12 expressions)' : 'v' + device_version + ' (older firmware)'), false);
+    add('Profile in use', active ? (active.name || 'Profile ' + (active.slot + 1)) : '–');
+    add('Devices on ports', devices.length ? devices.join(', ') : 'none set (Mappings tab)');
+    // switches
+    const pt = document.getElementById('board_passthrough');
+    const layers = config['unmapped_passthrough_layers'] || [];
+    pt.checked = layers.length > 0;
+    pt.indeterminate = layers.length > 0 && layers.length < 8;
+    document.getElementById('board_erase').disabled = device == null || !device_has_profiles();
+    document.getElementById('board_bootsel').disabled = device == null;
+    document.getElementById('board_save').disabled = device == null;
+    // what saving would change
+    const change = document.getElementById('board_change');
+    if (device != null && running_device_type != null && running_device_type != n) {
+        change.innerText = 'Device type changes from ' + board_type_label(running_device_type) + ' to ' + board_type_label(n) + '. The board restarts when you save.';
+    } else {
+        change.innerText = device == null ? 'Open the board to save.' : '';
+    }
+}
+
+function board_set_type(n) {
+    config['our_descriptor_number'] = n;
+    document.getElementById('our_descriptor_number_dropdown').value = String(n);
+    set_ui_state();
+    render_live_device();
+    render_board_settings();
+}
+
+function board_setup() {
+    document.getElementById('board_passthrough').addEventListener('change', (e) => {
+        config['unmapped_passthrough_layers'] = e.target.checked ? [0, 1, 2, 3, 4, 5, 6, 7] : [];
+        set_ui_state();
+        render_board_settings();
+    });
+    document.getElementById('board_bootsel').addEventListener('click', () => document.getElementById('flash_firmware').click());
+    document.getElementById('board_save').addEventListener('click', () => document.getElementById('save_to_device').click());
+    document.getElementById('board_erase').addEventListener('click', () => profile_action(async () => {
+        const others = profiles.filter((p) => p.saved && !p.active);
+        if (!others.length) {
+            alert('There are no other profiles on the board.');
+            return;
+        }
+        if (!confirm('Delete ' + others.length + ' profile(s) from the board: ' + others.map((p) => p.name || 'Profile ' + (p.slot + 1)).join(', ') + '? The profile in use stays.')) {
+            return;
+        }
+        for (const p of others) {
+            await profile_command(PROFILE_DELETE, p.slot);
+        }
+        await refresh_profiles();
+    }));
+    document.getElementById('nav-settings-tab').addEventListener('shown.bs.tab', render_board_settings);
+    render_board_settings();
 }
