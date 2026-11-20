@@ -1757,6 +1757,10 @@ function layer_list_to_mask(layers) {
 }
 
 function readable_usage_name(usage, default_to_hex = true) {
+    const combo = combo_of_usage(usage);
+    if (combo) {
+        return combo.label;
+    }
     if (usage in usages['source_' + config['input_labels']]) {
         return usages['source_' + config['input_labels']][usage]['name'];
     }
@@ -1875,6 +1879,7 @@ function input_report_received(event) {
                 update_monitor_ui(usage, value, hub_port);
                 kb_hit(usage, value, hub_port);
                 live_hit(usage, value, hub_port);
+                combo_hit(usage, value, hub_port);
             }
         }
     }
@@ -2534,8 +2539,10 @@ function render_port_bar() {
     clear_children(bar);
     const devices = port_devices();
     const ports = Object.keys(devices);
-    if (!ports.includes(current_port)) {
-        ports.push(current_port);  // a port with mappings but no device chosen yet
+    for (const p of ['0', current_port]) {
+        if (!ports.includes(p)) {
+            ports.push(p);  // "Any port" is always there; so is a port with no device chosen yet
+        }
     }
     ports.sort((a, b) => a - b);
     for (const port of ports) {
@@ -2649,6 +2656,10 @@ function render_device_picture() {
 }
 
 function kb_key_clicked(usage) {
+    if (combo_state) {
+        combo_pick(usage);
+        return;
+    }
     const port = parseInt(current_port);
     let mapping = config['mappings'].find((m) => (m['source_usage'] == usage) && ((m['source_port'] || 0) == port));
     if (!mapping) {
@@ -2693,6 +2704,9 @@ function dir_key_usage(dir, port) {
 }
 
 function dir_key_clicked(dir) {
+    if (combo_state) {
+        return;  // wheels and knobs can't be part of a combo
+    }
     const port = parseInt(current_port);
     const ex = dir_expressions(dir, port);
     const n = device_nexpressions();
@@ -2853,10 +2867,10 @@ function md_refresh() {
     const other = document.getElementById('kb_other');
     clear_children(other);
     config['mappings'].forEach((m, i) => {
-        if (((m['source_port'] || 0) != port) || on_picture.has(m['source_usage']) || (m['source_usage'] == '0x00000000')) {
+        if ((mapping_port(m) != port) || on_picture.has(m['source_usage']) || (m['source_usage'] == '0x00000000')) {
             return;
         }
-        const chip = md_element('button', { type: 'button', class: 'md-chip' + (m === selected_mapping ? ' sel' : '') });
+        const chip = md_element('button', { type: 'button', class: 'md-chip' + (m === selected_mapping ? ' sel' : '') + (combo_of_usage(m['source_usage']) ? ' combo' : '') });
         chip.dataset.usage = m['source_usage'];
         chip.appendChild(md_element('b', {}, String(i + 1)));
         chip.appendChild(document.createTextNode('source_name' in m ? m['source_name'] : readable_usage_name(m['source_usage'])));
@@ -2926,6 +2940,7 @@ function md_select(mapping, scroll = false) {
 function md_setup() {
     dev_setup();
     live_setup();
+    combo_setup();
     board_setup();
     document.getElementById('kb_live').addEventListener('change', kb_live_onchange);
     document.getElementById('side_manage_profiles').addEventListener('click', () => {
@@ -3502,4 +3517,136 @@ function board_setup() {
     }));
     document.getElementById('nav-settings-tab').addEventListener('shown.bs.tab', render_board_settings);
     render_board_settings();
+}
+
+
+// ---------------------------------------------------------------------------
+// Combos: two buttons pressed together do something of their own. Made as an
+// expression "P port A input_state_binary B input_state_binary mul 0 port" (true
+// only while both are held) and a mapping from that expression.
+
+const COMBO_RE = /^(\d+) port (0x[0-9a-f]{8}) input_state_binary (0x[0-9a-f]{8}) input_state_binary mul 0 port$/i;
+let combo_state = null;  // { picks: [usage...], port, monitor_was_on }
+
+function combo_text(a, b, port) {
+    return (port * 1000) + ' port ' + a + ' input_state_binary ' + b + ' input_state_binary mul 0 port';
+}
+
+// { a, b, port, label } when the usage is an expression made as a combo
+function combo_of_usage(usage) {
+    if (typeof usage != 'string' || !usage.toLowerCase().startsWith('0xfff3') || typeof config == 'undefined') {
+        return null;
+    }
+    const i = (parseInt(usage, 16) & 0xFFFF) - 1;
+    const m = COMBO_RE.exec(expr_norm((config['expressions'] || [])[i]));
+    if (!m) {
+        return null;
+    }
+    const port = parseInt(m[1]) / 1000;
+    const a = m[2].toLowerCase(), b = m[3].toLowerCase();
+    return { a, b, port, label: readable_usage_name(a) + ' + ' + readable_usage_name(b) + (port ? ' (port ' + port + ')' : '') };
+}
+
+function combo_show() {
+    const bar = document.getElementById('combo_bar');
+    document.getElementById('combo_start').classList.toggle('d-none', !!combo_state);
+    bar.classList.toggle('d-none', !combo_state);
+    document.getElementById('kb_card').classList.toggle('md-combo-on', !!combo_state);
+    if (!combo_state) {
+        document.querySelectorAll('#kb_picture .combo-pick, #kb_other .combo-pick').forEach((k) => k.classList.remove('combo-pick'));
+        return;
+    }
+    const where = combo_state.port ? 'port ' + combo_state.port : 'any port';
+    const live = device != null ? ' (or press it on the device)' : '';
+    document.getElementById('combo_text').innerText = combo_state.picks.length == 0
+        ? 'Combo on ' + where + ': click the first button on the picture' + live + '.'
+        : 'First: ' + readable_usage_name(combo_state.picks[0]) + '. Now the second button' + live + '.';
+    document.querySelectorAll('#kb_picture .md-key[data-usage], #kb_other .md-chip[data-usage]').forEach((k) => {
+        k.classList.toggle('combo-pick', combo_state.picks.includes(k.dataset.usage));
+    });
+}
+
+async function combo_start() {
+    combo_state = { picks: [], port: parseInt(current_port), monitor_was_on: monitor_enabled };
+    combo_show();
+    if (device != null && !monitor_enabled) {
+        try {
+            await set_monitor_enabled(true);
+        } catch (e) {
+            display_error(e);
+        }
+    }
+}
+
+async function combo_end() {
+    const was_on = combo_state ? combo_state.monitor_was_on : true;
+    combo_state = null;
+    combo_show();
+    if (!was_on && device != null) {
+        try {
+            await set_monitor_enabled(document.getElementById('kb_live').checked);
+        } catch (e) {
+            display_error(e);
+        }
+    }
+}
+
+// a press on the real device while picking
+function combo_hit(usage, value, hub_port) {
+    if (!combo_state || value == 0 || LIVE_AXES.has(usage)) {
+        return;
+    }
+    if (combo_state.port && hub_port != combo_state.port) {
+        // a press from another port (or the board's own pins) can't be part of this port's combo
+        document.getElementById('combo_text').innerText = readable_usage_name(usage) + ' came from ' +
+            (hub_port && hub_port != HUB_PORT_NONE ? 'port ' + hub_port : 'the board itself') + '. Cancel and pick that port (or Any port) to use it.';
+        return;
+    }
+    combo_pick(usage);
+}
+
+function combo_pick(usage) {
+    usage = usage.toLowerCase();
+    if (combo_state.picks.includes(usage)) {
+        return;
+    }
+    combo_state.picks.push(usage);
+    if (combo_state.picks.length < 2) {
+        combo_show();
+        return;
+    }
+    const [a, b] = combo_state.picks;
+    const port = combo_state.port;
+    const n = device_nexpressions();
+    // the same pair in either order is the same combo
+    let i = config['expressions'].findIndex((e, k) => k < n && [combo_text(a, b, port), combo_text(b, a, port)].map(expr_norm).includes(expr_norm(e)));
+    if (i < 0) {
+        i = config['expressions'].findIndex((e, k) => k < n && expr_norm(e) == '');
+    }
+    if (i < 0) {
+        alert('All ' + n + ' expressions are in use. Clear one on the Expressions tab first.');
+        combo_end();
+        return;
+    }
+    config['expressions'][i] = combo_text(a, b, port);
+    set_expressions_ui_state();
+    const usage_e = '0xfff3' + (i + 1).toString(16).padStart(4, '0');
+    let mapping = config['mappings'].find((m) => m['source_usage'] == usage_e);
+    if (!mapping) {
+        add_empty_mapping(usage_e);
+        mapping = config['mappings'][config['mappings'].length - 1];
+    }
+    combo_end();
+    set_mappings_ui_state();
+    md_select(mapping, true);
+}
+
+function combo_setup() {
+    document.getElementById('combo_start').addEventListener('click', combo_start);
+    document.getElementById('combo_cancel').addEventListener('click', combo_end);
+    document.addEventListener('keydown', (e) => {
+        if (combo_state && e.key == 'Escape') {
+            combo_end();
+        }
+    });
 }

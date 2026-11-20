@@ -501,3 +501,11 @@ hr { border-color: var(--line); opacity: 1; }
 .md-key.em-br { border-radius: 8px 8px 14px 8px; }
 .md-key.em-tm { border-radius: 8px 8px 14px 14px; }
 .md-key.em-bm { border-radius: 14px 14px 8px 8px; }
+
+/* combos: two buttons together */
+.md-combo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; }
+.md-combo-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; border: 1px dashed var(--marker); background: rgba(242, 201, 76, 0.08); color: var(--bone); font-size: 0.88rem; }
+.md-combo-on #kb_picture .md-key:not(.fixed):not([data-axis]) { cursor: crosshair; }
+.md-combo-on #kb_picture .md-key[data-axis] { opacity: 0.45; }
+.md-key.combo-pick, .md-chip.combo-pick { background: var(--marker) !important; border-color: var(--marker) !important; color: #1b1600 !important; }
+.md-chip.combo::before { content: "⊕ "; color: var(--marker); }
