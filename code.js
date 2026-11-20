@@ -260,6 +260,7 @@ document.addEventListener("DOMContentLoaded", function () {
     setup_macros();
     setup_expressions();
     set_ui_state();
+    md_setup();
 });
 
 async function open_device() {
@@ -848,6 +849,7 @@ function set_mappings_ui_state() {
     for (const mapping of config['mappings']) {
         add_mapping(mapping);
     }
+    md_refresh_soon();
 }
 
 function set_macros_ui_state() {
@@ -1709,6 +1711,11 @@ function hid_on_disconnect(event) {
 }
 
 function device_buttons_set_disabled_state(state) {
+    const pill = document.getElementById("connection_pill");
+    if (pill) {
+        pill.textContent = state ? "Not connected" : "Connected";
+        pill.classList.toggle("on", !state);
+    }
     document.getElementById("load_from_device").disabled = state;
     document.getElementById("save_to_device").disabled = state;
     document.getElementById("flash_firmware").disabled = state;
@@ -1860,6 +1867,7 @@ function input_report_received(event) {
             const hub_port = event.data.getUint8(i * 9 + 8);
             if (usage != 0) {
                 update_monitor_ui(usage, value, hub_port);
+                kb_hit(usage, value);
             }
         }
     }
@@ -1920,7 +1928,8 @@ async function monitor_tab_shown(event) {
 }
 
 async function monitor_tab_hide(event) {
-    await set_monitor_enabled(false);
+    // the keyboard picture's "light up keys" switch keeps the monitor on
+    await set_monitor_enabled(document.getElementById('kb_live').checked);
 }
 
 function add_quirk(quirk) {
@@ -2120,6 +2129,7 @@ async function refresh_profiles() {
     document.getElementById('profiles_table').classList.toggle('d-none', !supported);
     document.getElementById('profiles_save_as_row').classList.toggle('d-none', !supported);
     if (!supported) {
+        render_side_profiles();
         return;
     }
     profiles = [];
@@ -2178,6 +2188,7 @@ function render_profiles() {
         option.innerText = 'Profile ' + (p.slot + 1) + (p.saved ? ' (replace "' + (p.name || 'Profile ' + (p.slot + 1)) + '")' : ' (empty)');
         save_slot.appendChild(option);
     }
+    render_side_profiles();
     const first_empty = profiles.find((p) => !p.saved && !p.active);
     save_slot.value = previous_choice !== '' && profiles[previous_choice] ? previous_choice : (first_empty ? first_empty.slot : 0);
 }
@@ -2266,4 +2277,430 @@ function profile_delete(slot) {
         await profile_command(PROFILE_DELETE, slot);
         await refresh_profiles();
     });
+}
+
+// ---------------------------------------------------------------------------
+// MicDrop app layout: keyboard picture, inspector, profiles sidebar.
+// Everything edits config['mappings'] like the mapping rows do, then redraws.
+
+const KB_ROWS = [
+    [['Esc', 0x29], ['F1', 0x3a], ['F2', 0x3b], ['F3', 0x3c], ['F4', 0x3d], ['F5', 0x3e], ['F6', 0x3f], ['F7', 0x40], ['F8', 0x41], ['F9', 0x42], ['F10', 0x43], ['F11', 0x44], ['F12', 0x45], ['PgUp', 0x4b], ['PgDn', 0x4e]],
+    [['`', 0x35], ['1', 0x1e], ['2', 0x1f], ['3', 0x20], ['4', 0x21], ['5', 0x22], ['6', 0x23], ['7', 0x24], ['8', 0x25], ['9', 0x26], ['0', 0x27], ['-', 0x2d], ['=', 0x2e], ['Bksp', 0x2a, 2]],
+    [['Tab', 0x2b, 1.5], ['Q', 0x14], ['W', 0x1a], ['E', 0x08], ['R', 0x15], ['T', 0x17], ['Y', 0x1c], ['U', 0x18], ['I', 0x0c], ['O', 0x12], ['P', 0x13], ['[', 0x2f], [']', 0x30], ['\\', 0x31, 1.5]],
+    [['Caps', 0x39, 1.75], ['A', 0x04], ['S', 0x16], ['D', 0x07], ['F', 0x09], ['G', 0x0a], ['H', 0x0b], ['J', 0x0d], ['K', 0x0e], ['L', 0x0f], [';', 0x33], ["'", 0x34], ['Enter', 0x28, 2.25]],
+    [['Shift', 0xe1, 2.25], ['Z', 0x1d], ['X', 0x1b], ['C', 0x06], ['V', 0x19], ['B', 0x05], ['N', 0x11], ['M', 0x10], [',', 0x36], ['.', 0x37], ['/', 0x38], ['Shift', 0xe5, 1.75], ['Del', 0x4c]],
+    [['Ctrl', 0xe0, 1.25], ['Win', 0xe3, 1.25], ['Alt', 0xe2, 1.25], ['Space', 0x2c, 5.25], ['AltGr', 0xe6], ['Menu', 0x65], ['←', 0x50], ['↑', 0x52], ['↓', 0x51], ['→', 0x4f]],
+];
+const KB_UNIT = 40, KB_GAP = 5;
+const POWERMIC_PICKS = {
+    8: ['0xff010003', '0xff010007', '0xff010005', '0xff010006', '0xff010002', '0xff010004', '0xff010008', '0xff01000a', '0xff010009', '0xff010001'],
+    7: ['0xff020001', '0xff020002', '0xff020003'],
+};
+POWERMIC_PICKS[6] = POWERMIC_PICKS[8];
+
+let selected_mapping = null;
+let md_refresh_pending = false;
+
+function kb_usage(code) {
+    return '0x000700' + code.toString(16).padStart(2, '0');
+}
+
+function mapping_index(mapping) {
+    return config['mappings'].indexOf(mapping);
+}
+
+function mapping_row(mapping) {
+    const i = mapping_index(mapping);
+    return i < 0 ? null : document.querySelectorAll('#mappings .mapping_container')[i] || null;
+}
+
+function md_refresh_soon() {
+    if (md_refresh_pending) {
+        return;
+    }
+    md_refresh_pending = true;
+    setTimeout(() => { md_refresh_pending = false; md_refresh(); }, 0);
+}
+
+function md_select(mapping, scroll = false) {
+    selected_mapping = mapping;
+    md_refresh();
+    const row = mapping_row(mapping);
+    if (scroll && row) {
+        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+}
+
+function md_setup() {
+    const kb = document.getElementById('kb_picture');
+    for (const row of KB_ROWS) {
+        const r = document.createElement('div');
+        r.className = 'md-kb-row';
+        for (const [label, code, width = 1] of row) {
+            const key = document.createElement('button');
+            key.type = 'button';
+            key.className = 'md-key';
+            key.style.width = (width * KB_UNIT + (width - 1) * KB_GAP) + 'px';
+            key.dataset.usage = kb_usage(code);
+            key.setAttribute('aria-label', readable_usage_name(kb_usage(code)));
+            const span = document.createElement('span');
+            span.innerText = label;
+            key.appendChild(span);
+            key.addEventListener('click', () => kb_key_clicked(kb_usage(code)));
+            r.appendChild(key);
+        }
+        kb.appendChild(r);
+    }
+    document.getElementById('kb_live').addEventListener('change', kb_live_onchange);
+    document.getElementById('side_manage_profiles').addEventListener('click', () => {
+        const tab = document.getElementById('nav-profiles-tab');
+        if (window.bootstrap && bootstrap.Tab && bootstrap.Tab.getOrCreateInstance) {
+            bootstrap.Tab.getOrCreateInstance(tab).show();
+        } else {
+            tab.click();
+        }
+        tab.scrollIntoView({ block: 'nearest' });
+    });
+    // anything that edits mappings (rows, the pickers, settings) redraws the picture and inspector
+    for (const id of ['mappings', 'source_usage_modal', 'target_usage_modal', 'nav-settings']) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('click', md_refresh_soon);
+            element.addEventListener('change', md_refresh_soon);
+            element.addEventListener('input', md_refresh_soon);
+        }
+    }
+    document.getElementById('add_mapping').addEventListener('click', () => {
+        const mappings = config['mappings'];
+        md_select(mappings[mappings.length - 1], true);
+    });
+    // below 1200 px there is one column: keep the inspector right under the picture
+    const narrow = window.matchMedia('(max-width: 1199px)');
+    const place_inspector = () => {
+        const insp = document.getElementById('inspector');
+        if (narrow.matches) {
+            document.getElementById('kb_card').after(insp);
+        } else {
+            document.querySelector('.md-app').appendChild(insp);
+        }
+    };
+    narrow.addEventListener('change', place_inspector);
+    place_inspector();
+    render_side_profiles();
+    md_refresh();
+}
+
+function kb_key_clicked(usage) {
+    let mapping = config['mappings'].find((m) => m['source_usage'] == usage);
+    if (!mapping) {
+        add_empty_mapping(usage);
+        mapping = config['mappings'][config['mappings'].length - 1];
+    }
+    md_select(mapping, true);
+}
+
+async function kb_live_onchange() {
+    const on = document.getElementById('kb_live').checked;
+    try {
+        await set_monitor_enabled(on);  // remembered if no board is open yet
+    } catch (e) {
+        display_error(e);
+    }
+}
+
+// called for each input the board reports while the monitor is on
+function kb_hit(usage, value) {
+    const pressed = value != 0;
+    document.querySelectorAll('#kb_picture .md-key[data-usage="' + usage + '"], #kb_other .md-chip[data-usage="' + usage + '"]').forEach((element) => {
+        element.classList.toggle('hit', pressed);
+    });
+}
+
+function md_refresh() {
+    if (selected_mapping && !config['mappings'].includes(selected_mapping)) {
+        selected_mapping = null;
+    }
+    // picture
+    const first_index = {};
+    config['mappings'].forEach((m, i) => {
+        if (!(m['source_usage'] in first_index)) {
+            first_index[m['source_usage']] = i;
+        }
+    });
+    const on_picture = new Set();
+    document.querySelectorAll('#kb_picture .md-key').forEach((key) => {
+        const usage = key.dataset.usage;
+        on_picture.add(usage);
+        const i = first_index[usage];
+        const mapped = i !== undefined;
+        key.classList.toggle('m', mapped);
+        key.classList.toggle('sel', !!selected_mapping && selected_mapping['source_usage'] == usage);
+        let badge = key.querySelector('.md-badge');
+        if (mapped) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'md-badge';
+                key.appendChild(badge);
+            }
+            badge.innerText = i + 1;
+            key.title = readable_usage_name(usage) + ' → ' + readable_target_usage_name(config['mappings'][i]['target_usage']);
+        } else {
+            if (badge) {
+                badge.remove();
+            }
+            key.title = readable_usage_name(usage) + ' (not mapped)';
+        }
+    });
+    // inputs that aren't on the picture (mouse, GPIO, other keys...)
+    const other = document.getElementById('kb_other');
+    clear_children(other);
+    config['mappings'].forEach((m, i) => {
+        if (on_picture.has(m['source_usage']) || (m['source_usage'] == '0x00000000')) {
+            return;
+        }
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'md-chip' + (m === selected_mapping ? ' sel' : '');
+        chip.dataset.usage = m['source_usage'];
+        const b = document.createElement('b');
+        b.innerText = i + 1;
+        chip.appendChild(b);
+        chip.appendChild(document.createTextNode('source_name' in m ? m['source_name'] : readable_usage_name(m['source_usage'])));
+        chip.addEventListener('click', () => md_select(m, true));
+        other.appendChild(chip);
+    });
+    // rows
+    const rows = document.querySelectorAll('#mappings .mapping_container');
+    rows.forEach((row, i) => {
+        const m = config['mappings'][i];
+        row.classList.toggle('md-selected', !!m && m === selected_mapping);
+        if (!row.dataset.mdBound) {
+            row.dataset.mdBound = '1';
+            row.addEventListener('click', (event) => {
+                if (event.target.closest('.delete_button')) {
+                    return;
+                }
+                const index = Array.from(document.querySelectorAll('#mappings .mapping_container')).indexOf(row);
+                if (index >= 0 && config['mappings'][index]) {
+                    selected_mapping = config['mappings'][index];
+                    md_refresh_soon();
+                }
+            });
+        }
+    });
+    render_inspector();
+}
+
+function md_element(tag, attrs = {}, text = null) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+        if (k === 'class') {
+            e.className = v;
+        } else {
+            e.setAttribute(k, v);
+        }
+    }
+    if (text !== null) {
+        e.innerText = text;
+    }
+    return e;
+}
+
+function md_mapping_changed() {
+    set_mappings_ui_state();
+    md_refresh();
+}
+
+function render_inspector() {
+    const insp = document.getElementById('inspector');
+    if (!insp) {
+        return;
+    }
+    clear_children(insp);
+    const m = selected_mapping;
+    if (!m) {
+        const empty = md_element('div', { class: 'md-insp-empty' });
+        empty.innerHTML = '<strong>No mapping selected.</strong><br>Click a key on the picture, or a row in the list, to edit what it sends.';
+        insp.appendChild(empty);
+        return;
+    }
+    const index = mapping_index(m);
+    const head = md_element('div', { class: 'md-insp-head' });
+    head.appendChild(md_element('span', { class: 'md-insp-num', 'aria-hidden': 'true' }, String(index + 1)));
+    const titles = md_element('div');
+    titles.appendChild(md_element('h2', { class: 'md-insp-title' }, 'source_name' in m ? m['source_name'] : readable_usage_name(m['source_usage'])));
+    titles.appendChild(md_element('div', { class: 'md-insp-sub' }, 'Mapping ' + (index + 1) + ' · input ' + m['source_usage']));
+    head.appendChild(titles);
+    insp.appendChild(head);
+
+    const body = md_element('div', { class: 'md-insp-body' });
+
+    // input
+    const input_set = md_element('fieldset');
+    input_set.appendChild(md_element('legend', {}, 'Input'));
+    const input_row = md_element('div', { class: 'md-insp-current' });
+    input_row.appendChild(md_element('span', { class: 'v' }, 'source_name' in m ? m['source_name'] : readable_usage_name(m['source_usage'])));
+    const change_input = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, 'Change');
+    change_input.addEventListener('click', () => {
+        const row = mapping_row(m);
+        if (row) {
+            row.querySelector('.source_button').click();
+        }
+    });
+    input_row.appendChild(change_input);
+    input_set.appendChild(input_row);
+    body.appendChild(input_set);
+
+    // output
+    const output_set = md_element('fieldset');
+    output_set.appendChild(md_element('legend', {}, 'Sends'));
+    const output_row = md_element('div', { class: 'md-insp-current' });
+    output_row.appendChild(md_element('span', { class: 'v' }, readable_target_usage_name(m['target_usage'])));
+    const choose_output = md_element('button', { type: 'button', class: 'btn btn-sm btn-primary' }, 'Choose…');
+    choose_output.addEventListener('click', () => {
+        const row = mapping_row(m);
+        if (row) {
+            row.querySelector('.target_button').click();
+        }
+    });
+    output_row.appendChild(choose_output);
+    output_set.appendChild(output_row);
+    const type = parseInt(config['our_descriptor_number']);
+    let picks = POWERMIC_PICKS[type] || null;
+    if (type == 9) {
+        picks = Object.keys(usages[9]).filter((u) => u.startsWith('0xff03'));
+    }
+    if (picks) {
+        const grid = md_element('div', { class: 'md-pick', role: 'group', 'aria-label': 'Quick picks' });
+        for (const usage of picks) {
+            if (!(usage in usages[type])) {
+                continue;
+            }
+            const name = usages[type][usage]['name'].replace(/^PowerMic (4 )?/, '').replace(/^Foot pedal /, '');
+            const on = m['target_usage'] == usage;
+            const button = md_element('button', { type: 'button', class: 'btn' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false' }, name);
+            button.addEventListener('click', () => {
+                m['target_usage'] = usage;
+                md_mapping_changed();
+            });
+            grid.appendChild(button);
+        }
+        output_set.appendChild(grid);
+    }
+    body.appendChild(output_set);
+
+    // layers
+    const layer_set = md_element('fieldset');
+    layer_set.appendChild(md_element('legend', {}, 'Layers'));
+    const layers = md_element('div', { class: 'md-layers' });
+    for (let i = 0; i < NLAYERS; i++) {
+        const id = 'insp_layer_' + i;
+        const wrap = md_element('div', { class: 'form-check form-check-inline me-0' });
+        const box = md_element('input', { type: 'checkbox', class: 'form-check-input', id });
+        box.checked = m['layers'].includes(i);
+        box.addEventListener('change', () => {
+            m['layers'] = m['layers'].filter((x) => x != i);
+            if (box.checked) {
+                m['layers'].push(i);
+                m['layers'].sort();
+            }
+            md_mapping_changed();
+        });
+        wrap.appendChild(box);
+        wrap.appendChild(md_element('label', { class: 'form-check-label', for: id }, i == 0 ? 'Base' : String(i)));
+        layers.appendChild(wrap);
+    }
+    layer_set.appendChild(layers);
+    body.appendChild(layer_set);
+
+    // behaviour
+    const how_set = md_element('fieldset');
+    how_set.appendChild(md_element('legend', {}, 'Behaviour'));
+    for (const [key, label] of [['sticky', 'Latched (press on, press off)'], ['tap', 'Only on tap'], ['hold', 'Only on hold']]) {
+        const id = 'insp_' + key;
+        const wrap = md_element('div', { class: 'form-check' });
+        const box = md_element('input', { type: 'checkbox', class: 'form-check-input', id });
+        box.checked = !!m[key];
+        box.addEventListener('change', () => {
+            m[key] = box.checked;
+            md_mapping_changed();
+        });
+        wrap.appendChild(box);
+        wrap.appendChild(md_element('label', { class: 'form-check-label', for: id }, label));
+        how_set.appendChild(wrap);
+    }
+    body.appendChild(how_set);
+
+    // port
+    const port_set = md_element('fieldset');
+    port_set.appendChild(md_element('legend', {}, 'From device'));
+    const port_label = md_element('label', { for: 'insp_port', class: 'visually-hidden' }, 'Hub port');
+    port_set.appendChild(port_label);
+    const port = md_element('select', { id: 'insp_port', class: 'form-select' });
+    port.appendChild(md_element('option', { value: '0' }, 'Any port'));
+    for (let p = 1; p <= 15; p++) {
+        port.appendChild(md_element('option', { value: String(p) }, 'Hub port ' + p));
+    }
+    port.value = String(m['source_port'] || 0);
+    port.addEventListener('change', () => {
+        m['source_port'] = parseInt(port.value, 10);
+        md_mapping_changed();
+    });
+    port_set.appendChild(port);
+    const key_usage = parseInt(m['source_usage'], 16);
+    if ((key_usage >= 0x000700e0) && (key_usage <= 0x000700e7) && (m['source_port'] || 0) != 0) {
+        port_set.appendChild(md_element('p', { class: 'small text-muted mt-2 mb-0' }, 'Modifier keys (Ctrl, Shift, Alt, Win) are only reliable on "Any port".'));
+    }
+    body.appendChild(port_set);
+    insp.appendChild(body);
+
+    const foot = md_element('div', { class: 'md-insp-foot' });
+    const remove = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-danger' }, 'Delete mapping');
+    remove.addEventListener('click', () => {
+        const row = mapping_row(m);
+        if (row) {
+            row.querySelector('.delete_button').click();
+        }
+        selected_mapping = null;
+        md_refresh_soon();
+    });
+    foot.appendChild(remove);
+    foot.appendChild(md_element('span', { class: 'small text-muted align-self-center' }, 'Save to device to keep changes.'));
+    insp.appendChild(foot);
+}
+
+function render_side_profiles() {
+    const list = document.getElementById('side_profiles');
+    const note = document.getElementById('side_profiles_note');
+    if (!list) {
+        return;
+    }
+    clear_children(list);
+    if (device == null) {
+        note.innerHTML = 'Click <strong>Open device</strong> to see the profiles on the board.';
+        note.classList.remove('d-none');
+        return;
+    }
+    if (!device_has_profiles()) {
+        note.innerText = "This board's firmware doesn't have profiles yet. Flash the latest MicDrop firmware to use them.";
+        note.classList.remove('d-none');
+        return;
+    }
+    note.classList.add('d-none');
+    for (const p of profiles) {
+        if (!p.saved && !p.active) {
+            continue;
+        }
+        const button = md_element('button', { type: 'button', class: 'md-prof' + (p.active ? ' on' : '') });
+        button.appendChild(md_element('span', { class: 't' }, p.name || 'Profile ' + (p.slot + 1)));
+        button.appendChild(md_element('span', { class: 's' }, (p.slot + 1) + ' · ' + (p.saved ? device_type_name(p.type) : 'not saved yet') + (p.is_default ? ' · default' : '')));
+        if (p.active) {
+            button.appendChild(md_element('span', { class: 'a' }, '● In use'));
+            button.setAttribute('aria-current', 'true');
+        } else {
+            button.title = 'Switch to this profile';
+            button.addEventListener('click', () => profile_switch(p.slot));
+        }
+        list.appendChild(button);
+    }
 }

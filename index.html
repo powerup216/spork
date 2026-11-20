@@ -18,26 +18,32 @@
 
 <body>
 
-    <div class="container d-flex flex-column" style="max-width: 720px; min-height: 100vh;">
-
-        <h1 class="bs-title mt-sm-5 mt-3">MicDrop<small>Put the handheld mic down. Keep dictating.</small></h1>
-        <p class="lead">MicDrop turns the keyboard, mouse or buttons you already use into a PowerMic or a dictation foot pedal. PowerScribe hears every press even while you're scrolling through images in another window, so you never have to click back to start dictating.</p>
-        <p>Click <strong>Open device</strong> and pick the board (it is listed as a serial port). In <strong>Settings</strong>, choose <strong>PowerMic II</strong> or <strong>Foot Pedal</strong>; map your keys in <strong>Mappings</strong>; then click <strong>Save to device</strong>. If you changed the device type, the board restarts by itself as the new device; click <strong>Open device</strong> again. You can check it without PowerScribe in the <a href="powermic-test.html">PowerMic tester</a> or the <a href="footpedal-test.html">foot pedal tester</a>. Use Chrome, Edge or Firefox. Setting up a MagScroll knob? It has its own <a href="magscroll.html">MagScroll page</a>.</p>
-
-        <div class="row my-4">
-            <div class="col">
-                <button id="open_serial_device" type="button" class="btn btn-primary w-100">Open device</button>
-            </div>
-            <div class="col">
-                <button id="load_from_device" type="button" class="btn btn-primary w-100">Load from device</button>
-            </div>
-            <div class="col">
-                <button id="save_to_device" type="button" class="btn btn-primary w-100 position-relative">
-                    <span id="save_to_device_checkmark" class="position-absolute top-0 start-100 translate-middle badge bg-success rounded-pill hub_port_badge d-none">&check;</span>
-                    <span>Save to device</span>
-                </button>
-            </div>
+    <header class="md-header">
+        <div class="md-header-inner">
+            <a class="md-brand" href="index.html"><span class="md-wordmark">MicDrop</span><span class="md-tagline">Put the handheld mic down. Keep dictating.</span></a>
+            <span id="connection_pill" class="md-pill" role="status">Not connected</span>
+            <button id="open_serial_device" type="button" class="btn btn-primary">Open device</button>
+            <button id="load_from_device" type="button" class="btn btn-outline-secondary">Load from device</button>
+            <button id="save_to_device" type="button" class="btn btn-primary position-relative">
+                <span id="save_to_device_checkmark" class="position-absolute top-0 start-100 translate-middle badge bg-success rounded-pill hub_port_badge d-none">&check;</span>
+                <span>Save to device</span>
+            </button>
         </div>
+    </header>
+
+    <div class="md-app">
+
+    <aside class="md-side" aria-labelledby="side_profiles_title">
+        <h2 id="side_profiles_title" class="md-label">Saved on the board</h2>
+        <div id="side_profiles" class="md-side-list"></div>
+        <p id="side_profiles_note" class="md-side-note">Click <strong>Open device</strong> to see the profiles on the board.</p>
+        <button id="side_manage_profiles" type="button" class="btn btn-outline-secondary w-100">Manage profiles</button>
+    </aside>
+
+    <main class="md-center d-flex flex-column">
+
+        <p class="lead md-lead">MicDrop turns the keyboard, mouse or buttons you already use into a PowerMic or a dictation foot pedal. PowerScribe hears every press even while you're scrolling through images in another window, so you never have to click back to start dictating.</p>
+        <p class="md-intro">Click <strong>Open device</strong> and pick the board (it is listed as a serial port). In <strong>Settings</strong>, choose <strong>PowerMic II</strong> or <strong>Foot Pedal</strong>; map your keys in <strong>Mappings</strong>; then click <strong>Save to device</strong>. Keep several setups on the board as <strong>profiles</strong>. If you changed the device type, the board restarts by itself as the new device; click <strong>Open device</strong> again. You can check it without PowerScribe in the <a href="powermic-test.html">PowerMic tester</a> or the <a href="footpedal-test.html">foot pedal tester</a>. Use Chrome, Edge or Firefox. Setting up a MagScroll knob? It has its own <a href="magscroll.html">MagScroll page</a>.</p>
 
         <div id="error" class="alert alert-danger d-none"></div>
 
@@ -55,6 +61,21 @@
         <div class="tab-content flex-grow-1">
 
             <div class="tab-pane active" id="nav-mappings" role="tabpanel" tabindex="0">
+
+                <section id="kb_card" class="md-card mt-3" aria-labelledby="kb_title">
+                    <div class="md-card-head">
+                        <h2 id="kb_title" class="md-card-title">Your keyboard</h2>
+                        <span class="md-card-sub">Numbered keys are mapped. Click a key to edit its mapping, or to map it.</span>
+                        <div class="form-check form-switch ms-auto mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="kb_live">
+                            <label class="form-check-label" for="kb_live">Light up keys as I press them</label>
+                        </div>
+                    </div>
+                    <div class="md-kb-scroll">
+                        <div id="kb_picture" class="md-kb" role="group" aria-label="Keyboard"></div>
+                    </div>
+                    <div id="kb_other" class="md-kb-other"></div>
+                </section>
 
                 <div class="row pb-2 mt-3" style="overflow-x: auto;">
                     <div style="min-width: 720px; width: 100%;">
@@ -133,19 +154,19 @@
                             <input type="checkbox" id="unmapped_passthrough_checkbox3" class="form-check-input">
                             <label for="unmapped_passthrough_checkbox3" class="form-check-label">3</label>
                         </div>
-                        <div class="form-check form-check-inline d-none">
+                        <div class="form-check form-check-inline">
                             <input type="checkbox" id="unmapped_passthrough_checkbox4" class="form-check-input">
                             <label for="unmapped_passthrough_checkbox4" class="form-check-label">4</label>
                         </div>
-                        <div class="form-check form-check-inline d-none">
+                        <div class="form-check form-check-inline">
                             <input type="checkbox" id="unmapped_passthrough_checkbox5" class="form-check-input">
                             <label for="unmapped_passthrough_checkbox5" class="form-check-label">5</label>
                         </div>
-                        <div class="form-check form-check-inline d-none">
+                        <div class="form-check form-check-inline">
                             <input type="checkbox" id="unmapped_passthrough_checkbox6" class="form-check-input">
                             <label for="unmapped_passthrough_checkbox6" class="form-check-label">6</label>
                         </div>
-                        <div class="form-check form-check-inline d-none">
+                        <div class="form-check form-check-inline">
                             <input type="checkbox" id="unmapped_passthrough_checkbox7" class="form-check-input">
                             <label for="unmapped_passthrough_checkbox7" class="form-check-label">7</label>
                         </div>
@@ -369,6 +390,9 @@
 
         </div>
 
+    </main>
+
+    <aside id="inspector" class="md-inspector" aria-label="Selected mapping"></aside>
 
     </div>
 
@@ -406,19 +430,19 @@
                             <input class="form-check-input layer_checkbox3" type="checkbox" value="">
                             <br><span class="text-muted small">3</span>
                         </div>
-                        <div class="col-auto d-none">
+                        <div class="col-auto">
                             <input class="form-check-input layer_checkbox4" type="checkbox" value="">
                             <br><span class="text-muted small">4</span>
                         </div>
-                        <div class="col-auto d-none">
+                        <div class="col-auto">
                             <input class="form-check-input layer_checkbox5" type="checkbox" value="">
                             <br><span class="text-muted small">5</span>
                         </div>
-                        <div class="col-auto d-none">
+                        <div class="col-auto">
                             <input class="form-check-input layer_checkbox6" type="checkbox" value="">
                             <br><span class="text-muted small">6</span>
                         </div>
-                        <div class="col-auto d-none">
+                        <div class="col-auto">
                             <input class="form-check-input layer_checkbox7" type="checkbox" value="">
                             <br><span class="text-muted small">7</span>
                         </div>
