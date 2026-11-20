@@ -8,7 +8,7 @@ const STICKY_FLAG = 1 << 0;
 const TAP_FLAG = 1 << 1;
 const HOLD_FLAG = 1 << 2;
 const CONFIG_SIZE = 32;
-const CONFIG_VERSION = 18;
+const CONFIG_VERSION = 19;  // MicDrop: 12 expressions and profiles; boards on version 18 still work
 const VENDOR_ID = 0xCAFE;
 const PRODUCT_ID = 0xBAF2;
 const DEFAULT_PARTIAL_SCROLL_TIMEOUT = 1000000;
@@ -19,7 +19,10 @@ const DEFAULT_MACRO_ENTRY_DURATION = 1;
 
 const NLAYERS = 8;
 const NMACROS = 32;
-const NEXPRESSIONS = 8;
+const NEXPRESSIONS = 12;
+const NEXPRESSIONS_V18 = 8;
+const NPROFILES = 8;
+const PROFILE_NAME_LEN = 20;
 const MACRO_ITEMS_IN_PACKET = 6;
 const IGNORE_AUTH_DEV_INPUTS_FLAG = 1 << 4;
 const GPIO_OUTPUT_MODE_FLAG = 1 << 5;
@@ -61,6 +64,12 @@ const CLEAR_QUIRKS = 23;
 const ADD_QUIRK = 24;
 const GET_QUIRK = 25;
 
+const PROFILE_GET = 100;
+const PROFILE_SWITCH = 101;
+const PROFILE_SAVE_AS = 102;
+const PROFILE_RENAME = 103;
+const PROFILE_DELETE = 104;
+const PROFILE_SET_DEFAULT = 105;
 const PERSIST_CONFIG_SUCCESS = 1;
 const PERSIST_CONFIG_CONFIG_TOO_BIG = 2;
 
@@ -132,6 +141,14 @@ const UINT32 = Symbol('uint32');
 const INT32 = Symbol('int32');
 
 let device = null;
+// Settings version of the connected board: 19 (profiles, 12 expressions) or 18.
+let device_version = CONFIG_VERSION;
+function device_nexpressions() {
+    return device_version >= 19 ? NEXPRESSIONS : NEXPRESSIONS_V18;
+}
+function device_has_profiles() {
+    return device_version >= 19;
+}
 let source_modal = null;
 let target_modal = null;
 let extra_usages = { 'source': [], 'target': [] };
@@ -164,7 +181,7 @@ let config = {
         [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []
     ],
     expressions: [
-        '', '', '', '', '', '', '', ''
+        '', '', '', '', '', '', '', '', '', '', '', ''
     ],
     quirks: [],
 };
@@ -193,6 +210,8 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("monitor_clear").addEventListener("click", monitor_clear);
     document.getElementById("file_input").addEventListener("change", file_uploaded);
     document.getElementById("add_quirk").addEventListener("click", add_empty_quirk);
+    document.getElementById("profile_save_as").addEventListener("click", profile_save_as);
+    document.getElementById("nav-profiles-tab").addEventListener("shown.bs.tab", () => profile_action(refresh_profiles));
 
     device_buttons_set_disabled_state(true);
 
@@ -224,6 +243,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 device.close();
                 device = null;
                 device_buttons_set_disabled_state(true);
+                refresh_profiles();
             }
         });
     }
@@ -331,6 +351,7 @@ async function device_opened() {
     await get_usages_from_device();
     setup_usages_modals();
     bluetooth_buttons_set_visibility(device.productName.includes("Bluetooth"));
+    await refresh_profiles();
     return true;
 }
 
@@ -525,7 +546,7 @@ async function load_from_device() {
 
         config['expressions'] = [];
 
-        for (let expr_i = 0; expr_i < NEXPRESSIONS; expr_i++) {
+        for (let expr_i = 0; expr_i < device_nexpressions(); expr_i++) {
             let expression = [];
             let i = 0;
             while (true) {
@@ -556,6 +577,9 @@ async function load_from_device() {
 
             config['expressions'].push(expression.join(' '));
         }
+        pad_expressions();
+        // the page always works in the current format (v19 = v18 + 4 expressions)
+        config['version'] = CONFIG_VERSION;
 
         config['quirks'] = [];
 
@@ -589,6 +613,120 @@ async function load_from_device() {
     busy = false;
 }
 
+// Sends the settings on this page to the board (it keeps them in RAM, suspended,
+// until RESUME). Saving or "save as profile" follows.
+async function send_config_to_device() {
+    if ((device_nexpressions() < NEXPRESSIONS) &&
+        config['expressions'].slice(device_nexpressions()).some((e) => e.trim() != '')) {
+        display_info('Expressions 9-12 are not saved: this board needs the latest MicDrop firmware for them.');
+    }
+    await send_feature_command(SUSPEND);
+    const flags = (config['ignore_auth_dev_inputs'] ? IGNORE_AUTH_DEV_INPUTS_FLAG : 0) |
+        (config['gpio_output_mode'] ? GPIO_OUTPUT_MODE_FLAG : 0) |
+        (config['normalize_gamepad_inputs'] ? NORMALIZE_GAMEPAD_INPUTS_FLAG : 0);
+    await send_feature_command(SET_CONFIG, [
+        [UINT8, flags],
+        [UINT8, layer_list_to_mask(config['unmapped_passthrough_layers'])],
+        [UINT32, config['partial_scroll_timeout']],
+        [UINT8, config['interval_override']],
+        [UINT32, config['tap_hold_threshold']],
+        [UINT8, config['gpio_debounce_time_ms']],
+        [UINT8, config['our_descriptor_number']],
+        [UINT8, config['macro_entry_duration'] - 1],
+    ]);
+    await send_feature_command(CLEAR_MAPPING);
+
+    for (const mapping of config['mappings']) {
+        await send_feature_command(ADD_MAPPING, [
+            [UINT32, parseInt(mapping['target_usage'], 16)],
+            [UINT32, parseInt(mapping['source_usage'], 16)],
+            [INT32, mapping['scaling']],
+            [UINT8, layer_list_to_mask(mapping['layers'])],
+            [UINT8, (mapping['sticky'] ? STICKY_FLAG : 0)
+                | (mapping['tap'] ? TAP_FLAG : 0)
+                | (mapping['hold'] ? HOLD_FLAG : 0)],
+            [UINT8, ((mapping['target_port'] & 0x0F) << 4) | (mapping['source_port'] & 0x0F)],
+        ]);
+    }
+
+    await send_feature_command(CLEAR_MACROS);
+    let macro_i = 0;
+    for (const macro of config['macros']) {
+        if (macro_i >= NMACROS) {
+            break;
+        }
+
+        const flat_zero_separated = macro.map((x) => x.concat(["0x00"])).flat().slice(0, -1);
+
+        for (let i = 0; i < flat_zero_separated.length; i += MACRO_ITEMS_IN_PACKET) {
+            const chunk_size = i + MACRO_ITEMS_IN_PACKET > flat_zero_separated.length
+                ? flat_zero_separated.length - i
+                : MACRO_ITEMS_IN_PACKET;
+            await send_feature_command(APPEND_TO_MACRO,
+                [[UINT8, macro_i], [UINT8, chunk_size]].concat(
+                    flat_zero_separated
+                        .slice(i, i + chunk_size)
+                        .map((x) => [UINT32, parseInt(x, 16)])));
+        }
+
+        macro_i++;
+    }
+
+    await send_feature_command(CLEAR_EXPRESSIONS);
+    let expr_i = 0;
+    for (const expr of config['expressions']) {
+        if (expr_i >= device_nexpressions()) {
+            break;
+        }
+
+        let elems = expr_to_elems(expr);
+        while (elems.length > 0) {
+            let bytes_left = 24;
+            let items_to_send = [];
+            let nelems = 0;
+            while ((elems.length > 0) && (bytes_left > 0)) {
+                const elem = elems[0];
+                if ([ops["PUSH"], ops["PUSH_USAGE"]].includes(elem[0])) {
+                    if (bytes_left >= 5) {
+                        items_to_send.push([UINT8, elem[0]]);
+                        items_to_send.push([UINT32, elem[1] >>> 0]);
+                        bytes_left -= 5;
+                        nelems++;
+                        elems = elems.slice(1);
+                    } else {
+                        break
+                    }
+                } else {
+                    items_to_send.push([UINT8, elem[0]]);
+                    bytes_left--;
+                    nelems++;
+                    elems = elems.slice(1);
+                }
+            }
+            await send_feature_command(APPEND_TO_EXPRESSION,
+                [[UINT8, expr_i], [UINT8, nelems]].concat(items_to_send));
+        }
+
+        expr_i++;
+    }
+
+    await send_feature_command(CLEAR_QUIRKS);
+    for (const quirk of config['quirks']) {
+        const size_flags = (quirk['size'] & QUIRK_SIZE_MASK) |
+            (quirk['relative'] ? QUIRK_FLAG_RELATIVE_MASK : 0) |
+            (quirk['signed'] ? QUIRK_FLAG_SIGNED_MASK : 0);
+        await send_feature_command(ADD_QUIRK, [
+            [UINT16, parseInt(quirk['vendor_id'], 16)],
+            [UINT16, parseInt(quirk['product_id'], 16)],
+            [UINT8, quirk['interface']],
+            [UINT8, quirk['report_id']],
+            [UINT32, parseInt(quirk['usage'], 16)],
+            [UINT16, quirk['bitpos']],
+            [UINT8, size_flags],
+        ]);
+    }
+}
+
 async function save_to_device() {
     if (device == null) {
         return;
@@ -608,111 +746,7 @@ async function save_to_device() {
     document.getElementById('save_to_device_checkmark').classList.add('d-none');
 
     try {
-        await send_feature_command(SUSPEND);
-        const flags = (config['ignore_auth_dev_inputs'] ? IGNORE_AUTH_DEV_INPUTS_FLAG : 0) |
-            (config['gpio_output_mode'] ? GPIO_OUTPUT_MODE_FLAG : 0) |
-            (config['normalize_gamepad_inputs'] ? NORMALIZE_GAMEPAD_INPUTS_FLAG : 0);
-        await send_feature_command(SET_CONFIG, [
-            [UINT8, flags],
-            [UINT8, layer_list_to_mask(config['unmapped_passthrough_layers'])],
-            [UINT32, config['partial_scroll_timeout']],
-            [UINT8, config['interval_override']],
-            [UINT32, config['tap_hold_threshold']],
-            [UINT8, config['gpio_debounce_time_ms']],
-            [UINT8, config['our_descriptor_number']],
-            [UINT8, config['macro_entry_duration'] - 1],
-        ]);
-        await send_feature_command(CLEAR_MAPPING);
-
-        for (const mapping of config['mappings']) {
-            await send_feature_command(ADD_MAPPING, [
-                [UINT32, parseInt(mapping['target_usage'], 16)],
-                [UINT32, parseInt(mapping['source_usage'], 16)],
-                [INT32, mapping['scaling']],
-                [UINT8, layer_list_to_mask(mapping['layers'])],
-                [UINT8, (mapping['sticky'] ? STICKY_FLAG : 0)
-                    | (mapping['tap'] ? TAP_FLAG : 0)
-                    | (mapping['hold'] ? HOLD_FLAG : 0)],
-                [UINT8, ((mapping['target_port'] & 0x0F) << 4) | (mapping['source_port'] & 0x0F)],
-            ]);
-        }
-
-        await send_feature_command(CLEAR_MACROS);
-        let macro_i = 0;
-        for (const macro of config['macros']) {
-            if (macro_i >= NMACROS) {
-                break;
-            }
-
-            const flat_zero_separated = macro.map((x) => x.concat(["0x00"])).flat().slice(0, -1);
-
-            for (let i = 0; i < flat_zero_separated.length; i += MACRO_ITEMS_IN_PACKET) {
-                const chunk_size = i + MACRO_ITEMS_IN_PACKET > flat_zero_separated.length
-                    ? flat_zero_separated.length - i
-                    : MACRO_ITEMS_IN_PACKET;
-                await send_feature_command(APPEND_TO_MACRO,
-                    [[UINT8, macro_i], [UINT8, chunk_size]].concat(
-                        flat_zero_separated
-                            .slice(i, i + chunk_size)
-                            .map((x) => [UINT32, parseInt(x, 16)])));
-            }
-
-            macro_i++;
-        }
-
-        await send_feature_command(CLEAR_EXPRESSIONS);
-        let expr_i = 0;
-        for (const expr of config['expressions']) {
-            if (expr_i >= NEXPRESSIONS) {
-                break;
-            }
-
-            let elems = expr_to_elems(expr);
-            while (elems.length > 0) {
-                let bytes_left = 24;
-                let items_to_send = [];
-                let nelems = 0;
-                while ((elems.length > 0) && (bytes_left > 0)) {
-                    const elem = elems[0];
-                    if ([ops["PUSH"], ops["PUSH_USAGE"]].includes(elem[0])) {
-                        if (bytes_left >= 5) {
-                            items_to_send.push([UINT8, elem[0]]);
-                            items_to_send.push([UINT32, elem[1] >>> 0]);
-                            bytes_left -= 5;
-                            nelems++;
-                            elems = elems.slice(1);
-                        } else {
-                            break
-                        }
-                    } else {
-                        items_to_send.push([UINT8, elem[0]]);
-                        bytes_left--;
-                        nelems++;
-                        elems = elems.slice(1);
-                    }
-                }
-                await send_feature_command(APPEND_TO_EXPRESSION,
-                    [[UINT8, expr_i], [UINT8, nelems]].concat(items_to_send));
-            }
-
-            expr_i++;
-        }
-
-        await send_feature_command(CLEAR_QUIRKS);
-        for (const quirk of config['quirks']) {
-            const size_flags = (quirk['size'] & QUIRK_SIZE_MASK) |
-                (quirk['relative'] ? QUIRK_FLAG_RELATIVE_MASK : 0) |
-                (quirk['signed'] ? QUIRK_FLAG_SIGNED_MASK : 0);
-            await send_feature_command(ADD_QUIRK, [
-                [UINT16, parseInt(quirk['vendor_id'], 16)],
-                [UINT16, parseInt(quirk['product_id'], 16)],
-                [UINT8, quirk['interface']],
-                [UINT8, quirk['report_id']],
-                [UINT32, parseInt(quirk['usage'], 16)],
-                [UINT16, quirk['bitpos']],
-                [UINT8, size_flags],
-            ]);
-        }
+        await send_config_to_device();
 
         await send_feature_command(PERSIST_CONFIG);
 
@@ -725,6 +759,8 @@ async function save_to_device() {
                 if ((running_device_type !== null) && (config['our_descriptor_number'] != running_device_type)) {
                     display_info('Saved. The board is restarting as the new device type. Wait a few seconds, then click Open device again (with older firmware, unplug and replug the board first).');
                     running_device_type = null;
+                } else if (device_has_profiles()) {
+                    await refresh_profiles();
                 }
                 document.getElementById('save_to_device_checkmark').classList.remove('d-none');
                 save_to_device_checkmark_timeout_id = setTimeout(() => {
@@ -940,6 +976,7 @@ function set_ui_state() {
     if (config['version'] < CONFIG_VERSION) {
         config['version'] = CONFIG_VERSION;
     }
+    pad_expressions();
 
     set_config_ui_state();
     set_mappings_ui_state();
@@ -1062,7 +1099,7 @@ function file_uploaded() {
     document.getElementById("file_input").value = '';
 }
 
-async function send_feature_command(command, fields = [], version = CONFIG_VERSION) {
+async function send_feature_command(command, fields = [], version = device_version) {
     let buffer = new ArrayBuffer(CONFIG_SIZE);
     let dataview = new DataView(buffer);
     dataview.setUint8(0, version);
@@ -1171,13 +1208,13 @@ function add_crc(data) {
 }
 
 function check_json_version(config_version) {
-    if (!([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].includes(config_version))) {
+    if (!([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(config_version))) {
         throw new Error("Incompatible version.");
     }
 }
 
 function check_received_version(config_version) {
-    if (config_version != CONFIG_VERSION) {
+    if (config_version != device_version) {
         throw new Error("Incompatible version.");
     }
 }
@@ -1187,11 +1224,15 @@ async function check_device_version() {
     // device because it could be version X, ignore our GET_CONFIG call with version Y and
     // just happen to have Y at the right place in the buffer from some previous call done
     // by some other software.
-    for (const version of [CONFIG_VERSION, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2]) {
+    for (const version of [CONFIG_VERSION, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2]) {
         await send_feature_command(GET_CONFIG, [], version);
         const [received_version] = await read_config_feature([UINT8]);
         if (received_version == version) {
-            if (version == CONFIG_VERSION) {
+            if ((version == CONFIG_VERSION) || (version == 18)) {
+                device_version = version;
+                if (version == 18) {
+                    display_info('This board has older MicDrop firmware. It works, but profiles and expressions 9-12 need the latest firmware.');
+                }
                 return true;
             }
             display_error_html('<p>Incompatible version (' + version + ').</p>' +
@@ -1538,6 +1579,13 @@ function set_macros_config_from_ui_state() {
     }
 
     set_macro_previews();
+}
+
+// Configs from version 18 and older have 8 expressions; the page always has 12.
+function pad_expressions() {
+    while (config['expressions'].length < NEXPRESSIONS) {
+        config['expressions'].push('');
+    }
 }
 
 function setup_expressions() {
@@ -2028,4 +2076,190 @@ function usage_search_onchange(element) {
         }
         element.closest('div').querySelector('.have_preferred_result_checkmark').classList.toggle('d-none', !have_preferred_result);
     }
+}
+// ---------------------------------------------------------------------------
+// MicDrop: profiles stored on the board (firmware with settings version 19+).
+
+let profiles = [];
+
+function profile_name_fields(name) {
+    const bytes = new TextEncoder().encode(name).slice(0, PROFILE_NAME_LEN);
+    let fields = [];
+    for (let i = 0; i < PROFILE_NAME_LEN; i++) {
+        fields.push([UINT8, i < bytes.length ? bytes[i] : 0]);
+    }
+    return fields;
+}
+
+function device_type_name(n) {
+    const option = document.querySelector('#our_descriptor_number_dropdown option[value="' + n + '"]');
+    return option ? option.textContent : (n == 255 ? '' : 'Type ' + n);
+}
+
+async function profile_command(command, slot, name = '') {
+    await send_feature_command(command, [[UINT8, slot]].concat(profile_name_fields(name)));
+    const [result, active, restarting] = await read_config_feature([UINT8, UINT8, UINT8]);
+    switch (result) {
+        case 1:
+            return { active, restarting: restarting != 0 };
+        case 3:
+            throw new Error('Profile ' + (slot + 1) + ' is empty.');
+        case 4:
+            throw new Error('Profile ' + (slot + 1) + ' is in use. Switch to another profile first.');
+        case 5:
+            throw new Error('Configuration too big to persist.');
+        default:
+            throw new Error('The board refused the profile command (' + result + ').');
+    }
+}
+
+async function refresh_profiles() {
+    const supported = (device != null) && device_has_profiles();
+    document.getElementById('profiles_unsupported').classList.toggle('d-none', (device == null) || supported);
+    document.getElementById('profiles_not_connected').classList.toggle('d-none', device != null);
+    document.getElementById('profiles_table').classList.toggle('d-none', !supported);
+    document.getElementById('profiles_save_as_row').classList.toggle('d-none', !supported);
+    if (!supported) {
+        return;
+    }
+    profiles = [];
+    for (let slot = 0; slot < NPROFILES; slot++) {
+        await send_feature_command(PROFILE_GET, [[UINT8, slot]]);
+        const fields = await read_config_feature([UINT8, UINT8, UINT8, UINT8, UINT16].concat(Array(PROFILE_NAME_LEN).fill(UINT8)));
+        const name_bytes = fields.slice(5).filter((b) => b != 0);
+        profiles.push({
+            slot,
+            saved: (fields[1] & 1) != 0,
+            active: (fields[1] & 2) != 0,
+            is_default: (fields[1] & 4) != 0,
+            type: fields[2],
+            mappings: fields[4],
+            name: new TextDecoder().decode(new Uint8Array(name_bytes)),
+        });
+    }
+    render_profiles();
+}
+
+function render_profiles() {
+    const tbody = document.getElementById('profiles_tbody');
+    clear_children(tbody);
+    const save_slot = document.getElementById('profile_save_slot');
+    const previous_choice = save_slot.value;
+    clear_children(save_slot);
+    for (const p of profiles) {
+        const row = document.getElementById('profile_row_template').content.cloneNode(true).firstElementChild;
+        row.querySelector('.profile_number').innerText = p.slot + 1;
+        row.querySelector('.profile_name').innerText = p.saved || p.active ? (p.name || 'Profile ' + (p.slot + 1)) : '(empty)';
+        row.querySelector('.profile_name').classList.toggle('text-muted', !p.saved && !p.active);
+        row.querySelector('.profile_in_use').classList.toggle('d-none', !p.active);
+        row.querySelector('.profile_default').classList.toggle('d-none', !p.is_default);
+        row.querySelector('.profile_type').innerText = p.saved ? device_type_name(p.type) : '';
+        row.querySelector('.profile_mappings').innerText = p.saved ? p.mappings : '';
+        const switch_button = row.querySelector('.profile_switch');
+        switch_button.disabled = !p.saved || p.active;
+        switch_button.addEventListener('click', () => profile_switch(p.slot));
+        const rename_button = row.querySelector('.profile_rename');
+        rename_button.disabled = !p.saved && !p.active;
+        rename_button.addEventListener('click', () => profile_rename(p.slot));
+        const default_button = row.querySelector('.profile_make_default');
+        default_button.disabled = !p.saved || p.is_default;
+        default_button.addEventListener('click', () => profile_make_default(p.slot));
+        const delete_button = row.querySelector('.profile_delete');
+        delete_button.disabled = !p.saved || p.active;
+        delete_button.addEventListener('click', () => profile_delete(p.slot));
+        tbody.appendChild(row);
+
+        const option = document.createElement('option');
+        option.value = p.slot;
+        option.innerText = 'Profile ' + (p.slot + 1) + (p.saved ? ' (replace "' + (p.name || 'Profile ' + (p.slot + 1)) + '")' : ' (empty)');
+        save_slot.appendChild(option);
+    }
+    const first_empty = profiles.find((p) => !p.saved && !p.active);
+    save_slot.value = previous_choice !== '' && profiles[previous_choice] ? previous_choice : (first_empty ? first_empty.slot : 0);
+}
+
+async function profile_action(action) {
+    if ((device == null) || busy) {
+        return;
+    }
+    busy = true;
+    clear_error();
+    try {
+        await action();
+    } catch (e) {
+        display_error(e);
+    }
+    busy = false;
+}
+
+function profile_restart_message(slot) {
+    display_info('Switched to profile ' + (slot + 1) + '. It uses a different device type, so the board is restarting. Wait a few seconds, then click Open device again.');
+    running_device_type = null;
+}
+
+function profile_switch(slot) {
+    return profile_action(async () => {
+        const r = await profile_command(PROFILE_SWITCH, slot);
+        if (r.restarting) {
+            profile_restart_message(slot);
+            return;
+        }
+        busy = false;
+        await load_from_device();
+        busy = true;
+        await refresh_profiles();
+        display_info('Now using profile ' + (slot + 1) + '. Its settings are shown below; Save to device saves into this profile.');
+    });
+}
+
+function profile_save_as() {
+    return profile_action(async () => {
+        const slot = parseInt(document.getElementById('profile_save_slot').value);
+        const name = document.getElementById('profile_save_name').value.trim();
+        const target = profiles[slot];
+        if (target && target.saved && !confirm('Replace profile ' + (slot + 1) + ' ("' + (target.name || 'Profile ' + (slot + 1)) + '") with the settings on this page?')) {
+            return;
+        }
+        await send_config_to_device();
+        const r = await profile_command(PROFILE_SAVE_AS, slot, name);
+        await send_feature_command(RESUME);
+        if (r.restarting) {
+            display_info('Saved as profile ' + (slot + 1) + '. It uses a different device type, so the board is restarting. Wait a few seconds, then click Open device again.');
+            running_device_type = null;
+            return;
+        }
+        document.getElementById('profile_save_name').value = '';
+        await refresh_profiles();
+        display_info('Saved as profile ' + (slot + 1) + ', which is now in use.');
+    });
+}
+
+function profile_rename(slot) {
+    return profile_action(async () => {
+        const current = profiles[slot] ? profiles[slot].name : '';
+        const name = prompt('Name for profile ' + (slot + 1) + ' (up to ' + PROFILE_NAME_LEN + ' characters):', current);
+        if (name === null) {
+            return;
+        }
+        await profile_command(PROFILE_RENAME, slot, name.trim());
+        await refresh_profiles();
+    });
+}
+
+function profile_make_default(slot) {
+    return profile_action(async () => {
+        await profile_command(PROFILE_SET_DEFAULT, slot);
+        await refresh_profiles();
+    });
+}
+
+function profile_delete(slot) {
+    return profile_action(async () => {
+        const p = profiles[slot];
+        if (!confirm('Delete profile ' + (slot + 1) + ' ("' + (p.name || 'Profile ' + (slot + 1)) + '") from the board?')) {
+            return;
+        }
+        await profile_command(PROFILE_DELETE, slot);
+        await refresh_profiles();
+    });
 }

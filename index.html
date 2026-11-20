@@ -43,6 +43,7 @@
 
         <div class="nav nav-tabs" id="nav-tab" role="tablist">
             <button class="nav-link active" id="nav-mappings-tab" data-bs-toggle="tab" data-bs-target="#nav-mappings" type="button" role="tab">Mappings</button>
+            <button class="nav-link" id="nav-profiles-tab" data-bs-toggle="tab" data-bs-target="#nav-profiles" type="button" role="tab">Profiles</button>
             <button class="nav-link" id="nav-settings-tab" data-bs-toggle="tab" data-bs-target="#nav-settings" type="button" role="tab">Settings</button>
             <button class="nav-link" id="nav-macros-tab" data-bs-toggle="tab" data-bs-target="#nav-macros" type="button" role="tab">Macros</button>
             <button class="nav-link" id="nav-expressions-tab" data-bs-toggle="tab" data-bs-target="#nav-expressions" type="button" role="tab">Expressions</button>
@@ -79,6 +80,34 @@
                     <button id="add_mapping" type="button" class="btn btn-primary">Add mapping</button>
                 </div>
 
+            </div>
+
+            <div class="tab-pane" id="nav-profiles" role="tabpanel" tabindex="0">
+                <p class="mt-4">The board can keep up to 8 complete setups (mappings, settings and device type) and switch between them. <strong>Save to device</strong> always saves into the profile in use.</p>
+                <div id="profiles_not_connected" class="alert alert-secondary">Click <strong>Open device</strong> to see the profiles on the board.</div>
+                <div id="profiles_unsupported" class="alert alert-info d-none">This board's firmware doesn't have profiles yet. Flash the latest MicDrop firmware to use them.</div>
+                <div class="table-responsive">
+                    <table id="profiles_table" class="table align-middle d-none">
+                        <thead>
+                            <tr><th scope="col">#</th><th scope="col">Name</th><th scope="col">Device type</th><th scope="col">Mappings</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+                        </thead>
+                        <tbody id="profiles_tbody"></tbody>
+                    </table>
+                </div>
+                <div id="profiles_save_as_row" class="row g-2 align-items-end d-none">
+                    <div class="col-sm-5">
+                        <label for="profile_save_slot" class="form-label">Save the settings on this page as</label>
+                        <select id="profile_save_slot" class="form-select"></select>
+                    </div>
+                    <div class="col-sm-4">
+                        <label for="profile_save_name" class="form-label">Name</label>
+                        <input id="profile_save_name" type="text" class="form-control" maxlength="20" placeholder="e.g. GE-PACS reading">
+                    </div>
+                    <div class="col-sm-3">
+                        <button id="profile_save_as" type="button" class="btn btn-primary w-100">Save as profile</button>
+                    </div>
+                </div>
+                <p class="small text-muted mt-4">To switch profiles with a key, pedal or button, map it to <strong>Profile 1</strong>&ndash;<strong>Profile 8</strong>, <strong>Next profile</strong> or <strong>Previous profile</strong> (in the output list). Map that key in every profile, or you can't switch back. A switch made with a key lasts until the board is unplugged; it always starts in the default profile. Switching to a profile with a different device type restarts the board.</p>
             </div>
 
             <div class="tab-pane" id="nav-settings" role="tabpanel" tabindex="0">
@@ -460,6 +489,20 @@
         </div>
     </template>
 
+    <template id="profile_row_template">
+        <tr>
+            <td class="profile_number"></td>
+            <td><span class="profile_name"></span> <span class="badge bg-success profile_in_use">In use</span> <span class="badge bg-secondary profile_default">Default</span></td>
+            <td class="profile_type"></td>
+            <td class="profile_mappings"></td>
+            <td class="text-end text-nowrap">
+                <button type="button" class="btn btn-sm btn-primary profile_switch">Switch to</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary profile_rename">Rename</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary profile_make_default">Make default</button>
+                <button type="button" class="btn btn-sm btn-outline-danger profile_delete">Delete</button>
+            </td>
+        </tr>
+    </template>
     <template id="expression_template">
         <div class="mb-3">
             <label class="form-label expression_label">Expression</label>
