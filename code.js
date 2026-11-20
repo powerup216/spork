@@ -2123,9 +2123,13 @@ async function refresh_profiles() {
         return;
     }
     profiles = [];
-    for (let slot = 0; slot < NPROFILES; slot++) {
+    let nprofiles = NPROFILES;  // the board says how many it has (with profile 1)
+    for (let slot = 0; slot < nprofiles; slot++) {
         await send_feature_command(PROFILE_GET, [[UINT8, slot]]);
         const fields = await read_config_feature([UINT8, UINT8, UINT8, UINT8, UINT16].concat(Array(PROFILE_NAME_LEN).fill(UINT8)));
+        if ((slot == 0) && (fields[3] > 0)) {
+            nprofiles = Math.min(fields[3], NPROFILES);
+        }
         const name_bytes = fields.slice(5).filter((b) => b != 0);
         profiles.push({
             slot,
