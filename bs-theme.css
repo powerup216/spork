@@ -494,3 +494,10 @@ hr { border-color: var(--line); opacity: 1; }
 .md-board-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); }
 .md-board-change { font-size: 0.85rem; color: var(--marker); }
 @media (max-width: 560px) { .md-board-tiles { grid-template-columns: minmax(0, 1fr); } }
+/* ProtoArc EM06: buttons wrap around the ball */
+.md-key.em-tl { border-radius: 14px 8px 8px 8px; }
+.md-key.em-tr { border-radius: 8px 14px 8px 8px; }
+.md-key.em-bl { border-radius: 8px 8px 8px 14px; }
+.md-key.em-br { border-radius: 8px 8px 14px 8px; }
+.md-key.em-tm { border-radius: 8px 8px 14px 14px; }
+.md-key.em-bm { border-radius: 14px 14px 8px 8px; }

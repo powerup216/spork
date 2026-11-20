@@ -2428,24 +2428,26 @@ const DEVICES = {
         note: 'The DPI button works inside the mouse, so it can\'t be mapped.',
     },
     em06: {
-        // ProtoArc EM06: ambidextrous, 55 mm ball in the middle, wrist rest built in,
-        // 7 buttons (two of them on the left side). Button positions are our best
-        // reading of ProtoArc's description; what each sends is set in ProtoArc's tool.
-        code: 5, name: 'ProtoArc EM06', unit: 52, w: 4.7, h: 7.0, shape: 'trackball',
-        svg: '<path class="b" d="M0.55 0.5C1.2 0.1 3.5 0.1 4.15 0.5C4.6 0.9 4.62 2.6 4.5 4.2C4.42 5.6 4.3 6.6 3.7 6.85C2.9 7 1.8 7 1 6.85C0.4 6.6 0.28 5.6 0.2 4.2C0.08 2.6 0.1 0.9 0.55 0.5Z"/>' +
-            '<path class="b2" d="M0.24 4.75C1.4 4.45 3.3 4.45 4.46 4.75C4.4 5.7 4.25 6.6 3.7 6.85C2.9 7 1.8 7 1 6.85C0.45 6.6 0.3 5.7 0.24 4.75Z"/>' +
-            '<circle class="ball" cx="2.35" cy="2.75" r="1.1"/>',
+        // ProtoArc EM06 (from ProtoArc's top-down product photo): 55 mm ball in the
+        // middle, 4 buttons across the top, one down each side, one under the ball,
+        // wrist rest below. What each button sends is set in ProtoArc's app.
+        code: 5, name: 'ProtoArc EM06', unit: 34, w: 8.1, h: 12.8, shape: 'trackball',
+        svg: '<rect class="b" x="0.05" y="0.05" width="8" height="12.7" rx="1.15"/>' +
+            '<rect class="plate" x="0.25" y="0.2" width="7.6" height="8.2" rx="0.8"/>' +
+            '<circle class="line" cx="4.05" cy="4.3" r="2.05"/>' +
+            '<circle class="ball" cx="4.05" cy="4.3" r="1.6"/>' +
+            '<rect class="b2" x="0.4" y="8.7" width="7.3" height="3.85" rx="0.9"/>',
         keys: [
-            ['Left', 0x00090001, 0.4, 0.42, 1.35, 1.1, false, 'lb'],
-            ['Middle', 0x00090003, 1.82, 0.32, 1.06, 0.52],
-            ['Right', 0x00090002, 2.95, 0.42, 1.35, 1.1, false, 'rb'],
-            ['Ball scroll ⇕', 0x00010038, 1.6, 2.0, 1.5, 1.5, true, 'ballkey'],
-            ['Btn 4', 0x00090004, 0.35, 3.15, 0.95, 1.05],
-            ['Btn 5', 0x00090005, 3.4, 3.15, 0.95, 1.05],
-            ['Side 6', 0x00090006, -0.06, 1.9, 0.45, 0.62, false, 'side'],
-            ['Side 7', 0x00090007, -0.06, 2.6, 0.45, 0.62, false, 'side'],
+            ['Left', 0x00090001, 0.4, 0.32, 1.65, 3.85, false, 'em-tl'],
+            ['Back', 0x00090004, 2.15, 0.32, 1.8, 1.9, false, 'em-tm'],
+            ['Fwd', 0x00090005, 4.15, 0.32, 1.8, 1.9, false, 'em-tm'],
+            ['Right', 0x00090002, 6.05, 0.32, 1.65, 3.85, false, 'em-tr'],
+            ['Scroll ⇕', 0x00010038, 3.0, 3.25, 2.1, 2.1, true, 'ballkey'],
+            ['Btn 6', 0x00090006, 0.4, 4.4, 1.65, 3.85, false, 'em-bl'],
+            ['Middle', 0x00090003, 2.45, 6.45, 3.2, 1.8, false, 'em-bm'],
+            ['Btn 7', 0x00090007, 6.05, 4.4, 1.65, 3.85, false, 'em-br'],
         ],
-        note: 'Button positions are a best guess from ProtoArc\'s description, and ProtoArc\'s own tool decides what each button sends. Turn on "Light up keys as I press them" and press each button to see which one lights up. Buttons set to send keys show up in the list below the picture.',
+        note: 'Layout from ProtoArc\'s photo. What each button sends is set in ProtoArc\'s app, so the labels are a guess: turn on "Light up keys as I press them" and press each one to check. Buttons set to send keys show up in the list below the picture.',
     },
     magscroll: {
         code: 8, name: 'MagScroll', unit: 50, w: 4, h: 3.4, shape: 'knob',
