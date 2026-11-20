@@ -184,6 +184,7 @@ let config = {
         '', '', '', '', '', '', '', '', '', '', '', ''
     ],
     quirks: [],
+    port_devices: {},  // MicDrop: hub port -> device picture (kept on the board as placeholder mappings)
 };
 let monitor_enabled = false;
 let monitor_min_val = {};
@@ -579,6 +580,8 @@ async function load_from_device() {
             config['expressions'].push(expression.join(' '));
         }
         pad_expressions();
+        config['port_devices'] = {};
+        extract_port_devices();
         // the page always works in the current format (v19 = v18 + 4 expressions)
         config['version'] = CONFIG_VERSION;
 
@@ -637,7 +640,7 @@ async function send_config_to_device() {
     ]);
     await send_feature_command(CLEAR_MAPPING);
 
-    for (const mapping of config['mappings']) {
+    for (const mapping of config['mappings'].concat(port_device_mappings())) {
         await send_feature_command(ADD_MAPPING, [
             [UINT32, parseInt(mapping['target_usage'], 16)],
             [UINT32, parseInt(mapping['source_usage'], 16)],
@@ -979,6 +982,7 @@ function set_ui_state() {
         config['version'] = CONFIG_VERSION;
     }
     pad_expressions();
+    extract_port_devices();
 
     set_config_ui_state();
     set_mappings_ui_state();
@@ -1867,7 +1871,7 @@ function input_report_received(event) {
             const hub_port = event.data.getUint8(i * 9 + 8);
             if (usage != 0) {
                 update_monitor_ui(usage, value, hub_port);
-                kb_hit(usage, value);
+                kb_hit(usage, value, hub_port);
             }
         }
     }
@@ -2283,15 +2287,393 @@ function profile_delete(slot) {
 // MicDrop app layout: keyboard picture, inspector, profiles sidebar.
 // Everything edits config['mappings'] like the mapping rows do, then redraws.
 
-const KB_ROWS = [
-    [['Esc', 0x29], ['F1', 0x3a], ['F2', 0x3b], ['F3', 0x3c], ['F4', 0x3d], ['F5', 0x3e], ['F6', 0x3f], ['F7', 0x40], ['F8', 0x41], ['F9', 0x42], ['F10', 0x43], ['F11', 0x44], ['F12', 0x45], ['PgUp', 0x4b], ['PgDn', 0x4e]],
-    [['`', 0x35], ['1', 0x1e], ['2', 0x1f], ['3', 0x20], ['4', 0x21], ['5', 0x22], ['6', 0x23], ['7', 0x24], ['8', 0x25], ['9', 0x26], ['0', 0x27], ['-', 0x2d], ['=', 0x2e], ['Bksp', 0x2a, 2]],
-    [['Tab', 0x2b, 1.5], ['Q', 0x14], ['W', 0x1a], ['E', 0x08], ['R', 0x15], ['T', 0x17], ['Y', 0x1c], ['U', 0x18], ['I', 0x0c], ['O', 0x12], ['P', 0x13], ['[', 0x2f], [']', 0x30], ['\\', 0x31, 1.5]],
-    [['Caps', 0x39, 1.75], ['A', 0x04], ['S', 0x16], ['D', 0x07], ['F', 0x09], ['G', 0x0a], ['H', 0x0b], ['J', 0x0d], ['K', 0x0e], ['L', 0x0f], [';', 0x33], ["'", 0x34], ['Enter', 0x28, 2.25]],
-    [['Shift', 0xe1, 2.25], ['Z', 0x1d], ['X', 0x1b], ['C', 0x06], ['V', 0x19], ['B', 0x05], ['N', 0x11], ['M', 0x10], [',', 0x36], ['.', 0x37], ['/', 0x38], ['Shift', 0xe5, 1.75], ['Del', 0x4c]],
-    [['Ctrl', 0xe0, 1.25], ['Win', 0xe3, 1.25], ['Alt', 0xe2, 1.25], ['Space', 0x2c, 5.25], ['AltGr', 0xe6], ['Menu', 0x65], ['←', 0x50], ['↑', 0x52], ['↓', 0x51], ['→', 0x4f]],
-];
-const KB_UNIT = 40, KB_GAP = 5;
+// Devices that can be drawn. Each key: [label, usage, x, y, w, h, round]. A usage
+// below 0x100 is a keyboard key (page 7); null draws a key that can't be mapped.
+// x/y/w/h are in key units.
+
+function kb_rows(rows, x0 = 0, y0 = 0, row_step = 1) {
+    const keys = [];
+    rows.forEach((row, r) => {
+        let x = x0;
+        for (const [label, usage, w = 1] of row) {
+            if (label !== '') {
+                keys.push([label, usage, x, y0 + r * row_step, w, 1]);
+            }
+            x += w;
+        }
+    });
+    return keys;
+}
+const SP = (w) => ['', null, w];
+
+const ROW_NUM = [['`', 0x35], ['1', 0x1e], ['2', 0x1f], ['3', 0x20], ['4', 0x21], ['5', 0x22], ['6', 0x23], ['7', 0x24], ['8', 0x25], ['9', 0x26], ['0', 0x27], ['-', 0x2d], ['=', 0x2e], ['Bksp', 0x2a, 2]];
+const ROW_Q = [['Tab', 0x2b, 1.5], ['Q', 0x14], ['W', 0x1a], ['E', 0x08], ['R', 0x15], ['T', 0x17], ['Y', 0x1c], ['U', 0x18], ['I', 0x0c], ['O', 0x12], ['P', 0x13], ['[', 0x2f], [']', 0x30], ['\\', 0x31, 1.5]];
+const ROW_A = [['Caps', 0x39, 1.75], ['A', 0x04], ['S', 0x16], ['D', 0x07], ['F', 0x09], ['G', 0x0a], ['H', 0x0b], ['J', 0x0d], ['K', 0x0e], ['L', 0x0f], [';', 0x33], ["'", 0x34], ['Enter', 0x28, 2.25]];
+const ROW_Z = [['Shift', 0xe1, 2.25], ['Z', 0x1d], ['X', 0x1b], ['C', 0x06], ['V', 0x19], ['B', 0x05], ['N', 0x11], ['M', 0x10], [',', 0x36], ['.', 0x37], ['/', 0x38]];
+const F_KEYS = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => ['F' + (from + i), 0x3a + from + i - 1]);
+
+function mouse_keys(extra = []) {
+    return [
+        ['Left', 0x00090001, 0.7, 0.3, 2.2, 3.2],
+        ['Right', 0x00090002, 3.1, 0.3, 2.2, 3.2],
+        ['⇕', 0x00010038, 2.65, 0.7, 0.7, 1.6, true],
+        ['Mid', 0x00090003, 2.55, 2.45, 0.9, 0.7],
+        ['Fwd', 0x00090005, 0, 3.9, 0.75, 1.1],
+        ['Back', 0x00090004, 0, 5.15, 0.75, 1.1],
+    ].concat(extra);
+}
+
+const DEVICES = {
+    full: {
+        code: 1, name: 'Full-size keyboard', unit: 33, w: 22.5, h: 6.5,
+        keys: [].concat(
+            [['Esc', 0x29, 0, 0]], kb_rows([F_KEYS(1, 4)], 2, 0), kb_rows([F_KEYS(5, 8)], 6.5, 0), kb_rows([F_KEYS(9, 12)], 11, 0),
+            kb_rows([ROW_NUM, ROW_Q, ROW_A, ROW_Z.concat([['Shift', 0xe5, 2.75]]),
+                [['Ctrl', 0xe0, 1.25], ['Win', 0xe3, 1.25], ['Alt', 0xe2, 1.25], ['Space', 0x2c, 6.25], ['AltGr', 0xe6, 1.25], ['Win', 0xe7, 1.25], ['Menu', 0x65, 1.25], ['Ctrl', 0xe4, 1.25]]], 0, 1.5),
+            kb_rows([[['PrtSc', 0x46], ['ScrLk', 0x47], ['Pause', 0x48]]], 15.25, 0),
+            kb_rows([[['Ins', 0x49], ['Home', 0x4a], ['PgUp', 0x4b]], [['Del', 0x4c], ['End', 0x4d], ['PgDn', 0x4e]]], 15.25, 1.5),
+            [['↑', 0x52, 16.25, 4.5], ['←', 0x50, 15.25, 5.5], ['↓', 0x51, 16.25, 5.5], ['→', 0x4f, 17.25, 5.5]],
+            kb_rows([[['Num', 0x53], ['/', 0x54], ['*', 0x55], ['-', 0x56]], [['7', 0x5f], ['8', 0x60], ['9', 0x61]], [['4', 0x5c], ['5', 0x5d], ['6', 0x5e]], [['1', 0x59], ['2', 0x5a], ['3', 0x5b]]], 18.5, 1.5),
+            [['+', 0x57, 21.5, 2.5, 1, 2], ['Enter', 0x58, 21.5, 4.5, 1, 2], ['0', 0x62, 18.5, 5.5, 2, 1], ['.', 0x63, 20.5, 5.5]]
+        ),
+    },
+    k75: {
+        code: 10, name: '75% keyboard', unit: 38, w: 15, h: 6,
+        keys: kb_rows([
+            [['Esc', 0x29]].concat(F_KEYS(1, 12), [['PgUp', 0x4b], ['PgDn', 0x4e]]),
+            ROW_NUM, ROW_Q, ROW_A, ROW_Z.concat([['Shift', 0xe5, 1.75], ['Del', 0x4c]]),
+            [['Ctrl', 0xe0, 1.25], ['Win', 0xe3, 1.25], ['Alt', 0xe2, 1.25], ['Space', 0x2c, 5.25], ['AltGr', 0xe6], ['Menu', 0x65], ['←', 0x50], ['↑', 0x52], ['↓', 0x51], ['→', 0x4f]],
+        ]),
+    },
+    k68: {
+        code: 2, name: '68-key keyboard (65%)', unit: 38, w: 16, h: 5,
+        keys: kb_rows([
+            [['Esc', 0x29]].concat(ROW_NUM.slice(1), [['Del', 0x4c]]),
+            ROW_Q.concat([['PgUp', 0x4b]]),
+            ROW_A.concat([['PgDn', 0x4e]]),
+            ROW_Z.concat([['Shift', 0xe5, 1.75], ['↑', 0x52], ['End', 0x4d]]),
+            [['Ctrl', 0xe0, 1.25], ['Win', 0xe3, 1.25], ['Alt', 0xe2, 1.25], ['Space', 0x2c, 6.25], ['Alt', 0xe6], ['Fn', null], ['Ctrl', 0xe4], ['←', 0x50], ['↓', 0x51], ['→', 0x4f]],
+        ]),
+        note: 'Fn is handled inside the keyboard, so it can\'t be mapped. Esc may send ` on some 68-key boards.',
+    },
+    km16: {
+        shape: 'km16',
+        code: 6, name: 'MMD KM16 Pro', unit: 52, w: 4.3, h: 5.9,
+        // three knobs: press in the middle, turn left / right underneath
+        keys: [
+            ['W', 0x1a, 0.3, 0, 0.8, 0.8, true], ['‹A', 0x04, 0, 0.85, 0.7, 0.5], ['D›', 0x07, 0.72, 0.85, 0.7, 0.5],
+            ['Layer', null, 1.75, 0, 0.8, 0.8, true], ['‹;', 0x33, 1.45, 0.85, 0.7, 0.5], ["'›", 0x34, 2.17, 0.85, 0.7, 0.5],
+            ['F9', 0x42, 3.2, 0, 0.8, 0.8, true], ['‹−', 0x000c00ea, 2.9, 0.85, 0.7, 0.5], ['+›', 0x000c00e9, 3.62, 0.85, 0.7, 0.5],
+        ].concat(kb_rows([
+            [['F4', 0x3d], ['F1', 0x3a], ['F2', 0x3b], ['F3', 0x3c]],
+            [['1', 0x1e], ['2', 0x1f], ['3', 0x20], ['4', 0x21]],
+            [['R', 0x15], ['Q', 0x14], ['E', 0x08], ['W', 0x1a]],
+            [['N', 0x11], ['Z', 0x1d], ['←', 0x50], ['→', 0x4f]],
+        ], 0.15, 1.6, 1.05)),
+        note: 'Keys and knobs as your VIA layout sets them (knob turns send A/D, ;/\' and Volume−/+, knob presses W, layer, F9). Change the layout in VIA and these labels won\'t match.',
+    },
+    mouse: { code: 7, name: 'Regular mouse', unit: 34, w: 6, h: 9, shape: 'mouse', keys: mouse_keys() },
+    g502: {
+        code: 3, name: 'Logitech G502', unit: 34, w: 6, h: 9, shape: 'mouse',
+        keys: mouse_keys([
+            ['Tilt', 0x000c0238, 2.55, 3.3, 0.9, 0.6],
+            ['G7', 0x00090006, 0.85, 3.65, 0.8, 0.6], ['G8', 0x00090007, 0.85, 4.35, 0.8, 0.6],
+            ['G9', 0x00090008, 0, 6.5, 0.75, 1],
+        ]),
+        note: 'G7, G8 and G9 only reach the board if G HUB sets them to mouse buttons 6, 7 and 8 (by default they change DPI inside the mouse). Wheel tilt is horizontal scrolling.',
+    },
+    g303: { code: 4, name: 'Logitech G303', unit: 34, w: 6, h: 9, shape: 'mouse', keys: mouse_keys(), note: 'The DPI button works inside the mouse, so it can\'t be mapped.' },
+    em06: {
+        code: 5, name: 'ProtoArc EM06', unit: 34, w: 6, h: 9, shape: 'trackball', keys: mouse_keys(),
+        note: 'Its receiver also has a keyboard part: buttons set to send keys show up in the list below the picture.',
+    },
+    magscroll: {
+        code: 8, name: 'MagScroll', unit: 50, w: 4, h: 3.4, shape: 'knob',
+        keys: [['Turn to scroll', 0x00010038, 0.5, 0.2, 3, 3, true]],
+        note: 'The knob scrolls like a mouse wheel. Set it up on the MagScroll page.',
+    },
+    shuttle: {
+        code: 9, name: 'Contour ShuttleXpress', unit: 46, w: 4.8, h: 4.3, shape: 'shuttle',
+        keys: [
+            ['1', 0x00090005, 0.1, 1.5, 0.8, 0.7], ['2', 0x00090006, 0.75, 0.5, 0.8, 0.7], ['3', 0x00090007, 2, 0.1, 0.8, 0.7],
+            ['4', 0x00090008, 3.25, 0.5, 0.8, 0.7], ['5', 0x00090009, 3.9, 1.5, 0.8, 0.7],
+            ['Shuttle ring', 0x00010038, 1.1, 1.3, 2.6, 2.6, true, 'ring'], ['Jog', 0x00010037, 1.75, 1.95, 1.3, 1.3, true],
+        ],
+        note: 'Needs a board that handles low-speed USB: the Feather works, the Waveshare RP2350 doesn\'t.',
+    },
+};
+const DEVICE_ORDER = ['full', 'k75', 'k68', 'km16', 'mouse', 'g502', 'g303', 'em06', 'magscroll', 'shuttle'];
+const DEVICE_BY_CODE = Object.fromEntries(Object.entries(DEVICES).map(([id, d]) => [d.code, id]));
+
+// Which device sits on which hub port is kept per profile, on the board, as
+// placeholder mappings in usage page 0xFFFB (source 0xFFFB0000 | port << 8 |
+// device code, output Nothing) that the firmware never matches. The page hides them.
+const PORT_DEVICE_USAGE_PAGE = 0xFFFB0000;
+
+function key_usage(usage) {
+    return '0x' + ((usage < 0x100 ? 0x00070000 + usage : usage) >>> 0).toString(16).padStart(8, '0');
+}
+
+function port_name(port) {
+    return port == 0 ? 'Any port' : 'Port ' + port;
+}
+
+function port_devices() {
+    if (!config['port_devices'] || typeof config['port_devices'] !== 'object') {
+        config['port_devices'] = {};
+    }
+    return config['port_devices'];
+}
+
+// moves placeholder mappings (from the board or an old JSON file) into config['port_devices']
+function extract_port_devices() {
+    const devices = port_devices();
+    config['mappings'] = config['mappings'].filter((m) => {
+        const usage = parseInt(m['source_usage'], 16) >>> 0;
+        if (((usage & 0xFFFF0000) >>> 0) != PORT_DEVICE_USAGE_PAGE) {
+            return true;
+        }
+        const id = DEVICE_BY_CODE[usage & 0xFF];
+        if (id) {
+            devices[String((usage >> 8) & 0xFF)] = id;
+        }
+        return false;
+    });
+}
+
+function port_device_mappings() {
+    return Object.entries(port_devices()).filter(([, id]) => id in DEVICES).map(([port, id]) => ({
+        'source_usage': '0x' + ((PORT_DEVICE_USAGE_PAGE | (parseInt(port) << 8) | DEVICES[id].code) >>> 0).toString(16).padStart(8, '0'),
+        'target_usage': '0x00000000',
+        'layers': [0],
+        'sticky': false,
+        'tap': false,
+        'hold': false,
+        'scaling': DEFAULT_SCALING,
+        'source_port': 0,
+        'target_port': 0,
+    }));
+}
+
+let current_port = '0';
+
+function current_device_id() {
+    const devices = port_devices();
+    return devices[current_port] || (current_port == '0' ? 'full' : 'full');
+}
+
+function render_port_bar() {
+    const bar = document.getElementById('dev_ports');
+    clear_children(bar);
+    const devices = port_devices();
+    const ports = Object.keys(devices);
+    if (!ports.includes(current_port)) {
+        ports.push(current_port);  // a port with mappings but no device chosen yet
+    }
+    ports.sort((a, b) => a - b);
+    for (const port of ports) {
+        const id = devices[port] || 'full';
+        const chip = md_element('button', { type: 'button', class: 'md-port' + (port == current_port ? ' on' : ''), 'aria-pressed': port == current_port ? 'true' : 'false' });
+        chip.appendChild(md_element('span', { class: 'p' }, port_name(port)));
+        chip.appendChild(md_element('span', { class: 'd' }, (port in devices) ? DEVICES[id].name : 'choose a device'));
+        chip.addEventListener('click', () => { current_port = port; md_refresh(); });
+        bar.appendChild(chip);
+    }
+    const add = md_element('button', { type: 'button', class: 'md-port md-port-add' }, '+ Add a device');
+    add.addEventListener('click', () => {
+        document.getElementById('dev_add_form').classList.toggle('d-none');
+    });
+    bar.appendChild(add);
+
+    // the selected port's device and remove button
+    const pick = document.getElementById('dev_kind');
+    if (pick.options.length == 0) {
+        for (const id of DEVICE_ORDER) {
+            pick.appendChild(md_element('option', { value: id }, DEVICES[id].name));
+        }
+        const add_kind = document.getElementById('dev_add_kind');
+        for (const id of DEVICE_ORDER) {
+            add_kind.appendChild(md_element('option', { value: id }, DEVICES[id].name));
+        }
+    }
+    pick.value = current_device_id();
+    document.getElementById('dev_kind_label').innerText = port_name(current_port) + ' is';
+    document.getElementById('dev_remove').disabled = !(current_port in devices);
+    const add_port = document.getElementById('dev_add_port');
+    clear_children(add_port);
+    for (let p = 0; p <= 15; p++) {
+        if (!(String(p) in devices)) {
+            add_port.appendChild(md_element('option', { value: String(p) }, port_name(p)));
+        }
+    }
+}
+
+function dev_setup() {
+    document.getElementById('dev_kind').addEventListener('change', (e) => {
+        port_devices()[current_port] = e.target.value;
+        md_refresh();
+    });
+    document.getElementById('dev_remove').addEventListener('click', () => {
+        delete port_devices()[current_port];
+        current_port = '0';
+        md_refresh();
+    });
+    document.getElementById('dev_add').addEventListener('click', () => {
+        const port = document.getElementById('dev_add_port').value;
+        if (port === '') {
+            return;
+        }
+        port_devices()[port] = document.getElementById('dev_add_kind').value;
+        current_port = port;
+        document.getElementById('dev_add_form').classList.add('d-none');
+        md_refresh();
+    });
+}
+
+function render_device_picture() {
+    const id = current_device_id();
+    const device = DEVICES[id];
+    const pic = document.getElementById('kb_picture');
+    if (pic.dataset.device !== id) {
+        pic.dataset.device = id;
+        clear_children(pic);
+        const u = device.unit;
+        pic.style.width = (device.w * u) + 'px';
+        pic.style.height = (device.h * u) + 'px';
+        pic.className = 'md-dev md-dev-' + (device.shape || 'keyboard');
+        pic.setAttribute('aria-label', device.name);
+        if (device.shape == 'mouse' || device.shape == 'trackball') {
+            pic.appendChild(md_element('div', { class: 'md-dev-body', 'aria-hidden': 'true' }));
+            if (device.shape == 'trackball') {
+                pic.appendChild(md_element('div', { class: 'md-dev-ball', 'aria-hidden': 'true' }));
+            }
+        }
+        for (const [label, usage, x, y, w = 1, h = 1, round = false, extra = ''] of device.keys) {
+            const key = md_element('button', { type: 'button', class: 'md-key' + (round ? ' round' : '') + (usage === null ? ' fixed' : '') + (extra ? ' ' + extra : '') });
+            key.style.left = (x * u + 2) + 'px';
+            key.style.top = (y * u + 2) + 'px';
+            key.style.width = (w * u - 4) + 'px';
+            key.style.height = (h * u - 4) + 'px';
+            key.appendChild(md_element('span', {}, label));
+            if (usage === null) {
+                key.disabled = true;
+                key.title = label + ': handled inside the device, can\'t be mapped';
+            } else {
+                key.dataset.usage = key_usage(usage);
+                key.setAttribute('aria-label', readable_usage_name(key_usage(usage)) + ' (' + label + ')');
+                key.addEventListener('click', () => kb_key_clicked(key_usage(usage)));
+            }
+            pic.appendChild(key);
+        }
+        const note = document.getElementById('dev_note');
+        note.innerText = device.note || '';
+        note.classList.toggle('d-none', !device.note);
+    }
+}
+
+function kb_key_clicked(usage) {
+    const port = parseInt(current_port);
+    let mapping = config['mappings'].find((m) => (m['source_usage'] == usage) && ((m['source_port'] || 0) == port));
+    if (!mapping) {
+        add_empty_mapping(usage);
+        mapping = config['mappings'][config['mappings'].length - 1];
+        mapping['source_port'] = port;
+        set_mappings_ui_state();
+    }
+    md_select(mapping, true);
+}
+
+// called for each input the board reports while the monitor is on
+function kb_hit(usage, value, hub_port = 0) {
+    if ((current_port != '0') && (String(hub_port) != current_port)) {
+        return;
+    }
+    const pressed = value != 0;
+    document.querySelectorAll('#kb_picture .md-key[data-usage="' + usage + '"], #kb_other .md-chip[data-usage="' + usage + '"]').forEach((element) => {
+        element.classList.toggle('hit', pressed);
+        if (pressed) {
+            clearTimeout(element._hit_timer);
+            // wheels and knobs only report movement, so let their light fade
+            element._hit_timer = setTimeout(() => element.classList.remove('hit'), 400);
+        }
+    });
+}
+
+function md_refresh() {
+    if (selected_mapping && !config['mappings'].includes(selected_mapping)) {
+        selected_mapping = null;
+    }
+    render_port_bar();
+    render_device_picture();
+    const port = parseInt(current_port);
+    const first_index = {};
+    config['mappings'].forEach((m, i) => {
+        if (((m['source_port'] || 0) == port) && !(m['source_usage'] in first_index)) {
+            first_index[m['source_usage']] = i;
+        }
+    });
+    const on_picture = new Set();
+    document.querySelectorAll('#kb_picture .md-key[data-usage]').forEach((key) => {
+        const usage = key.dataset.usage;
+        on_picture.add(usage);
+        const i = first_index[usage];
+        const mapped = i !== undefined;
+        key.classList.toggle('m', mapped);
+        key.classList.toggle('sel', !!selected_mapping && selected_mapping['source_usage'] == usage && (selected_mapping['source_port'] || 0) == port);
+        let badge = key.querySelector('.md-badge');
+        if (mapped) {
+            if (!badge) {
+                badge = md_element('span', { class: 'md-badge' });
+                key.appendChild(badge);
+            }
+            badge.innerText = i + 1;
+            key.title = readable_usage_name(usage) + ' → ' + readable_target_usage_name(config['mappings'][i]['target_usage']);
+        } else {
+            if (badge) {
+                badge.remove();
+            }
+            key.title = readable_usage_name(usage) + ' (not mapped)';
+        }
+    });
+    // this port's mappings whose input isn't on the picture
+    const other = document.getElementById('kb_other');
+    clear_children(other);
+    config['mappings'].forEach((m, i) => {
+        if (((m['source_port'] || 0) != port) || on_picture.has(m['source_usage']) || (m['source_usage'] == '0x00000000')) {
+            return;
+        }
+        const chip = md_element('button', { type: 'button', class: 'md-chip' + (m === selected_mapping ? ' sel' : '') });
+        chip.dataset.usage = m['source_usage'];
+        chip.appendChild(md_element('b', {}, String(i + 1)));
+        chip.appendChild(document.createTextNode('source_name' in m ? m['source_name'] : readable_usage_name(m['source_usage'])));
+        chip.addEventListener('click', () => md_select(m, true));
+        other.appendChild(chip);
+    });
+    // rows
+    const rows = document.querySelectorAll('#mappings .mapping_container');
+    rows.forEach((row, i) => {
+        const m = config['mappings'][i];
+        row.classList.toggle('md-selected', !!m && m === selected_mapping);
+        if (!row.dataset.mdBound) {
+            row.dataset.mdBound = '1';
+            row.addEventListener('click', (event) => {
+                if (event.target.closest('.delete_button')) {
+                    return;
+                }
+                const index = Array.from(document.querySelectorAll('#mappings .mapping_container')).indexOf(row);
+                const mapping = config['mappings'][index];
+                if (mapping) {
+                    selected_mapping = mapping;
+                    // show the picture of the port this mapping listens to
+                    current_port = String(mapping['source_port'] || 0);
+                    md_refresh_soon();
+                }
+            });
+        }
+    });
+    render_inspector();
+}
+
 const POWERMIC_PICKS = {
     8: ['0xff010003', '0xff010007', '0xff010005', '0xff010006', '0xff010002', '0xff010004', '0xff010008', '0xff01000a', '0xff010009', '0xff010001'],
     7: ['0xff020001', '0xff020002', '0xff020003'],
@@ -2300,10 +2682,6 @@ POWERMIC_PICKS[6] = POWERMIC_PICKS[8];
 
 let selected_mapping = null;
 let md_refresh_pending = false;
-
-function kb_usage(code) {
-    return '0x000700' + code.toString(16).padStart(2, '0');
-}
 
 function mapping_index(mapping) {
     return config['mappings'].indexOf(mapping);
@@ -2332,25 +2710,7 @@ function md_select(mapping, scroll = false) {
 }
 
 function md_setup() {
-    const kb = document.getElementById('kb_picture');
-    for (const row of KB_ROWS) {
-        const r = document.createElement('div');
-        r.className = 'md-kb-row';
-        for (const [label, code, width = 1] of row) {
-            const key = document.createElement('button');
-            key.type = 'button';
-            key.className = 'md-key';
-            key.style.width = (width * KB_UNIT + (width - 1) * KB_GAP) + 'px';
-            key.dataset.usage = kb_usage(code);
-            key.setAttribute('aria-label', readable_usage_name(kb_usage(code)));
-            const span = document.createElement('span');
-            span.innerText = label;
-            key.appendChild(span);
-            key.addEventListener('click', () => kb_key_clicked(kb_usage(code)));
-            r.appendChild(key);
-        }
-        kb.appendChild(r);
-    }
+    dev_setup();
     document.getElementById('kb_live').addEventListener('change', kb_live_onchange);
     document.getElementById('side_manage_profiles').addEventListener('click', () => {
         const tab = document.getElementById('nav-profiles-tab');
@@ -2390,14 +2750,6 @@ function md_setup() {
     md_refresh();
 }
 
-function kb_key_clicked(usage) {
-    let mapping = config['mappings'].find((m) => m['source_usage'] == usage);
-    if (!mapping) {
-        add_empty_mapping(usage);
-        mapping = config['mappings'][config['mappings'].length - 1];
-    }
-    md_select(mapping, true);
-}
 
 async function kb_live_onchange() {
     const on = document.getElementById('kb_live').checked;
@@ -2408,88 +2760,7 @@ async function kb_live_onchange() {
     }
 }
 
-// called for each input the board reports while the monitor is on
-function kb_hit(usage, value) {
-    const pressed = value != 0;
-    document.querySelectorAll('#kb_picture .md-key[data-usage="' + usage + '"], #kb_other .md-chip[data-usage="' + usage + '"]').forEach((element) => {
-        element.classList.toggle('hit', pressed);
-    });
-}
 
-function md_refresh() {
-    if (selected_mapping && !config['mappings'].includes(selected_mapping)) {
-        selected_mapping = null;
-    }
-    // picture
-    const first_index = {};
-    config['mappings'].forEach((m, i) => {
-        if (!(m['source_usage'] in first_index)) {
-            first_index[m['source_usage']] = i;
-        }
-    });
-    const on_picture = new Set();
-    document.querySelectorAll('#kb_picture .md-key').forEach((key) => {
-        const usage = key.dataset.usage;
-        on_picture.add(usage);
-        const i = first_index[usage];
-        const mapped = i !== undefined;
-        key.classList.toggle('m', mapped);
-        key.classList.toggle('sel', !!selected_mapping && selected_mapping['source_usage'] == usage);
-        let badge = key.querySelector('.md-badge');
-        if (mapped) {
-            if (!badge) {
-                badge = document.createElement('span');
-                badge.className = 'md-badge';
-                key.appendChild(badge);
-            }
-            badge.innerText = i + 1;
-            key.title = readable_usage_name(usage) + ' → ' + readable_target_usage_name(config['mappings'][i]['target_usage']);
-        } else {
-            if (badge) {
-                badge.remove();
-            }
-            key.title = readable_usage_name(usage) + ' (not mapped)';
-        }
-    });
-    // inputs that aren't on the picture (mouse, GPIO, other keys...)
-    const other = document.getElementById('kb_other');
-    clear_children(other);
-    config['mappings'].forEach((m, i) => {
-        if (on_picture.has(m['source_usage']) || (m['source_usage'] == '0x00000000')) {
-            return;
-        }
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'md-chip' + (m === selected_mapping ? ' sel' : '');
-        chip.dataset.usage = m['source_usage'];
-        const b = document.createElement('b');
-        b.innerText = i + 1;
-        chip.appendChild(b);
-        chip.appendChild(document.createTextNode('source_name' in m ? m['source_name'] : readable_usage_name(m['source_usage'])));
-        chip.addEventListener('click', () => md_select(m, true));
-        other.appendChild(chip);
-    });
-    // rows
-    const rows = document.querySelectorAll('#mappings .mapping_container');
-    rows.forEach((row, i) => {
-        const m = config['mappings'][i];
-        row.classList.toggle('md-selected', !!m && m === selected_mapping);
-        if (!row.dataset.mdBound) {
-            row.dataset.mdBound = '1';
-            row.addEventListener('click', (event) => {
-                if (event.target.closest('.delete_button')) {
-                    return;
-                }
-                const index = Array.from(document.querySelectorAll('#mappings .mapping_container')).indexOf(row);
-                if (index >= 0 && config['mappings'][index]) {
-                    selected_mapping = config['mappings'][index];
-                    md_refresh_soon();
-                }
-            });
-        }
-    });
-    render_inspector();
-}
 
 function md_element(tag, attrs = {}, text = null) {
     const e = document.createElement(tag);
@@ -2637,13 +2908,15 @@ function render_inspector() {
     const port_label = md_element('label', { for: 'insp_port', class: 'visually-hidden' }, 'Hub port');
     port_set.appendChild(port_label);
     const port = md_element('select', { id: 'insp_port', class: 'form-select' });
-    port.appendChild(md_element('option', { value: '0' }, 'Any port'));
-    for (let p = 1; p <= 15; p++) {
-        port.appendChild(md_element('option', { value: String(p) }, 'Hub port ' + p));
+    const named = port_devices();
+    for (let p = 0; p <= 15; p++) {
+        const id = named[String(p)];
+        port.appendChild(md_element('option', { value: String(p) }, port_name(p) + (id ? ' \u00b7 ' + DEVICES[id].name : '')));
     }
     port.value = String(m['source_port'] || 0);
     port.addEventListener('change', () => {
         m['source_port'] = parseInt(port.value, 10);
+        current_port = String(m['source_port']);
         md_mapping_changed();
     });
     port_set.appendChild(port);

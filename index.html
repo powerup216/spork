@@ -64,17 +64,34 @@
 
                 <section id="kb_card" class="md-card mt-3" aria-labelledby="kb_title">
                     <div class="md-card-head">
-                        <h2 id="kb_title" class="md-card-title">Your keyboard</h2>
-                        <span class="md-card-sub">Numbered keys are mapped. Click a key to edit its mapping, or to map it.</span>
+                        <h2 id="kb_title" class="md-card-title">Your devices</h2>
+                        <span class="md-card-sub">Pick a port, then click a key or button to map it. Numbers match the list below.</span>
                         <div class="form-check form-switch ms-auto mb-0">
                             <input class="form-check-input" type="checkbox" role="switch" id="kb_live">
                             <label class="form-check-label" for="kb_live">Light up keys as I press them</label>
                         </div>
                     </div>
-                    <div class="md-kb-scroll">
-                        <div id="kb_picture" class="md-kb" role="group" aria-label="Keyboard"></div>
+                    <div class="md-dev-bar">
+                        <div id="dev_ports" class="md-ports" role="group" aria-label="Ports"></div>
+                        <div class="md-dev-kind">
+                            <label id="dev_kind_label" for="dev_kind" class="form-label mb-0">Any port is</label>
+                            <select id="dev_kind" class="form-select form-select-sm"></select>
+                            <button id="dev_remove" type="button" class="btn btn-sm btn-outline-secondary">Remove</button>
+                        </div>
+                        <div id="dev_add_form" class="md-dev-kind d-none">
+                            <label for="dev_add_port" class="form-label mb-0">Add</label>
+                            <select id="dev_add_port" class="form-select form-select-sm"></select>
+                            <label for="dev_add_kind" class="visually-hidden">Device</label>
+                            <select id="dev_add_kind" class="form-select form-select-sm"></select>
+                            <button id="dev_add" type="button" class="btn btn-sm btn-primary">Add</button>
+                        </div>
                     </div>
+                    <div class="md-kb-scroll">
+                        <div id="kb_picture" class="md-dev" role="group" aria-label="Device"></div>
+                    </div>
+                    <p id="dev_note" class="md-dev-note d-none"></p>
                     <div id="kb_other" class="md-kb-other"></div>
+                    <p class="md-dev-note mb-3">Which device is on which port is saved on the board with the profile (and in exported JSON). "Any port" means mappings that work whichever port the device is on; with a USB hub, the board numbers the hub's ports 1, 2, 3...</p>
                 </section>
 
                 <div class="row pb-2 mt-3" style="overflow-x: auto;">
