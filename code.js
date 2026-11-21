@@ -310,7 +310,7 @@ async function open_serial_device() {
 
     try {
         const port = await navigator.serial.requestPort({
-            filters: [{ usbVendorId: 0x05F3, usbProductId: 0x00FF }, { usbVendorId: 0x0554, usbProductId: 0x1001 }, { usbVendorId: 0x0554, usbProductId: 0x0064 },
+            filters: [{ usbVendorId: 0x05F3, usbProductId: 0x00FF }, { usbVendorId: 0x0554, usbProductId: 0x1001 }, { usbVendorId: 0x0554, usbProductId: 0x0064 }, { usbVendorId: 0x0911, usbProductId: 0x0C1C },
                 // standard HID Remapper device types
                 { usbVendorId: 0xCAFE, usbProductId: 0xBAF2 }, { usbVendorId: 0x0F0D, usbProductId: 0x00C1 },
                 { usbVendorId: 0x054C, usbProductId: 0x1234 }, { usbVendorId: 0x18D1, usbProductId: 0x9400 }]
@@ -3069,8 +3069,9 @@ function render_inspector() {
     output_set.appendChild(output_row);
     const type = parseInt(config['our_descriptor_number']);
     let picks = POWERMIC_PICKS[type] || null;
-    if (type == 9) {
-        picks = Object.keys(usages[9]).filter((u) => u.startsWith('0xff03'));
+    if (type == 9 || type == 10) {
+        const page = type == 9 ? '0xff03' : '0xff04';
+        picks = Object.keys(usages[type]).filter((u) => u.startsWith(page));
     }
     if (picks) {
         const grid = md_element('div', { class: 'md-pick', role: 'group', 'aria-label': 'Quick picks' });
@@ -3078,7 +3079,7 @@ function render_inspector() {
             if (!(usage in usages[type])) {
                 continue;
             }
-            const name = usages[type][usage]['name'].replace(/^PowerMic (4 )?/, '').replace(/^Foot pedal /, '');
+            const name = usages[type][usage]['name'].replace(/^PowerMic (4 )?/, '').replace(/^SpeechMike /, '').replace(/^Foot pedal /, '');
             const on = m['target_usage'] == usage;
             const button = md_element('button', { type: 'button', class: 'btn' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false' }, name);
             button.addEventListener('click', () => {
@@ -3235,6 +3236,16 @@ const LIVE_DEVICES = {
             [['Fn C', '0xff03000c'], ['Enter', '0xff030008'], ['Fn D', '0xff03000d']],
         ],
     },
+    speechmike: {
+        name: 'SpeechMike Premium',
+        rows: [
+            [['EOL/PRIO', '0xff040006'], ['INS/OVR', '0xff040008']],
+            [['● Record', '0xff040001', 'rec']],
+            [['Rewind', '0xff040005'], ['Play / Stop', '0xff040003'], ['Forward', '0xff040004']],
+            [['F1', '0xff040007'], ['F2', '0xff04000a'], ['F3', '0xff04000b'], ['F4', '0xff04000c']],
+            [['Command', '0xff04000d']],
+        ],
+    },
     pedal: {
         name: 'Foot pedal',
         rows: [[['Left', '0xff020001', 'ped'], ['Middle', '0xff020002', 'ped'], ['Right', '0xff020003', 'ped']]],
@@ -3244,12 +3255,12 @@ const LIVE_DEVICES = {
 const DESCRIPTOR_NAMES = {
     0: 'Mouse and keyboard', 1: 'Absolute mouse and keyboard', 2: 'Switch gamepad', 3: 'PS4 arcade stick',
     4: 'Stadia controller', 5: 'XAC/Flex compatible', 6: 'PowerMic II (no microphone)', 7: 'Foot pedal',
-    8: 'PowerMic II with microphone', 9: 'PowerMic 4',
+    8: 'PowerMic II with microphone', 9: 'PowerMic 4', 10: 'SpeechMike Premium',
 };
 
 function live_device_id() {
     const n = parseInt(config['our_descriptor_number']);
-    return (n == 6 || n == 8) ? 'powermic2' : n == 9 ? 'powermic4' : n == 7 ? 'pedal' : null;
+    return (n == 6 || n == 8) ? 'powermic2' : n == 9 ? 'powermic4' : n == 10 ? 'speechmike' : n == 7 ? 'pedal' : null;
 }
 
 function render_live_device() {
@@ -3428,6 +3439,7 @@ function live_setup() {
 const BOARD_TYPES = [
     { name: 'PowerMic II', desc: 'PowerScribe One. Buttons, plus a silent microphone so Windows sees a recording device.', id: '0554:1001', types: [8, 6], set: 8 },
     { name: 'PowerMic 4', desc: 'Newer PowerScribe One installs that expect a PowerMic 4.', id: '0554:0064', types: [9], set: 9 },
+    { name: 'SpeechMike Premium', desc: 'Philips SpeechMike Premium SMP3700 (PowerScribe One 2023.1 SP3 or later).', id: '0911:0C1C', types: [10], set: 10 },
     { name: 'Foot pedal', desc: 'Three-pedal transcription foot pedal (left, middle, right).', id: '05F3:00FF', types: [7], set: 7 },
     { name: 'Standard HID Remapper', desc: 'Plain keyboard and mouse. No PowerScribe buttons.', id: 'CAFE:BAF2', types: [0], set: 0 },
 ];
