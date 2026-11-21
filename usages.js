@@ -715,7 +715,6 @@ const speechmike_usages = {
     "0xff04000c": { 'name': 'SpeechMike F3', 'class': 'powermic' },
     "0xff04000d": { 'name': 'SpeechMike F4', 'class': 'powermic' },
     "0xff04000e": { 'name': 'SpeechMike Command', 'class': 'powermic' },
-    "0xff040008": { 'name': 'SpeechMike Trackpad click', 'class': 'powermic' },
 };
 usages[10] = { ...usages[0], ...speechmike_usages };
 

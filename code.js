@@ -3243,7 +3243,7 @@ const LIVE_DEVICES = {
             [['● Record', '0xff040001', 'rec']],
             [['Rewind', '0xff040005'], ['Play / Stop', '0xff040003'], ['Forward', '0xff040004']],
             [['F1', '0xff04000a'], ['F2', '0xff04000b'], ['F3', '0xff04000c'], ['F4', '0xff04000d']],
-            [['Trackpad click', '0xff040008'], ['Command', '0xff04000e']],
+            [['Command', '0xff04000e']],
         ],
     },
     pedal: {
