@@ -509,3 +509,23 @@ hr { border-color: var(--line); opacity: 1; }
 .md-combo-on #kb_picture .md-key[data-axis] { opacity: 0.45; }
 .md-key.combo-pick, .md-chip.combo-pick { background: var(--marker) !important; border-color: var(--marker) !important; color: #1b1600 !important; }
 .md-chip.combo::before { content: "⊕ "; color: var(--marker); }
+
+/* Macro builder */
+.md-mb { margin-top: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.md-mb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.md-mb-p { margin: 0; font-size: 0.88rem; color: var(--muted); }
+.md-mb-steps { display: flex; flex-wrap: wrap; gap: 6px; min-height: 44px; padding: 10px; border-radius: 10px; border: 1px dashed var(--line); background: var(--panel-2); align-items: center; }
+.md-mb-empty { color: var(--muted); font-size: 0.88rem; }
+.md-mb-chip { display: inline-flex; align-items: center; gap: 2px; padding: 3px 4px 3px 10px; border-radius: 999px; border: 1px solid #2f5966; background: #13262d; color: var(--bone); font-size: 0.86rem; max-width: 100%; }
+.md-mb-chip .l { overflow-wrap: anywhere; }
+.md-mb-chip.text { border-color: var(--lightbox); }
+.md-mb-chip.pause { border-style: dashed; color: var(--muted); }
+.md-mb-chip .x { border: 0; background: transparent; color: var(--muted); min-width: 24px; min-height: 24px; border-radius: 50%; line-height: 1; padding: 0; }
+.md-mb-chip .x:hover { color: var(--bone); background: rgba(127, 208, 230, 0.15); }
+.md-mb-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.md-mb-tool { display: flex; flex-direction: column; gap: 6px; }
+.md-mb-hint { color: var(--muted); font-size: 0.78rem; }
+.md-mb-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.md-mb-storage { font-size: 0.82rem; color: var(--muted); }
+.md-mb-storage.over { color: #ff8a7a; }
+#mb_combo.active, #mb_record.active { background: var(--marker); border-color: var(--marker); color: #1b1600; }

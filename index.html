@@ -89,6 +89,10 @@
                     </div>
                     <div class="md-combo-row">
                         <button id="combo_start" type="button" class="btn btn-sm btn-outline-secondary">+ Combo: two buttons together</button>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="combo_exclusive" checked>
+                            <label class="form-check-label small" for="combo_exclusive">Block each button's own action while both are held</label>
+                        </div>
                         <div id="combo_bar" class="md-combo-bar d-none" role="status">
                             <span id="combo_text"></span>
                             <button id="combo_cancel" type="button" class="btn btn-sm btn-outline-secondary">Cancel</button>
@@ -122,8 +126,9 @@
                     </div>
                 </div>
 
-                <div class="text-center mt-2 mb-3">
+                <div class="text-center mt-2 mb-3 d-flex flex-wrap justify-content-center gap-2">
                     <button id="add_mapping" type="button" class="btn btn-primary">Add mapping</button>
+                    <button id="clear_mappings" type="button" class="btn btn-outline-danger">Clear all mappings</button>
                 </div>
 
             </div>
@@ -399,7 +404,64 @@
 
             <div class="tab-pane" id="nav-macros" role="tabpanel" tabindex="0">
 
-                <div class="accordion mt-4" id="macros_container">
+                <section class="md-mb" aria-labelledby="mb_title">
+                    <div class="md-mb-head">
+                        <h2 id="mb_title" class="md-card-title me-auto">Macro builder</h2>
+                        <label for="mb_slot" class="visually-hidden">Macro</label>
+                        <select id="mb_slot" class="form-select form-select-sm w-auto"></select>
+                    </div>
+                    <p class="md-mb-p">A macro plays a list of steps when its button is pressed. Each step is the keys held at that moment. Build one here, then use <b>Use this macro</b> to put it on a button.</p>
+
+                    <div class="md-mb-steps" id="mb_steps" aria-live="polite"></div>
+
+                    <div class="md-mb-tools">
+                        <div class="md-mb-tool">
+                            <label for="mb_text" class="md-board-lbl">Type text</label>
+                            <div class="input-group input-group-sm">
+                                <input id="mb_text" type="text" class="form-control" placeholder="e.g. No acute findings." autocomplete="off">
+                                <button id="mb_text_add" type="button" class="btn btn-outline-secondary">Add</button>
+                            </div>
+                            <small class="md-mb-hint">US keyboard layout. Capitals and symbols add Shift by themselves.</small>
+                        </div>
+                        <div class="md-mb-tool">
+                            <span class="md-board-lbl">Shortcut or record</span>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button id="mb_combo" type="button" class="btn btn-sm btn-outline-secondary">Press a shortcut…</button>
+                                <button id="mb_record" type="button" class="btn btn-sm btn-outline-secondary">● Record keys</button>
+                            </div>
+                            <small id="mb_capture_hint" class="md-mb-hint">Shortcut: press e.g. Ctrl+Shift+S once. Record: type on this computer's keyboard, then click Stop.</small>
+                        </div>
+                        <div class="md-mb-tool">
+                            <span class="md-board-lbl">Add</span>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary mb-add-key" data-usage="0x00070028">Enter</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary mb-add-key" data-usage="0x0007002b">Tab</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary mb-add-key" data-usage="0x00070029">Esc</button>
+                                <button id="mb_pick" type="button" class="btn btn-sm btn-outline-secondary">Any output…</button>
+                                <span class="input-group input-group-sm w-auto">
+                                    <button id="mb_pause" type="button" class="btn btn-outline-secondary">Pause</button>
+                                    <label for="mb_pause_ms" class="visually-hidden">Pause length in ms</label>
+                                    <input id="mb_pause_ms" type="number" min="10" max="5000" step="10" value="50" class="form-control" style="max-width: 80px">
+                                    <span class="input-group-text">ms</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="md-mb-foot">
+                        <span id="mb_storage" class="md-mb-storage me-auto"></span>
+                        <label for="mb_speed" class="small">Step length</label>
+                        <span class="input-group input-group-sm w-auto">
+                            <input id="mb_speed" type="number" min="1" max="256" class="form-control" style="max-width: 70px">
+                            <span class="input-group-text">ms</span>
+                        </span>
+                        <button id="mb_clear" type="button" class="btn btn-sm btn-outline-danger">Clear macro</button>
+                        <button id="mb_use" type="button" class="btn btn-sm btn-primary">Use this macro</button>
+                    </div>
+                </section>
+
+                <h3 class="md-board-lbl mt-4">All macros (detailed)</h3>
+                <div class="accordion mt-2" id="macros_container">
 
                 </div>
 

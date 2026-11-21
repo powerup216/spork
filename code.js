@@ -892,6 +892,8 @@ function set_macro_previews() {
                 (item_element) => item_element.innerText == "Nothing" ? "∅" : item_element.innerText
             ).join('+')).join(', ');
         macro_element.querySelector('.macro_preview').innerText = preview;
+    }    if (typeof mb_render == 'function' && document.getElementById('mb_steps')) {
+        mb_render();
     }
 }
 
@@ -1796,6 +1798,14 @@ function readable_usage_name(usage, default_to_hex = true) {
 }
 
 function readable_target_usage_name(usage) {
+    if (typeof usage == 'string' && /^0xfff2[0-9a-f]{4}$/i.test(usage) && typeof config != 'undefined' && config['macros']) {
+        const i = (parseInt(usage, 16) & 0xFFFF) - 1;
+        const m = config['macros'][i];
+        if (m && m.length && typeof mb_groups == 'function') {
+            const preview = mb_groups(m).map((g) => g.type == 'text' ? g.text.replace(/\n/g, '⏎') : g.type == 'pause' ? '⏸' : mb_step_label(g.steps[0])).join(' ');
+            return 'Macro ' + (i + 1) + ' (' + (preview.length > 24 ? preview.slice(0, 23) + '…' : preview) + ')';
+        }
+    }
     return (usage in usages[config['our_descriptor_number']]) ? usages[config['our_descriptor_number']][usage]['name'] : usage;
 }
 
@@ -2758,6 +2768,12 @@ function dir_key_clicked(dir) {
 // the port in its "N port" prefix
 function mapping_port(m) {
     const usage = m['source_usage'];
+    if (typeof usage == 'string' && usage.toLowerCase().startsWith('0xfff5')) {
+        const c = combo_of_usage(usage);
+        if (c) {
+            return c.port;
+        }
+    }
     if (usage.startsWith('0xfff3')) {
         const e = config['expressions'][(parseInt(usage, 16) & 0xFFFF) - 1];
         const match = /^(\d+) port /.exec(expr_norm(e));
@@ -2941,6 +2957,7 @@ function md_setup() {
     dev_setup();
     live_setup();
     combo_setup();
+    macro_builder_setup();
     board_setup();
     document.getElementById('kb_live').addEventListener('change', kb_live_onchange);
     document.getElementById('side_manage_profiles').addEventListener('click', () => {
@@ -3319,6 +3336,18 @@ function live_resolve(usage, hub_port) {
             return;
         }
         const eu = '0xfff3' + (i + 1).toString(16).padStart(4, '0');
+        const x = xcombo_parse(e);
+        if (x && (x.a == usage || x.b == usage)) {
+            const reg = '0xfff5' + (x.a == usage ? x.ra : x.rb).toString(16).padStart(4, '0');
+            const other = readable_usage_name(x.a == usage ? x.b : x.a);
+            for (const m of config['mappings'].filter((m) => m['source_usage'] == reg && m['target_usage'] != '0x00000000')) {
+                out.push({ text: readable_target_usage_name(m['target_usage']) + ' (alone)', target: m['target_usage'] });
+            }
+            for (const m of config['mappings'].filter((m) => m['source_usage'] == eu && m['target_usage'] != '0x00000000')) {
+                out.push({ text: readable_target_usage_name(m['target_usage']) + ' (with ' + other + ')', target: null });
+            }
+            return;
+        }
         const targets = config['mappings'].filter((m) => m['source_usage'] == eu && m['target_usage'] != '0x00000000');
         if (targets.length) {
             for (const m of targets) {
@@ -3328,6 +3357,10 @@ function live_resolve(usage, hub_port) {
             out.push({ text: 'read by Expression ' + (i + 1), target: null });
         }
     });
+    // a button taken over by an exclusive combo is mapped to Nothing on purpose
+    if (out.some((r) => /\((alone|with )/.test(r.text))) {
+        return out.filter((r) => !r.text.startsWith('blocked'));
+    }
     return out;
 }
 
@@ -3546,10 +3579,29 @@ function combo_text(a, b, port) {
 
 // { a, b, port, label } when the usage is an expression made as a combo
 function combo_of_usage(usage) {
-    if (typeof usage != 'string' || !usage.toLowerCase().startsWith('0xfff3') || typeof config == 'undefined') {
+    if (typeof usage != 'string' || typeof config == 'undefined') {
+        return null;
+    }
+    usage = usage.toLowerCase();
+    if (usage.startsWith('0xfff5')) {
+        // a register written by an exclusive combo: "A (alone)"
+        const reg = parseInt(usage, 16) & 0xFFFF;
+        for (const x of xcombos()) {
+            if (reg == x.ra || reg == x.rb) {
+                const u = reg == x.ra ? x.a : x.b;
+                return { a: x.a, b: x.b, port: x.port, alone: u, label: readable_usage_name(u) + ' alone' + (x.port ? ' (port ' + x.port + ')' : '') };
+            }
+        }
+        return null;
+    }
+    if (!usage.startsWith('0xfff3')) {
         return null;
     }
     const i = (parseInt(usage, 16) & 0xFFFF) - 1;
+    const x = xcombo_parse((config['expressions'] || [])[i]);
+    if (x) {
+        return { a: x.a, b: x.b, port: x.port, label: readable_usage_name(x.a) + ' + ' + readable_usage_name(x.b) + ' only' + (x.port ? ' (port ' + x.port + ')' : '') };
+    }
     const m = COMBO_RE.exec(expr_norm((config['expressions'] || [])[i]));
     if (!m) {
         return null;
@@ -3630,6 +3682,10 @@ function combo_pick(usage) {
     const [a, b] = combo_state.picks;
     const port = combo_state.port;
     const n = device_nexpressions();
+    if (document.getElementById('combo_exclusive').checked) {
+        combo_make_exclusive(a, b, port);
+        return;
+    }
     // the same pair in either order is the same combo
     let i = config['expressions'].findIndex((e, k) => k < n && [combo_text(a, b, port), combo_text(b, a, port)].map(expr_norm).includes(expr_norm(e)));
     if (i < 0) {
@@ -3661,4 +3717,572 @@ function combo_setup() {
             combo_end();
         }
     });
+}
+
+// ---------------------------------------------------------------------------
+// Clear all mappings (Mappings tab)
+
+function clear_all_mappings() {
+    const n = config['mappings'].length;
+    if (n == 0) {
+        return;
+    }
+    if (!confirm('Delete all ' + n + ' mapping' + (n == 1 ? '' : 's') + ' on this page? Nothing changes on the board until you click Save to device.')) {
+        return;
+    }
+    config['mappings'] = [];
+    selected_mapping = null;
+    set_mappings_ui_state();
+    md_refresh();
+}
+
+// ---------------------------------------------------------------------------
+// Macro builder (Macros tab): build a macro from typed text, a recorded key
+// sequence, shortcuts and pauses, instead of picking every key by hand. It
+// edits config['macros'] and redraws the detailed list below it.
+
+const MB_MAX_STEPS = 255;  // the board stores a macro's step count in one byte
+const MB_SHIFT = '0x000700e1';
+const MB_MODS = ['0x000700e0', '0x000700e1', '0x000700e2', '0x000700e3', '0x000700e4', '0x000700e5', '0x000700e6', '0x000700e7'];
+const kbu = (n) => '0x000700' + n.toString(16).padStart(2, '0');
+
+// US layout: character -> [usage, shift]
+const MB_CHARS = (() => {
+    const m = {};
+    for (let i = 0; i < 26; i++) {
+        m[String.fromCharCode(97 + i)] = [kbu(4 + i), false];
+        m[String.fromCharCode(65 + i)] = [kbu(4 + i), true];
+    }
+    '1234567890'.split('').forEach((c, i) => m[c] = [kbu(0x1e + i), false]);
+    '!@#$%^&*()'.split('').forEach((c, i) => m[c] = [kbu(0x1e + i), true]);
+    const plain = { ' ': 0x2c, '\n': 0x28, '\t': 0x2b, '-': 0x2d, '=': 0x2e, '[': 0x2f, ']': 0x30, '\\': 0x31, ';': 0x33, "'": 0x34, '`': 0x35, ',': 0x36, '.': 0x37, '/': 0x38 };
+    const shifted = { '_': 0x2d, '+': 0x2e, '{': 0x2f, '}': 0x30, '|': 0x31, ':': 0x33, '"': 0x34, '~': 0x35, '<': 0x36, '>': 0x37, '?': 0x38 };
+    for (const [c, u] of Object.entries(plain)) m[c] = [kbu(u), false];
+    for (const [c, u] of Object.entries(shifted)) m[c] = [kbu(u), true];
+    return m;
+})();
+const MB_CHAR_OF = (() => {
+    const r = {};
+    for (const [c, [u, sh]] of Object.entries(MB_CHARS)) {
+        r[u + (sh ? '+s' : '')] = c;
+    }
+    return r;
+})();
+
+// KeyboardEvent.code -> HID usage
+const MB_CODES = (() => {
+    const m = {};
+    for (let i = 0; i < 26; i++) m['Key' + String.fromCharCode(65 + i)] = kbu(4 + i);
+    for (let i = 1; i <= 9; i++) m['Digit' + i] = kbu(0x1d + i);
+    m['Digit0'] = kbu(0x27);
+    Object.assign(m, {
+        Enter: kbu(0x28), Escape: kbu(0x29), Backspace: kbu(0x2a), Tab: kbu(0x2b), Space: kbu(0x2c), Minus: kbu(0x2d), Equal: kbu(0x2e),
+        BracketLeft: kbu(0x2f), BracketRight: kbu(0x30), Backslash: kbu(0x31), Semicolon: kbu(0x33), Quote: kbu(0x34), Backquote: kbu(0x35),
+        Comma: kbu(0x36), Period: kbu(0x37), Slash: kbu(0x38), CapsLock: kbu(0x39), PrintScreen: kbu(0x46), ScrollLock: kbu(0x47), Pause: kbu(0x48),
+        Insert: kbu(0x49), Home: kbu(0x4a), PageUp: kbu(0x4b), Delete: kbu(0x4c), End: kbu(0x4d), PageDown: kbu(0x4e),
+        ArrowRight: kbu(0x4f), ArrowLeft: kbu(0x50), ArrowDown: kbu(0x51), ArrowUp: kbu(0x52), NumLock: kbu(0x53),
+        NumpadDivide: kbu(0x54), NumpadMultiply: kbu(0x55), NumpadSubtract: kbu(0x56), NumpadAdd: kbu(0x57), NumpadEnter: kbu(0x58),
+        NumpadDecimal: kbu(0x63), IntlBackslash: kbu(0x64), ContextMenu: kbu(0x65),
+        ControlLeft: kbu(0xe0), ShiftLeft: kbu(0xe1), AltLeft: kbu(0xe2), MetaLeft: kbu(0xe3),
+        ControlRight: kbu(0xe4), ShiftRight: kbu(0xe5), AltRight: kbu(0xe6), MetaRight: kbu(0xe7),
+    });
+    for (let i = 1; i <= 9; i++) m['Numpad' + i] = kbu(0x58 + i);
+    m['Numpad0'] = kbu(0x62);
+    for (let i = 1; i <= 12; i++) m['F' + i] = kbu(0x39 + i);
+    for (let i = 13; i <= 24; i++) m['F' + i] = kbu(0x5b + i);
+    return m;
+})();
+
+let mb_slot = 0;
+let mb_capture = null;  // null | 'combo' | 'record'
+
+function mb_steps() {
+    while (config['macros'].length < NMACROS) {
+        config['macros'].push([]);
+    }
+    return config['macros'][mb_slot];
+}
+
+function mb_step_ms() {
+    return parseInt(config['macro_entry_duration']) || 1;
+}
+
+// append steps, adding a release between two steps that share a key (otherwise
+// the key would just stay down and type once)
+function mb_append(steps) {
+    const macro = mb_steps();
+    for (const step of steps) {
+        const last = macro.length ? macro[macro.length - 1] : [];
+        if (step.length && last.some((u) => step.includes(u) && !MB_MODS.includes(u))) {
+            macro.push([]);
+        }
+        macro.push(step);
+    }
+    mb_changed();
+}
+
+function mb_text_steps(text) {
+    const steps = [];
+    const skipped = new Set();
+    for (const c of text.replace(/\r\n?/g, '\n')) {
+        const k = MB_CHARS[c];
+        if (!k) {
+            skipped.add(c);
+            continue;
+        }
+        steps.push(k[1] ? [MB_SHIFT, k[0]] : [k[0]]);
+    }
+    return { steps, skipped };
+}
+
+function mb_changed() {
+    set_macros_ui_state();
+    mb_render();
+}
+
+// how many bytes the saved settings take on the board (same sum as the firmware's
+// check; the limit is 4096)
+function config_storage_bytes() {
+    let n = 19 + 4;
+    n += (config['mappings'].length + port_device_mappings().length) * 15;
+    for (const macro of config['macros']) {
+        n += 1;
+        for (const entry of macro) {
+            n += 1 + 4 * entry.length;
+        }
+    }
+    for (const e of config['expressions'] || []) {
+        n += 2;
+        for (const tok of (e || '').trim().split(/\s+/).filter((t) => t)) {
+            n += 1 + (/^(0x[0-9a-f]+|-?\d+)$/i.test(tok) ? 4 : 0);
+        }
+    }
+    n += (config['quirks'] || []).length * 14;
+    return n;
+}
+
+// group the steps for display: typed text, pauses, other steps
+function mb_groups(macro) {
+    const groups = [];
+    for (let i = 0; i < macro.length; i++) {
+        const step = macro[i];
+        const last = groups[groups.length - 1];
+        if (step.length == 0) {
+            // a release between two presses of one key belongs to the text around it
+            const prev = macro[i - 1] || [], next = macro[i + 1] || [];
+            const between_text = last && last.type == 'text' && prev.some((u) => next.includes(u) && !MB_MODS.includes(u));
+            if (between_text) {
+                last.steps.push(step);
+                continue;
+            }
+            if (last && last.type == 'pause') {
+                last.steps.push(step);
+            } else {
+                groups.push({ type: 'pause', steps: [step] });
+            }
+            continue;
+        }
+        const key = step.length == 1 ? step[0] : (step.length == 2 && step[0] == MB_SHIFT ? step[1] + '+s' : null);
+        const c = key ? MB_CHAR_OF[key] : undefined;
+        if (c !== undefined) {
+            if (last && last.type == 'text') {
+                last.steps.push(step);
+                last.text += c;
+            } else {
+                groups.push({ type: 'text', steps: [step], text: c });
+            }
+            continue;
+        }
+        groups.push({ type: 'step', steps: [step] });
+    }
+    return groups;
+}
+
+function mb_step_label(step) {
+    const short = (u) => readable_target_usage_name(u).replace(/^Left |^Right /, '').replace('Control', 'Ctrl');
+    const mods = step.filter((u) => MB_MODS.includes(u)).map(short);
+    const rest = step.filter((u) => !MB_MODS.includes(u)).map(short);
+    return mods.concat(rest).join('+');
+}
+
+function mb_render() {
+    const box = document.getElementById('mb_steps');
+    if (!box) {
+        return;
+    }
+    // slot list with previews
+    const sel = document.getElementById('mb_slot');
+    const prev = sel.value;
+    clear_children(sel);
+    for (let i = 0; i < NMACROS; i++) {
+        const m = config['macros'][i] || [];
+        const preview = m.length ? mb_groups(m).map((g) => g.type == 'text' ? g.text.replace(/\n/g, '⏎') : g.type == 'pause' ? '⏸' : mb_step_label(g.steps[0])).join(' ').slice(0, 30) : 'empty';
+        sel.appendChild(md_element('option', { value: String(i) }, 'Macro ' + (i + 1) + ' — ' + preview));
+    }
+    sel.value = String(mb_slot);
+    clear_children(box);
+    const macro = mb_steps();
+    const groups = mb_groups(macro);
+    if (!groups.length) {
+        box.appendChild(md_element('span', { class: 'md-mb-empty' }, 'No steps yet. Type text, record keys or add a shortcut below.'));
+    }
+    groups.forEach((g, gi) => {
+        const chip = md_element('span', { class: 'md-mb-chip ' + g.type });
+        let label;
+        if (g.type == 'text') {
+            label = '“' + g.text.replace(/\n/g, '⏎').replace(/\t/g, '⇥') + '”';
+        } else if (g.type == 'pause') {
+            label = '⏸ ' + (g.steps.length * mb_step_ms()) + ' ms';
+        } else {
+            label = mb_step_label(g.steps[0]);
+        }
+        chip.appendChild(md_element('span', { class: 'l' }, label));
+        const move = (d) => {
+            const j = gi + d;
+            if (j < 0 || j >= groups.length) {
+                return;
+            }
+            [groups[gi], groups[j]] = [groups[j], groups[gi]];
+            config['macros'][mb_slot] = [];
+            mb_append(groups.flatMap((x) => x.steps));
+        };
+        const b_left = md_element('button', { type: 'button', class: 'x', 'aria-label': 'Move ' + label + ' earlier' }, '‹');
+        b_left.addEventListener('click', () => move(-1));
+        const b_right = md_element('button', { type: 'button', class: 'x', 'aria-label': 'Move ' + label + ' later' }, '›');
+        b_right.addEventListener('click', () => move(1));
+        const b_del = md_element('button', { type: 'button', class: 'x', 'aria-label': 'Remove ' + label }, '×');
+        b_del.addEventListener('click', () => {
+            groups.splice(gi, 1);
+            config['macros'][mb_slot] = [];
+            mb_append(groups.flatMap((x) => x.steps));
+        });
+        if (gi > 0) chip.appendChild(b_left);
+        if (gi < groups.length - 1) chip.appendChild(b_right);
+        chip.appendChild(b_del);
+        box.appendChild(chip);
+    });
+    // limits
+    const bytes = config_storage_bytes();
+    const st = document.getElementById('mb_storage');
+    const over_steps = macro.length > MB_MAX_STEPS;
+    st.innerText = macro.length + ' of ' + MB_MAX_STEPS + ' steps · plays in about ' + Math.max(1, Math.round(macro.length * mb_step_ms())) + ' ms · board storage ' + bytes + ' of 4096 bytes';
+    st.classList.toggle('over', over_steps || bytes > 4096);
+    if (over_steps) {
+        st.innerText += ' — too many steps, shorten it';
+    } else if (bytes > 4096) {
+        st.innerText += ' — too much to save, shorten something';
+    }
+    const speed = document.getElementById('mb_speed');
+    if (document.activeElement !== speed) {
+        speed.value = mb_step_ms();
+    }
+    document.getElementById('mb_use').disabled = macro.length == 0;
+    document.getElementById('mb_clear').disabled = macro.length == 0;
+}
+
+function mb_capture_set(mode) {
+    mb_capture = mode;
+    const combo = document.getElementById('mb_combo');
+    const rec = document.getElementById('mb_record');
+    combo.innerText = mode == 'combo' ? 'Press the keys now… (Esc cancels)' : 'Press a shortcut…';
+    rec.innerText = mode == 'record' ? '■ Stop recording' : '● Record keys';
+    combo.classList.toggle('active', mode == 'combo');
+    rec.classList.toggle('active', mode == 'record');
+    document.getElementById('nav-macros').classList.toggle('md-mb-capturing', !!mode);
+}
+
+const mb_held = new Set();
+let mb_mod_tap = null;
+
+function mb_keydown(e) {
+    if (!mb_capture) {
+        return;
+    }
+    const u = MB_CODES[e.code];
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) {
+        return;
+    }
+    if (mb_capture == 'combo' && e.code == 'Escape' && mb_held.size == 0) {
+        mb_capture_set(null);
+        return;
+    }
+    if (!u) {
+        return;
+    }
+    mb_held.add(u);
+    if (MB_MODS.includes(u)) {
+        mb_mod_tap = u;  // a modifier pressed and released alone is a step of its own
+        return;
+    }
+    mb_mod_tap = null;
+    const step = MB_MODS.filter((m) => mb_held.has(m)).concat([u]);
+    mb_append([step]);
+    if (mb_capture == 'combo') {
+        mb_held.clear();
+        mb_capture_set(null);
+    }
+}
+
+function mb_keyup(e) {
+    if (!mb_capture) {
+        mb_held.clear();
+        return;
+    }
+    const u = MB_CODES[e.code];
+    e.preventDefault();
+    if (u && mb_mod_tap == u && MB_MODS.includes(u)) {
+        mb_append([[u]]);
+        if (mb_capture == 'combo') {
+            mb_capture_set(null);
+        }
+    }
+    mb_mod_tap = null;
+    if (u) {
+        mb_held.delete(u);
+    }
+}
+
+function macro_builder_setup() {
+    document.getElementById('clear_mappings').addEventListener('click', clear_all_mappings);
+    document.getElementById('mb_slot').addEventListener('change', (e) => {
+        mb_slot = parseInt(e.target.value);
+        mb_render();
+    });
+    const add_text = () => {
+        const input = document.getElementById('mb_text');
+        const { steps, skipped } = mb_text_steps(input.value);
+        if (skipped.size) {
+            alert('These characters have no key on a US keyboard and were left out: ' + [...skipped].join(' '));
+        }
+        if (steps.length) {
+            mb_append(steps);
+            input.value = '';
+        }
+    };
+    document.getElementById('mb_text_add').addEventListener('click', add_text);
+    document.getElementById('mb_text').addEventListener('keydown', (e) => {
+        if (e.key == 'Enter') {
+            e.preventDefault();
+            add_text();
+        }
+    });
+    document.querySelectorAll('.mb-add-key').forEach((b) => b.addEventListener('click', () => mb_append([[b.dataset.usage]])));
+    document.getElementById('mb_pause').addEventListener('click', () => {
+        const ms = Math.max(1, parseInt(document.getElementById('mb_pause_ms').value) || 50);
+        const n = Math.max(1, Math.round(ms / mb_step_ms()));
+        const room = MB_MAX_STEPS - mb_steps().length;
+        if (n > room) {
+            // a pause is made of empty steps, so it costs ms / step length steps
+            alert('A ' + ms + ' ms pause needs ' + n + ' steps at the current step length (' + mb_step_ms() + ' ms), and this macro has room for ' + Math.max(0, room) + '. Make the step length longer (e.g. 10 ms) for long pauses.');
+            return;
+        }
+        mb_append(Array.from({ length: n }, () => []));
+    });
+    document.getElementById('mb_combo').addEventListener('click', (e) => {
+        e.currentTarget.blur();
+        mb_capture_set(mb_capture == 'combo' ? null : 'combo');
+    });
+    document.getElementById('mb_record').addEventListener('click', (e) => {
+        e.currentTarget.blur();
+        mb_capture_set(mb_capture == 'record' ? null : 'record');
+    });
+    window.addEventListener('keydown', mb_keydown, true);
+    window.addEventListener('keyup', mb_keyup, true);
+    // "Any output…": the usual output picker, into a hidden button we watch
+    const hidden = md_element('button', { type: 'button', class: 'd-none', 'data-hid-usage': '0x00000000' });
+    hidden.appendChild(md_element('span', { class: 'button_label' }));
+    document.getElementById('mb_pick').after(hidden);
+    new MutationObserver(() => {
+        const u = hidden.getAttribute('data-hid-usage');
+        if (u && u != '0x00000000') {
+            hidden.setAttribute('data-hid-usage', '0x00000000');
+            mb_append([[u]]);
+        }
+    }).observe(hidden, { attributes: true, attributeFilter: ['data-hid-usage'] });
+    document.getElementById('mb_pick').addEventListener('click', () => show_usage_modal(null, 'macro_item', hidden)());
+    document.getElementById('mb_speed').addEventListener('change', (e) => {
+        const input = document.getElementById('macro_entry_duration_input');
+        input.value = e.target.value;
+        macro_entry_duration_onchange();
+        mb_render();
+    });
+    document.getElementById('mb_clear').addEventListener('click', () => {
+        if (confirm('Remove all steps from Macro ' + (mb_slot + 1) + '?')) {
+            config['macros'][mb_slot] = [];
+            mb_changed();
+        }
+    });
+    document.getElementById('mb_use').addEventListener('click', () => {
+        const target = '0xfff2' + (mb_slot + 1).toString(16).padStart(4, '0');
+        add_empty_mapping();
+        const m = config['mappings'][config['mappings'].length - 1];
+        m['target_usage'] = target;
+        set_mappings_ui_state();
+        const tab = document.getElementById('nav-mappings-tab');
+        if (window.bootstrap && bootstrap.Tab && bootstrap.Tab.getOrCreateInstance) {
+            bootstrap.Tab.getOrCreateInstance(tab).show();
+        } else {
+            tab.click();
+        }
+        md_select(m, true);
+        const card = document.getElementById('kb_card');
+        if (card) {
+            card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        }
+    });
+    document.getElementById('nav-macros-tab').addEventListener('hide.bs.tab', () => mb_capture_set(null));
+    mb_render();
+}
+
+
+// ---------------------------------------------------------------------------
+// Exclusive combos: A + B together do the combo's action only; A or B alone do
+// their own action. One expression (its result = "both held") plus five
+// registers: RA / RB = "A alone" / "B alone" (what A's and B's own mappings now
+// listen to), CA / CB = how many ticks (ms) A / B have been held, L = a combo
+// happened and not both are released yet.
+//   alone:  held, the other not held, no combo since, held longer than D ms
+//   tap:    released before D ms with no combo: one short press
+// D (ms) is the window for the second button; the own action starts D ms late.
+
+const XCOMBO_DELAY = 50;
+
+function xcombo_text(a, b, port, r, d = XCOMBO_DELAY) {
+    const k = (n) => String(n * 1000);
+    const isb = (u) => u + ' input_state_binary';
+    const alone = (x, y, cx) =>
+        isb(x) + ' ' + isb(y) + ' not mul ' + k(r.l) + ' recall not mul ' + k(cx) + ' recall ' + k(d) + ' gt mul ' +
+        x + ' prev_input_state_binary ' + isb(x) + ' not mul ' + k(r.l) + ' recall not mul ' + k(cx) + ' recall ' + k(d) + ' gt not mul max';
+    const count = (x, cx) => isb(x) + ' ' + k(cx) + ' recall 1000 add 60000000 min 0 ifte ' + k(cx) + ' store';
+    return [
+        k(port) + ' port',
+        isb(a) + ' ' + isb(b) + ' mul',
+        alone(a, b, r.ca) + ' ' + k(r.ra) + ' store',
+        alone(b, a, r.cb) + ' ' + k(r.rb) + ' store',
+        count(a, r.ca),
+        count(b, r.cb),
+        isb(a) + ' ' + isb(b) + ' mul 1000 ' + isb(a) + ' ' + isb(b) + ' max ' + k(r.l) + ' recall 0 ifte ifte ' + k(r.l) + ' store',
+        '0 port',
+    ].join(' ');
+}
+
+const XCOMBO_HEAD_RE = /^(\d+) port (0x[0-9a-f]{8}) input_state_binary (0x[0-9a-f]{8}) input_state_binary mul \2 input_state_binary \3 input_state_binary not mul (\d+) recall not mul (\d+) recall (\d+) gt mul/i;
+
+function xcombo_parse(text) {
+    const t = expr_norm(text);
+    const h = XCOMBO_HEAD_RE.exec(t);
+    if (!h) {
+        return null;
+    }
+    const regs = [...t.matchAll(/(\d+) store/g)].map((m) => parseInt(m[1]) / 1000);
+    // stores in order: ra, rb, ca, cb, l
+    if (regs.length != 5) {
+        return null;
+    }
+    const x = { port: parseInt(h[1]) / 1000, a: h[2].toLowerCase(), b: h[3].toLowerCase(), d: parseInt(h[6]) / 1000,
+        r: { ra: regs[0], rb: regs[1], ca: regs[2], cb: regs[3], l: regs[4] } };
+    if (expr_norm(xcombo_text(x.a, x.b, x.port, x.r, x.d)) != t) {
+        return null;
+    }
+    return Object.assign(x, { ra: x.r.ra, rb: x.r.rb });
+}
+
+function xcombos() {
+    return (config['expressions'] || []).map((e, i) => {
+        const x = xcombo_parse(e);
+        return x ? Object.assign(x, { index: i }) : null;
+    }).filter((x) => x);
+}
+
+function registers_in_use() {
+    const used = new Set();
+    for (const e of config['expressions'] || []) {
+        for (const m of (e || '').matchAll(/(\d+) (store|recall)/g)) {
+            used.add(parseInt(m[1]) / 1000);
+        }
+    }
+    for (const m of config['mappings']) {
+        const u = (m['source_usage'] || '').toLowerCase();
+        if (u.startsWith('0xfff5')) {
+            used.add(parseInt(u, 16) & 0xFFFF);
+        }
+    }
+    return used;
+}
+
+// a usage that can also be sent as an output (keys, mouse buttons, consumer keys)
+function can_be_output(usage) {
+    return usage in usages[config['our_descriptor_number']];
+}
+
+function combo_make_exclusive(a, b, port) {
+    const n = device_nexpressions();
+    // same pair again (either order, same port): reuse it
+    const existing = xcombos().find((x) => x.port == port && ((x.a == a && x.b == b) || (x.a == b && x.b == a)));
+    let i, r;
+    if (existing) {
+        i = existing.index;
+        r = existing.r;
+    } else {
+        i = config['expressions'].findIndex((e, k) => k < n && expr_norm(e) == '');
+        if (i < 0) {
+            alert('All ' + n + ' expressions are in use. Clear one on the Expressions tab first.');
+            combo_end();
+            return;
+        }
+        const used = registers_in_use();
+        // registers 17-32 are kept for the jog keys (32 - port)
+        const free = [];
+        for (let k = 1; k <= 16 && free.length < 5; k++) {
+            if (!used.has(k)) {
+                free.push(k);
+            }
+        }
+        if (free.length < 5) {
+            alert('A combo that blocks the buttons needs 5 free registers and only ' + free.length + ' are left (1-16). Remove a combo or an expression that uses registers first.');
+            combo_end();
+            return;
+        }
+        r = { ra: free[0], rb: free[1], ca: free[2], cb: free[3], l: free[4] };
+        config['expressions'][i] = xcombo_text(a, b, port, r);
+    }
+    set_expressions_ui_state();
+    // the buttons' own mappings on this port now listen to "A alone" / "B alone"
+    const reg = (k) => '0xfff5' + k.toString(16).padStart(4, '0');
+    const notes = [];
+    for (const [u, rk] of [[a, r.ra], [b, r.rb]]) {
+        const own = config['mappings'].filter((m) => (m['source_usage'] || '').toLowerCase() == u && (m['source_port'] || 0) == port && m['target_usage'] != '0x00000000');
+        for (const m of own) {
+            m['source_usage'] = reg(rk);
+            m['source_port'] = 0;
+        }
+        const has_alone = config['mappings'].some((m) => (m['source_usage'] || '').toLowerCase() == reg(rk));
+        if (!has_alone && can_be_output(u)) {
+            // not mapped before: it passed through as itself, so "alone" sends itself
+            add_empty_mapping(reg(rk));
+            config['mappings'][config['mappings'].length - 1]['target_usage'] = u;
+        }
+        // and the button itself sends nothing directly any more
+        if (!config['mappings'].some((m) => (m['source_usage'] || '').toLowerCase() == u && (m['source_port'] || 0) == port && m['target_usage'] == '0x00000000')) {
+            add_empty_mapping(u);
+            config['mappings'][config['mappings'].length - 1]['source_port'] = port;
+        }
+        if (port != 0 && config['mappings'].some((m) => (m['source_usage'] || '').toLowerCase() == u && (m['source_port'] || 0) == 0 && m['target_usage'] != '0x00000000')) {
+            notes.push(readable_usage_name(u) + ' also has an Any-port mapping, which still works on its own.');
+        }
+    }
+    const usage_e = '0xfff3' + (i + 1).toString(16).padStart(4, '0');
+    let mapping = config['mappings'].find((m) => m['source_usage'] == usage_e);
+    if (!mapping) {
+        add_empty_mapping(usage_e);
+        mapping = config['mappings'][config['mappings'].length - 1];
+    }
+    combo_end();
+    set_mappings_ui_state();
+    md_select(mapping, true);
+    if (notes.length) {
+        alert(notes.join('\n'));
+    }
 }
