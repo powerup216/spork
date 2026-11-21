@@ -3239,11 +3239,11 @@ const LIVE_DEVICES = {
     speechmike: {
         name: 'SpeechMike Premium',
         rows: [
-            [['EOL/PRIO', '0xff040006'], ['INS/OVR', '0xff040008']],
+            [['EOL/PRIO', '0xff040006'], ['INS/OVR', '0xff040007']],
             [['● Record', '0xff040001', 'rec']],
             [['Rewind', '0xff040005'], ['Play / Stop', '0xff040003'], ['Forward', '0xff040004']],
-            [['F1', '0xff040007'], ['F2', '0xff04000a'], ['F3', '0xff04000b'], ['F4', '0xff04000c']],
-            [['Command', '0xff04000d']],
+            [['F1', '0xff04000a'], ['F2', '0xff04000b'], ['F3', '0xff04000c'], ['F4', '0xff04000d']],
+            [['Trackpad click', '0xff040008'], ['Command', '0xff04000e']],
         ],
     },
     pedal: {

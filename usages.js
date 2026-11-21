@@ -701,7 +701,7 @@ const powermic4_usages = {
 usages[9] = { ...usages[0], ...powermic4_usages };
 
 // Philips SpeechMike III / Premium SMP3700 (device type 10): same button report as
-// the PowerMic 4, labelled after the SpeechMike's keys (from a USBPcap capture).
+// the PowerMic 4, labelled after the SpeechMike's keys (from two USBPcap captures).
 // FF04:0001-0008 = button byte 8 bits 0-7, 0009-0010 = byte 7 bits 0-7.
 const speechmike_usages = {
     "0xff040001": { 'name': 'SpeechMike Record', 'class': 'powermic' },
@@ -709,13 +709,13 @@ const speechmike_usages = {
     "0xff040005": { 'name': 'SpeechMike Rewind', 'class': 'powermic' },
     "0xff040004": { 'name': 'SpeechMike Forward', 'class': 'powermic' },
     "0xff040006": { 'name': 'SpeechMike EOL/PRIO', 'class': 'powermic' },
-    "0xff040008": { 'name': 'SpeechMike INS/OVR', 'class': 'powermic' },
-    "0xff040007": { 'name': 'SpeechMike F1', 'class': 'powermic' },
-    "0xff04000a": { 'name': 'SpeechMike F2', 'class': 'powermic' },
-    "0xff04000b": { 'name': 'SpeechMike F3', 'class': 'powermic' },
-    "0xff04000c": { 'name': 'SpeechMike F4', 'class': 'powermic' },
-    "0xff04000d": { 'name': 'SpeechMike Command', 'class': 'powermic' },
-    "0xff04000e": { 'name': 'SpeechMike button (byte 7 0x20)', 'class': 'powermic' },
+    "0xff040007": { 'name': 'SpeechMike INS/OVR', 'class': 'powermic' },
+    "0xff04000a": { 'name': 'SpeechMike F1', 'class': 'powermic' },
+    "0xff04000b": { 'name': 'SpeechMike F2', 'class': 'powermic' },
+    "0xff04000c": { 'name': 'SpeechMike F3', 'class': 'powermic' },
+    "0xff04000d": { 'name': 'SpeechMike F4', 'class': 'powermic' },
+    "0xff04000e": { 'name': 'SpeechMike Command', 'class': 'powermic' },
+    "0xff040008": { 'name': 'SpeechMike Trackpad click', 'class': 'powermic' },
 };
 usages[10] = { ...usages[0], ...speechmike_usages };
 
