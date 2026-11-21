@@ -1265,6 +1265,14 @@ function delete_mapping(mapping, element) {
     return function () {
         config['mappings'] = config['mappings'].filter(x => x !== mapping);
         document.getElementById("mappings").removeChild(element);
+        // the last mapping of a blocking combo: offer to put its two buttons back
+        const usage = (mapping['source_usage'] || '').toLowerCase();
+        if (usage.startsWith('0xfff3') && !config['mappings'].some((m) => (m['source_usage'] || '').toLowerCase() == usage)) {
+            const x = xcombos().find((c) => c.index == (parseInt(usage, 16) & 0xFFFF) - 1);
+            if (x && confirm('Also put ' + readable_usage_name(x.a) + ' and ' + readable_usage_name(x.b) + ' back the way they were before the combo?')) {
+                xcombo_undo(x);
+            }
+        }
     };
 }
 
@@ -4285,4 +4293,41 @@ function combo_make_exclusive(a, b, port) {
     if (notes.length) {
         alert(notes.join('\n'));
     }
+}
+
+
+// Undo an exclusive combo: "A alone" mappings go back to A on the combo's port
+// (ones the combo added, "A alone -> A", are removed), the "A -> Nothing" blocks
+// it added are removed, and its expression is cleared.
+function xcombo_undo(x) {
+    const reg = (k) => '0xfff5' + k.toString(16).padStart(4, '0');
+    const keep = [];
+    for (const m of config['mappings']) {
+        const u = (m['source_usage'] || '').toLowerCase();
+        let drop = false;
+        for (const [btn, rk] of [[x.a, x.ra], [x.b, x.rb]]) {
+            if (u == reg(rk)) {
+                if ((m['target_usage'] || '').toLowerCase() == btn) {
+                    drop = true;  // added by the combo: the button passes through again
+                } else {
+                    m['source_usage'] = btn;
+                    m['source_port'] = x.port;
+                }
+            } else if (u == btn && (m['source_port'] || 0) == x.port && m['target_usage'] == '0x00000000') {
+                drop = true;
+            }
+        }
+        if (u == '0xfff3' + (x.index + 1).toString(16).padStart(4, '0')) {
+            drop = true;
+        }
+        if (!drop) {
+            keep.push(m);
+        }
+    }
+    config['mappings'] = keep;
+    config['expressions'][x.index] = '';
+    set_expressions_ui_state();
+    set_mappings_ui_state();
+    selected_mapping = null;
+    md_refresh();
 }
