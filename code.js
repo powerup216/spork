@@ -8,7 +8,7 @@ const STICKY_FLAG = 1 << 0;
 const TAP_FLAG = 1 << 1;
 const HOLD_FLAG = 1 << 2;
 const CONFIG_SIZE = 32;
-const CONFIG_VERSION = 19;  // MicDrop: 12 expressions and profiles; boards on version 18 still work
+const CONFIG_VERSION = 20;  // MicDrop: v19 = 12 expressions and profiles, v20 = combos, tap dance, auto-scroll ...; boards on 18/19 still work
 const VENDOR_ID = 0xCAFE;
 const PRODUCT_ID = 0xBAF2;
 const DEFAULT_PARTIAL_SCROLL_TIMEOUT = 1000000;
@@ -70,6 +70,9 @@ const PROFILE_SAVE_AS = 102;
 const PROFILE_RENAME = 103;
 const PROFILE_DELETE = 104;
 const PROFILE_SET_DEFAULT = 105;
+const CLEAR_EXTRAS = 106;
+const APPEND_EXTRAS = 107;
+const GET_EXTRAS = 108;
 const PERSIST_CONFIG_SUCCESS = 1;
 const PERSIST_CONFIG_CONFIG_TOO_BIG = 2;
 
@@ -141,7 +144,7 @@ const UINT32 = Symbol('uint32');
 const INT32 = Symbol('int32');
 
 let device = null;
-// Settings version of the connected board: 19 (profiles, 12 expressions) or 18.
+// Settings version of the connected board: 20 (combos, tap dance ...), 19 (profiles, 12 expressions) or 18.
 let device_version = CONFIG_VERSION;
 function device_nexpressions() {
     return device_version >= 19 ? NEXPRESSIONS : NEXPRESSIONS_V18;
@@ -604,6 +607,8 @@ async function load_from_device() {
             });
         }
 
+        await load_extras_from_device();
+
         set_ui_state();
         validate_ui_expressions();
     } catch (e) {
@@ -729,6 +734,8 @@ async function send_config_to_device() {
             [UINT8, size_flags],
         ]);
     }
+
+    await send_extras_to_device();
 }
 
 async function save_to_device() {
@@ -980,6 +987,10 @@ function set_ui_state() {
         // set it to false to preserve previous behavior.
         config['normalize_gamepad_inputs'] = false;
     }
+    if ((config['version'] < 20) || !config['extras']) {
+        config['extras'] = default_extras();
+    }
+    extras();
     if (config['version'] < CONFIG_VERSION) {
         config['version'] = CONFIG_VERSION;
     }
@@ -1049,6 +1060,8 @@ function add_mapping(mapping) {
 
 function download_json() {
     clear_error();
+    extras();
+    extras_prune();
     let element = document.createElement('a');
     element.setAttribute('href', 'data:application/json,' + encodeURIComponent(JSON.stringify(config, null, 4)));
     element.setAttribute('download', 'hid-remapper-config.json');
@@ -1216,7 +1229,7 @@ function add_crc(data) {
 }
 
 function check_json_version(config_version) {
-    if (!([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(config_version))) {
+    if (!([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(config_version))) {
         throw new Error("Incompatible version.");
     }
 }
@@ -1232,14 +1245,16 @@ async function check_device_version() {
     // device because it could be version X, ignore our GET_CONFIG call with version Y and
     // just happen to have Y at the right place in the buffer from some previous call done
     // by some other software.
-    for (const version of [CONFIG_VERSION, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2]) {
+    for (const version of [CONFIG_VERSION, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2]) {
         await send_feature_command(GET_CONFIG, [], version);
         const [received_version] = await read_config_feature([UINT8]);
         if (received_version == version) {
-            if ((version == CONFIG_VERSION) || (version == 18)) {
+            if ((version == CONFIG_VERSION) || (version == 19) || (version == 18)) {
                 device_version = version;
                 if (version == 18) {
-                    display_info('This board has older MicDrop firmware. It works, but profiles and expressions 9-12 need the latest firmware.');
+                    display_info('This board has older MicDrop firmware. It works, but profiles, expressions 9-12, tap dance, auto-scroll and the other new features need the latest firmware.');
+                } else if (version == 19) {
+                    display_info('This board has older MicDrop firmware. It works, but tap dance, cycles, auto-scroll, one-shot keys and the other new features need the latest firmware.');
                 }
                 return true;
             }
@@ -1467,6 +1482,7 @@ function setup_usage_modal(source_or_target) {
         'keyboard': modal_element.querySelector('.keyboard_usages'),
         'media': modal_element.querySelector('.media_usages'),
         'powermic': modal_element.querySelector('.powermic_usages'),
+        'micdrop': modal_element.querySelector('.micdrop_usages'),
         'other': modal_element.querySelector('.other_usages'),
         'extra': modal_element.querySelector('.extra_usages'),
     };
@@ -1769,6 +1785,10 @@ function layer_list_to_mask(layers) {
 }
 
 function readable_usage_name(usage, default_to_hex = true) {
+    const xname = extras_source_name(usage);
+    if (xname) {
+        return xname;
+    }
     const combo = combo_of_usage(usage);
     if (combo) {
         return combo.label;
@@ -1811,6 +1831,10 @@ function readable_target_usage_name(usage) {
     if (typeof usage == 'string' && /^0xfff2[0-9a-f]{4}$/i.test(usage) && typeof config != 'undefined' && config['macros']) {
         const i = (parseInt(usage, 16) & 0xFFFF) - 1;
         const m = config['macros'][i];
+        const name = config['extras'] && config['extras']['macro_names'] ? config['extras']['macro_names'][i] : '';
+        if (name) {
+            return 'Macro ' + (i + 1) + ': ' + name;
+        }
         if (m && m.length && typeof mb_groups == 'function') {
             const preview = mb_groups(m).map((g) => g.type == 'text' ? g.text.replace(/\n/g, '⏎') : g.type == 'pause' ? '⏸' : mb_step_label(g.steps[0])).join(' ');
             return 'Macro ' + (i + 1) + ' (' + (preview.length > 24 ? preview.slice(0, 23) + '…' : preview) + ')';
@@ -2778,6 +2802,15 @@ function dir_key_clicked(dir) {
 // the port in its "N port" prefix
 function mapping_port(m) {
     const usage = m['source_usage'];
+    if (typeof usage == 'string' && /^0xffe[123]/i.test(usage) && config['extras']) {
+        const x = config['extras'];
+        const v = parseInt(usage, 16) & 0xFFFF;
+        const page = usage.slice(0, 6).toLowerCase();
+        const def = page == '0xffe1' ? x.combos[v - 1] : page == '0xffe2' ? x.tapdances[v >> 4] : x.cycles[v >> 4];
+        if (def) {
+            return def.port || 0;
+        }
+    }
     if (typeof usage == 'string' && usage.toLowerCase().startsWith('0xfff5')) {
         const c = combo_of_usage(usage);
         if (c) {
@@ -2859,6 +2892,9 @@ function mapping_collisions() {
 }
 
 function md_refresh() {
+    if (config['extras']) {
+        extras_prune();
+    }
     if (selected_mapping && !config['mappings'].includes(selected_mapping)) {
         selected_mapping = null;
     }
@@ -2927,7 +2963,7 @@ function md_refresh() {
         if ((mapping_port(m) != port) || on_picture.has(m['source_usage']) || (m['source_usage'] == '0x00000000')) {
             return;
         }
-        const chip = md_element('button', { type: 'button', class: 'md-chip' + (m === selected_mapping ? ' sel' : '') + (combo_of_usage(m['source_usage']) ? ' combo' : '') });
+        const chip = md_element('button', { type: 'button', class: 'md-chip' + (m === selected_mapping ? ' sel' : '') + ((combo_of_usage(m['source_usage']) || /^0xffe[123]/i.test(m['source_usage'])) ? ' combo' : '') });
         chip.dataset.usage = m['source_usage'];
         chip.appendChild(md_element('b', {}, String(i + 1)));
         chip.appendChild(document.createTextNode('source_name' in m ? m['source_name'] : readable_usage_name(m['source_usage'])));
@@ -3018,6 +3054,7 @@ function md_setup() {
     combo_setup();
     macro_builder_setup();
     board_setup();
+    key_features_setup();
     document.getElementById('kb_live').addEventListener('change', kb_live_onchange);
     document.getElementById('side_manage_profiles').addEventListener('click', () => {
         const tab = document.getElementById('nav-profiles-tab');
@@ -3255,8 +3292,24 @@ function render_inspector() {
         set_ui_state();
         md_mapping_changed();
     });
+    // tap to switch layer 1 on and off, hold for layer 1 while held
+    const tt_btn = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', title: 'Tap: layer 1 on (tap again: off). Hold: layer 1 only while held.' }, 'Tap toggles, hold holds (layer 1)');
+    tt_btn.addEventListener('click', () => {
+        m['target_usage'] = '0xfff10001';
+        m['sticky'] = false;
+        m['tap'] = false;
+        m['hold'] = true;
+        m['layers'] = [...new Set([...(m['layers'] || [0]), 0])].sort();
+        const t = config['mappings'].find((x) => x !== m && x_same_key(x['source_usage'], m['source_usage']) && x['target_usage'] == '0xfff10001' && x['tap'] && x['sticky']);
+        if (!t) {
+            config['mappings'].push(Object.assign(new_mapping_like(m), { 'source_usage': m['source_usage'], 'source_port': m['source_port'] || 0, 'target_usage': '0xfff10001', 'tap': true, 'sticky': true }));
+        }
+        set_mappings_ui_state();
+        md_mapping_changed();
+    });
     presets.appendChild(md_element('span', { class: 'md-insp-note' }, 'Presets:'));
     presets.appendChild(mode_btn);
+    presets.appendChild(tt_btn);
     presets.appendChild(pause_btn);
     output_set.appendChild(presets);
     body.appendChild(output_set);
@@ -3302,6 +3355,8 @@ function render_inspector() {
         how_set.appendChild(wrap);
     }
     body.appendChild(how_set);
+
+    render_key_features(m, body);
 
     // port
     const port_set = md_element('fieldset');
@@ -3662,7 +3717,7 @@ function render_board_settings() {
         facts.appendChild(f);
     };
     add('Board', device == null ? 'Not open' : (running_device_type != null ? 'Running as ' + board_type_label(running_device_type) : 'Open'));
-    add('Settings version', device == null ? '–' : (device_version >= 19 ? 'v' + device_version + ' (profiles, 8 layers, 12 expressions)' : 'v' + device_version + ' (older firmware)'), false);
+    add('Settings version', device == null ? '–' : (device_version >= 20 ? 'v' + device_version + ' (profiles, combos, tap dance, auto-scroll)' : device_version >= 19 ? 'v' + device_version + ' (profiles, 12 expressions; update for tap dance and auto-scroll)' : 'v' + device_version + ' (older firmware)'), false);
     add('Profile in use', active ? (active.name || 'Profile ' + (active.slot + 1)) : '–');
     add('Devices on ports', devices.length ? devices.join(', ') : 'none set (Mappings tab)');
     // switches
@@ -3776,9 +3831,13 @@ function combo_show() {
     }
     const where = combo_state.port ? 'port ' + combo_state.port : 'any port';
     const live = device != null ? ' (or press it on the device)' : '';
+    const many = device_has_extras();
+    document.getElementById('combo_done').classList.toggle('d-none', !many || combo_state.picks.length < 2);
     document.getElementById('combo_text').innerText = combo_state.picks.length == 0
         ? 'Combo on ' + where + ': click the first button on the picture' + live + '.'
-        : 'First: ' + readable_usage_name(combo_state.picks[0]) + '. Now the second button' + live + '.';
+        : many
+            ? combo_state.picks.map((u) => readable_usage_name(u)).join(' + ') + (combo_state.picks.length < 2 ? '. Now the second button' + live + '.' : '. Add another (up to 4), or click Done.')
+            : 'First: ' + readable_usage_name(combo_state.picks[0]) + '. Now the second button' + live + '.';
     document.querySelectorAll('#kb_picture .md-key[data-usage], #kb_other .md-chip[data-usage]').forEach((k) => {
         k.classList.toggle('combo-pick', combo_state.picks.includes(k.dataset.usage));
     });
@@ -3829,6 +3888,14 @@ function combo_pick(usage) {
         return;
     }
     combo_state.picks.push(usage);
+    if (device_has_extras()) {
+        if (combo_state.picks.length < X_MAX.combo_keys) {
+            combo_show();
+            return;
+        }
+        combo_finish();
+        return;
+    }
     if (combo_state.picks.length < 2) {
         combo_show();
         return;
@@ -3863,7 +3930,21 @@ function combo_pick(usage) {
     md_select(mapping, true);
 }
 
+// settings v20: the board does combos itself
+function combo_finish() {
+    if (!combo_state || combo_state.picks.length < 2) {
+        return;
+    }
+    const mapping = extras_add_combo(combo_state.picks, combo_state.port, document.getElementById('combo_exclusive').checked);
+    combo_end();
+    if (mapping) {
+        set_mappings_ui_state();
+        md_select(mapping, true);
+    }
+}
+
 function combo_setup() {
+    document.getElementById('combo_done').addEventListener('click', combo_finish);
     document.getElementById('combo_start').addEventListener('click', combo_start);
     document.getElementById('combo_cancel').addEventListener('click', combo_end);
     document.addEventListener('keydown', (e) => {
@@ -4012,6 +4093,9 @@ function config_storage_bytes() {
         }
     }
     n += (config['quirks'] || []).length * 14;
+    if (device_has_extras()) {
+        n += extras_storage_bytes();
+    }
     return n;
 }
 
@@ -4071,9 +4155,14 @@ function mb_render() {
     for (let i = 0; i < NMACROS; i++) {
         const m = config['macros'][i] || [];
         const preview = m.length ? mb_groups(m).map((g) => g.type == 'text' ? g.text.replace(/\n/g, '⏎') : g.type == 'pause' ? '⏸' : mb_step_label(g.steps[0])).join(' ').slice(0, 30) : 'empty';
-        sel.appendChild(md_element('option', { value: String(i) }, 'Macro ' + (i + 1) + ' — ' + preview));
+        const name = ((config['extras'] || {})['macro_names'] || {})[i];
+        sel.appendChild(md_element('option', { value: String(i) }, 'Macro ' + (i + 1) + (name ? ': ' + name : '') + ' — ' + preview));
     }
     sel.value = String(mb_slot);
+    const name_in = document.getElementById('mb_name');
+    if (name_in && document.activeElement !== name_in) {
+        name_in.value = (extras().macro_names || {})[mb_slot] || '';
+    }
     clear_children(box);
     const macro = mb_steps();
     const groups = mb_groups(macro);
@@ -4203,6 +4292,17 @@ function macro_builder_setup() {
     document.getElementById('mb_slot').addEventListener('change', (e) => {
         mb_slot = parseInt(e.target.value);
         mb_render();
+    });
+    document.getElementById('mb_name').addEventListener('change', (e) => {
+        const name = e.target.value.trim().slice(0, 40);
+        if (name) {
+            extras().macro_names[mb_slot] = name;
+        } else {
+            delete extras().macro_names[mb_slot];
+        }
+        mb_render();
+        set_mappings_ui_state();
+        md_refresh();
     });
     const add_text = () => {
         const input = document.getElementById('mb_text');
@@ -4547,4 +4647,685 @@ function offer_target_substitution(before, after) {
     }
     set_mappings_ui_state();
     md_refresh();
+}
+
+// ---------------------------------------------------------------------------
+// Settings version 20 (MicDrop firmware): combos, tap dance, cycles, per-key
+// hold time, auto-scroll, one-shot, IntelliComplete / Caps Word and macro
+// names. They travel to the board as one blob of records (see the firmware's
+// extras.h); on the page they live in config['extras'].
+
+const EXTRAS_MAX = 1024;
+const EXTRAS_BYTES_IN_PACKET = 24;
+const X_COMBO = 1, X_TAPDANCE = 2, X_CYCLE = 3, X_KEY_TIMING = 4, X_AUTOSCROLL = 5, X_ONESHOT = 6, X_TEXT = 7, X_MACRO_NAME = 8;
+const X_MAX = { combos: 16, tapdances: 16, cycles: 16, key_timings: 16, gears: 8, cycle_steps: 8, combo_keys: 4 };
+const TD_ACTIONS = { 1: 'tap', 2: 'double tap', 3: 'triple tap', 4: 'hold', 5: 'tap then hold' };
+const AS_DEFAULT_FIXED = [[300, 1], [140, 1], [60, 1]];
+const AS_DEFAULT_GEARS = [[400, 1], [300, 1], [200, 1], [140, 1], [90, 1], [60, 1], [35, 2]];
+
+function device_has_extras() {
+    return device_version >= 20;
+}
+
+function default_extras() {
+    return {
+        combos: [],       // { keys: [usage...], port, window_ms, block }
+        tapdances: [],    // { usage, port, term_ms }
+        cycles: [],       // { usage, port, steps }
+        key_timings: [],  // { usage, port, term_ms, hold_on_other }
+        autoscroll: {
+            stop_on_press: true, stop_on_wheel: true, stop_on_move: false,
+            fixed: AS_DEFAULT_FIXED.map((x) => [...x]),
+            gears: AS_DEFAULT_GEARS.map((x) => [...x]),
+        },
+        oneshot: { timeout_ms: 3000, tap_locks: true },
+        text: { intellicomplete: false, caps_word_timeout: true },
+        macro_names: {},  // macro index (0-based) -> name
+    };
+}
+
+function extras() {
+    if (!config['extras']) {
+        config['extras'] = default_extras();
+    }
+    const d = default_extras();
+    for (const k of Object.keys(d)) {
+        if (config['extras'][k] === undefined) {
+            config['extras'][k] = d[k];
+        }
+    }
+    return config['extras'];
+}
+
+const xu = (v) => '0x' + (v >>> 0).toString(16).padStart(8, '0');
+const x_combo_usage = (i) => xu(0xFFE10000 + i + 1);
+const x_td_usage = (i, a) => xu(0xFFE20000 + (i << 4) + a);
+const x_cycle_usage = (i, s) => xu(0xFFE30000 + (i << 4) + s);
+
+function x_le16(v) { return [v & 0xFF, (v >> 8) & 0xFF]; }
+function x_le32(v) { v = v >>> 0; return [v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF]; }
+
+function extras_encode(x) {
+    const out = [];
+    const rec = (type, payload) => {
+        if (payload.length > 255) {
+            payload = payload.slice(0, 255);
+        }
+        out.push(type, payload.length, ...payload);
+    };
+    for (const c of x.combos) {
+        rec(X_COMBO, [c.block ? 1 : 0, ...x_le16(c.window_ms || 50), c.keys.length,
+            ...c.keys.flatMap((u) => [...x_le32(parseInt(u, 16)), c.port || 0])]);
+    }
+    for (const t of x.tapdances) {
+        rec(X_TAPDANCE, [...x_le32(parseInt(t.usage, 16)), t.port || 0, ...x_le16(t.term_ms || 200)]);
+    }
+    for (const c of x.cycles) {
+        rec(X_CYCLE, [...x_le32(parseInt(c.usage, 16)), c.port || 0, c.steps]);
+    }
+    for (const k of x.key_timings) {
+        rec(X_KEY_TIMING, [...x_le32(parseInt(k.usage, 16)), k.port || 0, ...x_le16(k.term_ms || 0), k.hold_on_other ? 1 : 0]);
+    }
+    const a = x.autoscroll;
+    rec(X_AUTOSCROLL, [(a.stop_on_press ? 1 : 0) | (a.stop_on_wheel ? 2 : 0) | (a.stop_on_move ? 4 : 0),
+        ...a.fixed.flatMap(([ms, n]) => [...x_le16(ms), n]),
+        a.gears.length, ...a.gears.flatMap(([ms, n]) => [...x_le16(ms), n])]);
+    rec(X_ONESHOT, [...x_le16(x.oneshot.timeout_ms), x.oneshot.tap_locks ? 1 : 0]);
+    rec(X_TEXT, [(x.text.intellicomplete ? 1 : 0) | (x.text.caps_word_timeout ? 2 : 0)]);
+    for (const [i, name] of Object.entries(x.macro_names)) {
+        if (name) {
+            rec(X_MACRO_NAME, [parseInt(i), ...new TextEncoder().encode(name.slice(0, 40))]);
+        }
+    }
+    return out;
+}
+
+function extras_decode(bytes) {
+    const x = default_extras();
+    const u16 = (p) => bytes[p] | (bytes[p + 1] << 8);
+    const u32 = (p) => (bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16) | (bytes[p + 3] << 24)) >>> 0;
+    for (let pos = 0; pos + 2 <= bytes.length;) {
+        const type = bytes[pos], len = bytes[pos + 1], p = pos + 2;
+        pos += 2 + len;
+        if (pos > bytes.length) {
+            break;
+        }
+        switch (type) {
+            case X_COMBO: {
+                const n = bytes[p + 3];
+                const keys = [];
+                for (let i = 0; i < n; i++) {
+                    keys.push(xu(u32(p + 4 + i * 5)));
+                }
+                x.combos.push({ keys, port: n ? bytes[p + 8] : 0, window_ms: u16(p + 1), block: !!(bytes[p] & 1) });
+                break;
+            }
+            case X_TAPDANCE:
+                x.tapdances.push({ usage: xu(u32(p)), port: bytes[p + 4], term_ms: u16(p + 5) });
+                break;
+            case X_CYCLE:
+                x.cycles.push({ usage: xu(u32(p)), port: bytes[p + 4], steps: bytes[p + 5] });
+                break;
+            case X_KEY_TIMING:
+                x.key_timings.push({ usage: xu(u32(p)), port: bytes[p + 4], term_ms: u16(p + 5), hold_on_other: !!(bytes[p + 7] & 1) });
+                break;
+            case X_AUTOSCROLL: {
+                const f = bytes[p];
+                x.autoscroll.stop_on_press = !!(f & 1);
+                x.autoscroll.stop_on_wheel = !!(f & 2);
+                x.autoscroll.stop_on_move = !!(f & 4);
+                x.autoscroll.fixed = [0, 1, 2].map((i) => [u16(p + 1 + i * 3), bytes[p + 3 + i * 3]]);
+                const n = bytes[p + 10];
+                x.autoscroll.gears = [];
+                for (let i = 0; i < n; i++) {
+                    x.autoscroll.gears.push([u16(p + 11 + i * 3), bytes[p + 13 + i * 3]]);
+                }
+                break;
+            }
+            case X_ONESHOT:
+                x.oneshot = { timeout_ms: u16(p), tap_locks: !!(bytes[p + 2] & 1) };
+                break;
+            case X_TEXT:
+                x.text = { intellicomplete: !!(bytes[p] & 1), caps_word_timeout: !!(bytes[p] & 2) };
+                break;
+            case X_MACRO_NAME:
+                x.macro_names[bytes[p]] = new TextDecoder().decode(Uint8Array.from(bytes.slice(p + 1, p + len)));
+                break;
+        }
+    }
+    return x;
+}
+
+function extras_in_use(x = extras()) {
+    const d = default_extras();
+    return x.combos.length || x.tapdances.length || x.cycles.length || x.key_timings.length ||
+        Object.values(x.macro_names).some((n) => n) ||
+        JSON.stringify(x.autoscroll) != JSON.stringify(d.autoscroll) ||
+        JSON.stringify(x.oneshot) != JSON.stringify(d.oneshot) ||
+        JSON.stringify(x.text) != JSON.stringify(d.text) ||
+        config['mappings'].some((m) => /^0xffe[4-7]/i.test(m['target_usage'] || ''));
+}
+
+// Combos, tap dances and cycles that no mapping uses any more are dropped, and
+// the rest renumbered (the board numbers them by position).
+function extras_prune() {
+    const x = extras();
+    const used = (re) => new Set(config['mappings'].map((m) => (m['source_usage'] || '').toLowerCase()).filter((u) => re.test(u)));
+    const renumber = (list, page, shift, keep_test) => {
+        const in_use = used(new RegExp('^0x' + page));
+        const keep = [];
+        const map = {};
+        list.forEach((item, i) => {
+            const refs = [...in_use].filter((u) => keep_test(u, i));
+            if (refs.length) {
+                map[i] = keep.length;
+                keep.push(item);
+            }
+        });
+        if (keep.length == list.length) {
+            return list;
+        }
+        for (const m of config['mappings']) {
+            const u = (m['source_usage'] || '').toLowerCase();
+            if (u.startsWith('0x' + page)) {
+                const v = parseInt(u, 16) & 0xFFFF;
+                const i = shift ? (v >> 4) : v - 1;
+                if (i in map) {
+                    m['source_usage'] = xu((parseInt('0x' + page + '0000', 16)) + (shift ? ((map[i] << 4) | (v & 0xF)) : map[i] + 1));
+                }
+            }
+        }
+        return keep;
+    };
+    x.combos = renumber(x.combos, 'ffe1', false, (u, i) => (parseInt(u, 16) & 0xFFFF) == i + 1);
+    x.tapdances = renumber(x.tapdances, 'ffe2', true, (u, i) => ((parseInt(u, 16) & 0xFFFF) >> 4) == i);
+    x.cycles = renumber(x.cycles, 'ffe3', true, (u, i) => ((parseInt(u, 16) & 0xFFFF) >> 4) == i);
+    x.key_timings = x.key_timings.filter((k) => k.term_ms || k.hold_on_other);
+}
+
+// names for the inputs these make
+function extras_source_name(usage) {
+    if (typeof usage != 'string' || !/^0xffe[123]/i.test(usage) || typeof config == 'undefined') {
+        return null;
+    }
+    const x = extras();
+    const v = parseInt(usage, 16) & 0xFFFF;
+    const page = usage.slice(0, 6).toLowerCase();
+    const at = (p) => p ? ' (port ' + p + ')' : '';
+    if (page == '0xffe1') {
+        const c = x.combos[v - 1];
+        return c ? c.keys.map((k) => readable_usage_name(k)).join(' + ') + (c.block ? ' only' : '') + at(c.port) : 'Combo ' + v;
+    }
+    if (page == '0xffe2') {
+        const t = x.tapdances[v >> 4];
+        return (t ? readable_usage_name(t.usage) + at(t.port) : 'Tap dance ' + ((v >> 4) + 1)) + ': ' + (TD_ACTIONS[v & 0xF] || '?');
+    }
+    const c = x.cycles[v >> 4];
+    return (c ? readable_usage_name(c.usage) + at(c.port) : 'Cycle ' + ((v >> 4) + 1)) + ': press ' + (v & 0xF);
+}
+
+function extras_storage_bytes() {
+    return 2 + extras_encode(extras()).length;
+}
+
+async function send_extras_to_device() {
+    if (!device_has_extras()) {
+        if (extras_in_use()) {
+            display_info('Combos (firmware), tap dance, cycles, auto-scroll and the other version 20 features are not saved: this board needs the latest MicDrop firmware for them.');
+        }
+        return;
+    }
+    extras_prune();
+    const bytes = extras_encode(extras());
+    if (bytes.length > EXTRAS_MAX) {
+        throw new Error('Too many combos, tap dances and macro names (' + bytes.length + ' of ' + EXTRAS_MAX + ' bytes). Remove some first.');
+    }
+    await send_feature_command(CLEAR_EXTRAS);
+    for (let i = 0; i < bytes.length; i += EXTRAS_BYTES_IN_PACKET) {
+        const chunk = bytes.slice(i, i + EXTRAS_BYTES_IN_PACKET);
+        await send_feature_command(APPEND_EXTRAS, [[UINT8, chunk.length], ...chunk.map((b) => [UINT8, b])]);
+    }
+}
+
+async function load_extras_from_device() {
+    if (!device_has_extras()) {
+        config['extras'] = default_extras();
+        return;
+    }
+    const bytes = [];
+    let total = 0;
+    do {
+        await send_feature_command(GET_EXTRAS, [[UINT16, bytes.length]]);
+        const fields = await read_config_feature([UINT16, UINT8, ...new Array(EXTRAS_BYTES_IN_PACKET).fill(UINT8)]);
+        total = fields[0];
+        const len = fields[1];
+        if (len == 0) {
+            break;
+        }
+        bytes.push(...fields.slice(2, 2 + len));
+    } while (bytes.length < total);
+    config['extras'] = extras_decode(bytes);
+}
+
+// ---- making them from the Mappings tab
+
+function x_same_key(a, b) {
+    return (a || '').toLowerCase() == (b || '').toLowerCase();
+}
+
+// a combo made on the board (settings v20): up to four keys, own window, can block
+function extras_add_combo(keys, port, block) {
+    const x = extras();
+    keys = keys.map((k) => k.toLowerCase());
+    const sorted = [...keys].sort().join(',');
+    let i = x.combos.findIndex((c) => (c.port || 0) == port && !!c.block == !!block && [...c.keys].sort().join(',') == sorted);
+    if (i < 0) {
+        if (x.combos.length >= X_MAX.combos) {
+            alert('A board can hold ' + X_MAX.combos + ' combos. Delete one first.');
+            return null;
+        }
+        x.combos.push({ keys, port, window_ms: 50, block: !!block });
+        i = x.combos.length - 1;
+    }
+    if (block && port) {
+        // a key with no mapping would pass through on every port at once; give
+        // it its own mapping on this port so the board can hold it back
+        for (const k of keys) {
+            const mapped = config['mappings'].some((m) => x_same_key(m['source_usage'], k));
+            if (!mapped && can_be_output(k)) {
+                config['mappings'].push(Object.assign(new_mapping_like(null), { 'source_usage': k, 'target_usage': k, 'source_port': port }));
+            }
+        }
+    }
+    const usage = x_combo_usage(i);
+    let mapping = config['mappings'].find((m) => x_same_key(m['source_usage'], usage));
+    if (!mapping) {
+        mapping = Object.assign(new_mapping_like(null), { 'source_usage': usage });
+        config['mappings'].push(mapping);
+    }
+    return mapping;
+}
+
+function new_mapping_like(m) {
+    return {
+        'source_usage': '0x00000000',
+        'target_usage': '0x00000000',
+        'layers': m ? [...(m['layers'] || [0])] : [0],
+        'sticky': false,
+        'tap': false,
+        'hold': false,
+        'scaling': DEFAULT_SCALING,
+        'source_port': 0,
+        'target_port': m ? (m['target_port'] || 0) : 0,
+    };
+}
+
+function is_real_key(usage) {
+    return typeof usage == 'string' && !/^0x(fff[1235]|ffe[0-9a-f]|fffb|0000)/i.test(usage) && usage != '0x00000000';
+}
+
+function key_mappings(usage, port) {
+    return config['mappings'].filter((x) => x_same_key(x['source_usage'], usage) && (x['source_port'] || 0) == (port || 0));
+}
+
+// The selected key becomes a tap dance: what it sends now becomes the single tap.
+function make_tapdance(m) {
+    const x = extras();
+    if (x.tapdances.length >= X_MAX.tapdances) {
+        alert('A board can hold ' + X_MAX.tapdances + ' tap dances.');
+        return;
+    }
+    const usage = m['source_usage'].toLowerCase(), port = m['source_port'] || 0;
+    x.tapdances.push({ usage, port, term_ms: 200 });
+    const i = x.tapdances.length - 1;
+    for (const k of key_mappings(usage, port)) {
+        k['source_usage'] = x_td_usage(i, 1);
+        k['source_port'] = 0;
+        k['tap'] = k['hold'] = false;
+    }
+    for (const a of [2, 4]) {
+        config['mappings'].push(Object.assign(new_mapping_like(m), { 'source_usage': x_td_usage(i, a) }));
+    }
+    set_mappings_ui_state();
+    md_select(m, true);
+}
+
+function make_cycle(m) {
+    const x = extras();
+    if (x.cycles.length >= X_MAX.cycles) {
+        alert('A board can hold ' + X_MAX.cycles + ' cycles.');
+        return;
+    }
+    const usage = m['source_usage'].toLowerCase(), port = m['source_port'] || 0;
+    x.cycles.push({ usage, port, steps: 2 });
+    const i = x.cycles.length - 1;
+    for (const k of key_mappings(usage, port)) {
+        k['source_usage'] = x_cycle_usage(i, 1);
+        k['source_port'] = 0;
+        k['tap'] = k['hold'] = false;
+    }
+    config['mappings'].push(Object.assign(new_mapping_like(m), { 'source_usage': x_cycle_usage(i, 2) }));
+    set_mappings_ui_state();
+    md_select(m, true);
+}
+
+// back to a plain key: the tap (or first step) mappings go back on the key, the rest are deleted
+function undo_key_feature(m) {
+    const x = extras();
+    const u = m['source_usage'].toLowerCase();
+    const v = parseInt(u, 16) & 0xFFFF;
+    const i = v >> 4;
+    const page = u.slice(0, 6);
+    const def = page == '0xffe2' ? x.tapdances[i] : x.cycles[i];
+    if (!def) {
+        return;
+    }
+    const first = page == '0xffe2' ? x_td_usage(i, 1) : x_cycle_usage(i, 1);
+    let keep = null;
+    config['mappings'] = config['mappings'].filter((k) => {
+        const s = (k['source_usage'] || '').toLowerCase();
+        if (!s.startsWith(page) || ((parseInt(s, 16) & 0xFFFF) >> 4) != i) {
+            return true;
+        }
+        if (s == first) {
+            k['source_usage'] = def.usage;
+            k['source_port'] = def.port || 0;
+            keep = keep || k;
+            return true;
+        }
+        return false;
+    });
+    extras_prune();
+    set_mappings_ui_state();
+    selected_mapping = keep;
+    md_refresh();
+}
+
+function key_timing_of(usage, port) {
+    return extras().key_timings.find((k) => x_same_key(k.usage, usage) && (k.port || 0) == (port || 0));
+}
+
+// the "Key features" part of the inspector
+function render_key_features(m, body) {
+    const set = md_element('fieldset');
+    set.appendChild(md_element('legend', {}, 'Key features'));
+    if (!device_has_extras()) {
+        set.appendChild(md_element('p', { class: 'md-insp-note mb-0' }, 'Tap dance, cycles and per-key hold time need the latest MicDrop firmware on the board.'));
+        body.appendChild(set);
+        return;
+    }
+    const x = extras();
+    const u = (m['source_usage'] || '').toLowerCase();
+    const num = (value, min, max, onchange) => {
+        const input = md_element('input', { type: 'number', class: 'form-control form-control-sm md-kf-num', min: String(min), max: String(max) });
+        input.value = String(value);
+        input.addEventListener('change', () => onchange(Math.max(min, Math.min(max, parseInt(input.value) || min))));
+        return input;
+    };
+    if (u.startsWith('0xffe2')) {
+        const i = (parseInt(u, 16) & 0xFFFF) >> 4;
+        const t = x.tapdances[i];
+        if (t) {
+            const row = md_element('div', { class: 'md-kf-row' });
+            row.appendChild(md_element('span', {}, 'Tap dance on ' + readable_usage_name(t.usage) + '. Taps count if they come within'));
+            row.appendChild(num(t.term_ms, 100, 1000, (v) => { t.term_ms = v; }));
+            row.appendChild(md_element('span', {}, 'ms.'));
+            set.appendChild(row);
+            const adds = md_element('div', { class: 'md-presets' });
+            for (const a of [1, 2, 3, 4, 5]) {
+                if (config['mappings'].some((k) => x_same_key(k['source_usage'], x_td_usage(i, a)))) {
+                    continue;
+                }
+                const b = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, '+ ' + TD_ACTIONS[a]);
+                b.addEventListener('click', () => {
+                    const k = Object.assign(new_mapping_like(m), { 'source_usage': x_td_usage(i, a) });
+                    config['mappings'].push(k);
+                    set_mappings_ui_state();
+                    md_select(k, true);
+                });
+                adds.appendChild(b);
+            }
+            const undo = md_element('button', { type: 'button', class: 'btn btn-sm btn-link md-insp-link' }, 'Back to a plain key');
+            undo.addEventListener('click', () => undo_key_feature(m));
+            adds.appendChild(undo);
+            set.appendChild(adds);
+        }
+    } else if (u.startsWith('0xffe3')) {
+        const i = (parseInt(u, 16) & 0xFFFF) >> 4;
+        const c = x.cycles[i];
+        if (c) {
+            set.appendChild(md_element('p', { class: 'md-insp-note' }, 'Cycle on ' + readable_usage_name(c.usage) + ': each press sends the next one of ' + c.steps + ', then starts over.'));
+            const adds = md_element('div', { class: 'md-presets' });
+            if (c.steps < X_MAX.cycle_steps) {
+                const b = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, '+ Step ' + (c.steps + 1));
+                b.addEventListener('click', () => {
+                    c.steps++;
+                    const k = Object.assign(new_mapping_like(m), { 'source_usage': x_cycle_usage(i, c.steps) });
+                    config['mappings'].push(k);
+                    set_mappings_ui_state();
+                    md_select(k, true);
+                });
+                adds.appendChild(b);
+            }
+            const undo = md_element('button', { type: 'button', class: 'btn btn-sm btn-link md-insp-link' }, 'Back to a plain key');
+            undo.addEventListener('click', () => undo_key_feature(m));
+            adds.appendChild(undo);
+            set.appendChild(adds);
+        }
+    } else if (u.startsWith('0xffe1')) {
+        const c = x.combos[(parseInt(u, 16) & 0xFFFF) - 1];
+        if (c) {
+            const row = md_element('div', { class: 'md-kf-row' });
+            row.appendChild(md_element('span', {}, 'Keys count as together within'));
+            row.appendChild(num(c.window_ms, 10, 500, (v) => { c.window_ms = v; }));
+            row.appendChild(md_element('span', {}, 'ms.'));
+            set.appendChild(row);
+            const id = 'insp_combo_block';
+            const wrap = md_element('div', { class: 'form-check' });
+            const box = md_element('input', { type: 'checkbox', class: 'form-check-input', id });
+            box.checked = !!c.block;
+            box.addEventListener('change', () => { c.block = box.checked; md_mapping_changed(); });
+            wrap.appendChild(box);
+            wrap.appendChild(md_element('label', { class: 'form-check-label', for: id }, 'Block each key\'s own action when they\'re pressed together'));
+            set.appendChild(wrap);
+        }
+    } else if (is_real_key(u)) {
+        const port = m['source_port'] || 0;
+        const btns = md_element('div', { class: 'md-presets' });
+        const td = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', title: 'Different actions for tap, double tap and hold' }, 'Tap dance');
+        td.addEventListener('click', () => make_tapdance(m));
+        const cy = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', title: 'Each press sends the next action in a list' }, 'Cycle');
+        cy.addEventListener('click', () => make_cycle(m));
+        btns.appendChild(td);
+        btns.appendChild(cy);
+        set.appendChild(btns);
+        const kt = key_timing_of(u, port);
+        const row = md_element('div', { class: 'md-kf-row' });
+        row.appendChild(md_element('span', {}, 'Hold time for this key'));
+        const input = md_element('input', { type: 'number', class: 'form-control form-control-sm md-kf-num', min: '0', max: '5000', placeholder: String(Math.round(config['tap_hold_threshold'] / 1000)) });
+        input.value = kt && kt.term_ms ? String(kt.term_ms) : '';
+        const other_id = 'insp_hold_other';
+        const other = md_element('input', { type: 'checkbox', class: 'form-check-input', id: other_id });
+        other.checked = !!(kt && kt.hold_on_other);
+        const update = () => {
+            let k = key_timing_of(u, port);
+            if (!k) {
+                if (x.key_timings.length >= X_MAX.key_timings) {
+                    alert('A board can hold ' + X_MAX.key_timings + ' per-key hold times.');
+                    return;
+                }
+                k = { usage: u, port, term_ms: 0, hold_on_other: false };
+                x.key_timings.push(k);
+            }
+            k.term_ms = Math.max(0, Math.min(5000, parseInt(input.value) || 0));
+            k.hold_on_other = other.checked;
+            extras_prune();
+        };
+        input.addEventListener('change', update);
+        other.addEventListener('change', update);
+        row.appendChild(input);
+        row.appendChild(md_element('span', {}, 'ms'));
+        set.appendChild(row);
+        const wrap = md_element('div', { class: 'form-check' });
+        wrap.appendChild(other);
+        wrap.appendChild(md_element('label', { class: 'form-check-label', for: other_id }, 'Count it as held as soon as another key is pressed'));
+        set.appendChild(wrap);
+        set.appendChild(md_element('p', { class: 'md-insp-note mb-0' }, 'Hold time matters for "Only on tap" / "Only on hold" mappings of this key.'));
+    } else {
+        return;
+    }
+    body.appendChild(set);
+}
+
+// ---- Settings tab: auto-scroll, one-shot, typing, and what's on the board
+
+function render_key_features_card() {
+    const box = document.getElementById('kf_body');
+    if (!box) {
+        return;
+    }
+    clear_children(box);
+    const x = extras();
+    document.getElementById('kf_note').classList.toggle('d-none', device == null || device_has_extras());
+    const sec = (title) => {
+        const s = md_element('div', { class: 'md-board-sec' });
+        s.appendChild(md_element('h3', { class: 'md-board-lbl' }, title));
+        box.appendChild(s);
+        return s;
+    };
+    const check = (parent, id, label, value, onchange) => {
+        const wrap = md_element('div', { class: 'form-check' });
+        const b = md_element('input', { type: 'checkbox', class: 'form-check-input', id });
+        b.checked = !!value;
+        b.addEventListener('change', () => onchange(b.checked));
+        wrap.appendChild(b);
+        wrap.appendChild(md_element('label', { class: 'form-check-label', for: id }, label));
+        parent.appendChild(wrap);
+    };
+    const num = (value, min, max, onchange, label) => {
+        const input = md_element('input', { type: 'number', class: 'form-control form-control-sm md-kf-num', min: String(min), max: String(max), 'aria-label': label });
+        input.value = String(value);
+        input.addEventListener('change', () => {
+            const v = Math.max(min, Math.min(max, parseInt(input.value) || min));
+            input.value = String(v);
+            onchange(v);
+        });
+        return input;
+    };
+
+    // auto-scroll
+    const as = sec('Auto-scroll');
+    as.appendChild(md_element('p', { class: 'md-board-p' }, 'Put "Auto-scroll" outputs on buttons (in the output list under MicDrop). Fixed speeds start and stop with one key; "faster each press" goes up a gear with every press, and the opposite direction slows it down.'));
+    const fixed = md_element('div', { class: 'md-kf-grid' });
+    ['Slow', 'Medium', 'Fast'].forEach((name, i) => {
+        const row = md_element('div', { class: 'md-kf-row' });
+        row.appendChild(md_element('span', { class: 'md-kf-name' }, name));
+        row.appendChild(md_element('span', {}, 'every'));
+        row.appendChild(num(x.autoscroll.fixed[i][0], 10, 2000, (v) => { x.autoscroll.fixed[i][0] = v; }, name + ' interval'));
+        row.appendChild(md_element('span', {}, 'ms,'));
+        row.appendChild(num(x.autoscroll.fixed[i][1], 1, 10, (v) => { x.autoscroll.fixed[i][1] = v; }, name + ' lines'));
+        row.appendChild(md_element('span', {}, 'line(s)'));
+        fixed.appendChild(row);
+    });
+    as.appendChild(fixed);
+    as.appendChild(md_element('h4', { class: 'md-kf-sub' }, 'Faster each press'));
+    const gears = md_element('div', { class: 'md-kf-grid' });
+    x.autoscroll.gears.forEach((g, i) => {
+        const row = md_element('div', { class: 'md-kf-row' });
+        row.appendChild(md_element('span', { class: 'md-kf-name' }, 'Gear ' + (i + 1)));
+        row.appendChild(md_element('span', {}, 'every'));
+        row.appendChild(num(g[0], 10, 2000, (v) => { g[0] = v; }, 'Gear ' + (i + 1) + ' interval'));
+        row.appendChild(md_element('span', {}, 'ms,'));
+        row.appendChild(num(g[1], 1, 10, (v) => { g[1] = v; }, 'Gear ' + (i + 1) + ' lines'));
+        row.appendChild(md_element('span', {}, 'line(s)'));
+        if (x.autoscroll.gears.length > 1) {
+            const del = md_element('button', { type: 'button', class: 'btn btn-sm btn-link text-danger', 'aria-label': 'Remove gear ' + (i + 1) }, '✕');
+            del.addEventListener('click', () => { x.autoscroll.gears.splice(i, 1); render_key_features_card(); });
+            row.appendChild(del);
+        }
+        gears.appendChild(row);
+    });
+    as.appendChild(gears);
+    const gb = md_element('div', { class: 'md-board-btns' });
+    if (x.autoscroll.gears.length < X_MAX.gears) {
+        const add = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, '+ Gear');
+        add.addEventListener('click', () => {
+            const last = x.autoscroll.gears[x.autoscroll.gears.length - 1] || [100, 1];
+            x.autoscroll.gears.push([Math.max(10, Math.round(last[0] * 0.7)), last[1]]);
+            render_key_features_card();
+        });
+        gb.appendChild(add);
+    }
+    const reset = md_element('button', { type: 'button', class: 'btn btn-sm btn-link' }, 'Default speeds');
+    reset.addEventListener('click', () => {
+        x.autoscroll.fixed = AS_DEFAULT_FIXED.map((v) => [...v]);
+        x.autoscroll.gears = AS_DEFAULT_GEARS.map((v) => [...v]);
+        render_key_features_card();
+    });
+    gb.appendChild(reset);
+    as.appendChild(gb);
+    check(as, 'kf_as_press', 'Any key or button press stops it', x.autoscroll.stop_on_press, (v) => { x.autoscroll.stop_on_press = v; });
+    check(as, 'kf_as_wheel', 'Turning a scroll wheel stops it', x.autoscroll.stop_on_wheel, (v) => { x.autoscroll.stop_on_wheel = v; });
+    check(as, 'kf_as_move', 'Moving the mouse stops it', x.autoscroll.stop_on_move, (v) => { x.autoscroll.stop_on_move = v; });
+
+    // one-shot
+    const os = sec('One-shot keys');
+    os.appendChild(md_element('p', { class: 'md-board-p' }, 'A one-shot Shift (or Ctrl, Alt, layer) applies to the next key only, so you don\'t have to hold it.'));
+    const osr = md_element('div', { class: 'md-kf-row' });
+    osr.appendChild(md_element('span', {}, 'Wait for the next key up to'));
+    osr.appendChild(num(x.oneshot.timeout_ms, 0, 60000, (v) => { x.oneshot.timeout_ms = v; }, 'One-shot timeout'));
+    osr.appendChild(md_element('span', {}, 'ms (0 = no limit)'));
+    os.appendChild(osr);
+    check(os, 'kf_os_lock', 'Pressing it twice locks it on (a third press unlocks)', x.oneshot.tap_locks, (v) => { x.oneshot.tap_locks = v; });
+
+    // typing
+    const ty = sec('Typing');
+    check(ty, 'kf_ic', 'IntelliComplete on at start-up: capitalise the first letter after ". ", "? " or "! "', x.text.intellicomplete, (v) => { x.text.intellicomplete = v; });
+    check(ty, 'kf_cw', 'Caps Word ends after 5 seconds without typing', x.text.caps_word_timeout, (v) => { x.text.caps_word_timeout = v; });
+    ty.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'Caps Word types letters in capitals until a space or punctuation (- becomes _). "IntelliComplete on/off" and "Caps Word" are outputs you can put on a button.'));
+
+    // what's set up
+    extras_prune();
+    const on = sec('On this profile');
+    const list = md_element('ul', { class: 'md-kf-list' });
+    const item = (text, onremove) => {
+        const li = md_element('li', {}, text);
+        if (onremove) {
+            const del = md_element('button', { type: 'button', class: 'btn btn-sm btn-link text-danger' }, 'Remove');
+            del.addEventListener('click', onremove);
+            li.appendChild(del);
+        }
+        list.appendChild(li);
+    };
+    const drop_mappings = (re) => {
+        config['mappings'] = config['mappings'].filter((m) => !re.test(m['source_usage'] || ''));
+        extras_prune();
+        set_mappings_ui_state();
+        md_refresh();
+        render_key_features_card();
+    };
+    x.combos.forEach((c, i) => item('Combo: ' + extras_source_name(x_combo_usage(i)) + ' (' + c.window_ms + ' ms)', () => drop_mappings(new RegExp('^' + x_combo_usage(i) + '$', 'i'))));
+    x.tapdances.forEach((t, i) => item('Tap dance: ' + readable_usage_name(t.usage) + (t.port ? ' (port ' + t.port + ')' : '') + ', ' + t.term_ms + ' ms', () => {
+        const m = config['mappings'].find((k) => x_same_key(k['source_usage'], x_td_usage(i, 1))) || config['mappings'].find((k) => ((parseInt(k['source_usage'], 16) >>> 0) & 0xFFFFFFF0) == ((0xFFE20000 + (i << 4)) >>> 0));
+        if (m) { undo_key_feature(m); render_key_features_card(); }
+    }));
+    x.cycles.forEach((c, i) => item('Cycle: ' + readable_usage_name(c.usage) + ', ' + c.steps + ' steps', () => {
+        const m = config['mappings'].find((k) => ((parseInt(k['source_usage'], 16) >>> 0) & 0xFFFFFFF0) == ((0xFFE30000 + (i << 4)) >>> 0));
+        if (m) { undo_key_feature(m); render_key_features_card(); }
+    }));
+    x.key_timings.forEach((k, i) => item('Hold time: ' + readable_usage_name(k.usage) + ' ' + (k.term_ms ? k.term_ms + ' ms' : 'default') + (k.hold_on_other ? ', held when another key is pressed' : ''), () => {
+        x.key_timings.splice(i, 1);
+        render_key_features_card();
+    }));
+    if (!list.children.length) {
+        on.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'No combos, tap dances, cycles or per-key hold times yet. Make them from a key\'s panel on the Mappings tab.'));
+    } else {
+        on.appendChild(list);
+    }
+    on.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'Uses ' + extras_storage_bytes() + ' of ' + (EXTRAS_MAX + 2) + ' bytes for these.'));
+}
+
+function key_features_setup() {
+    document.getElementById('nav-settings-tab').addEventListener('shown.bs.tab', render_key_features_card);
+    render_key_features_card();
 }

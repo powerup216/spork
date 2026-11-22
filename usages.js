@@ -654,6 +654,48 @@ const common_target_usages = {
     "0xfff60005": { 'name': 'Analog 5', 'class': 'other' },
 }
 
+// MicDrop settings version 20 outputs (the board needs the latest firmware)
+const micdrop_target_usages = {
+    "0xffe40001": { 'name': 'Auto-scroll up, slow', 'class': 'micdrop' },
+    "0xffe40002": { 'name': 'Auto-scroll down, slow', 'class': 'micdrop' },
+    "0xffe40003": { 'name': 'Auto-scroll up, medium', 'class': 'micdrop' },
+    "0xffe40004": { 'name': 'Auto-scroll down, medium', 'class': 'micdrop' },
+    "0xffe40005": { 'name': 'Auto-scroll up, fast', 'class': 'micdrop' },
+    "0xffe40006": { 'name': 'Auto-scroll down, fast', 'class': 'micdrop' },
+    "0xffe40007": { 'name': 'Auto-scroll up, faster each press', 'class': 'micdrop' },
+    "0xffe40008": { 'name': 'Auto-scroll down, faster each press', 'class': 'micdrop' },
+    "0xffe40009": { 'name': 'Auto-scroll stop', 'class': 'micdrop' },
+    "0xffe70001": { 'name': 'Repeat last key or macro', 'class': 'micdrop' },
+    "0xffe70002": { 'name': 'Caps Word', 'class': 'micdrop' },
+    "0xffe70005": { 'name': 'IntelliComplete on/off', 'class': 'micdrop' },
+    "0xffe500e1": { 'name': 'One-shot Shift', 'class': 'micdrop' },
+    "0xffe500e0": { 'name': 'One-shot Ctrl', 'class': 'micdrop' },
+    "0xffe500e2": { 'name': 'One-shot Alt', 'class': 'micdrop' },
+    "0xffe500e3": { 'name': 'One-shot Win/Cmd', 'class': 'micdrop' },
+    "0xffe500e5": { 'name': 'One-shot Right Shift', 'class': 'micdrop' },
+    "0xffe500e4": { 'name': 'One-shot Right Ctrl', 'class': 'micdrop' },
+    "0xffe500e6": { 'name': 'One-shot Right Alt', 'class': 'micdrop' },
+    "0xffe500e7": { 'name': 'One-shot Right Win/Cmd', 'class': 'micdrop' },
+    "0xffe50101": { 'name': 'One-shot layer 1', 'class': 'micdrop' },
+    "0xffe50102": { 'name': 'One-shot layer 2', 'class': 'micdrop' },
+    "0xffe50103": { 'name': 'One-shot layer 3', 'class': 'micdrop' },
+    "0xffe50104": { 'name': 'One-shot layer 4', 'class': 'micdrop' },
+    "0xffe50105": { 'name': 'One-shot layer 5', 'class': 'micdrop' },
+    "0xffe50106": { 'name': 'One-shot layer 6', 'class': 'micdrop' },
+    "0xffe50107": { 'name': 'One-shot layer 7', 'class': 'micdrop' },
+    "0xffe60000": { 'name': 'Switch to base layer', 'class': 'micdrop' },
+    "0xffe60001": { 'name': 'Switch to layer 1', 'class': 'micdrop' },
+    "0xffe60002": { 'name': 'Switch to layer 2', 'class': 'micdrop' },
+    "0xffe60003": { 'name': 'Switch to layer 3', 'class': 'micdrop' },
+    "0xffe60004": { 'name': 'Switch to layer 4', 'class': 'micdrop' },
+    "0xffe60005": { 'name': 'Switch to layer 5', 'class': 'micdrop' },
+    "0xffe60006": { 'name': 'Switch to layer 6', 'class': 'micdrop' },
+    "0xffe60007": { 'name': 'Switch to layer 7', 'class': 'micdrop' },
+    "0xffe70003": { 'name': 'Restart the board', 'class': 'micdrop' },
+    "0xffe70004": { 'name': 'Restart into firmware update mode', 'class': 'micdrop' },
+};
+Object.assign(common_target_usages, micdrop_target_usages);
+
 Object.assign(usages[0], common_target_usages);
 Object.assign(usages[2], common_target_usages);
 Object.assign(usages[3], common_target_usages);

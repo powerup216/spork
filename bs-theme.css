@@ -539,3 +539,18 @@ hr { border-color: var(--line); opacity: 1; }
 .md-insp-note { font-size: 0.8rem; color: var(--muted); }
 .md-insp-text { margin-top: 8px; }
 .md-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+
+/* Key features (settings v20) */
+.md-kf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.85rem; }
+.md-kf-num { width: 84px; text-align: right; }
+.md-kf-name { min-width: 64px; font-weight: 600; color: var(--bone); }
+.md-kf-grid { display: flex; flex-direction: column; gap: 6px; }
+.md-kf-sub { margin: 4px 0 0; font-size: 0.8rem; font-weight: 600; color: var(--bone); }
+.md-kf-list { margin: 0; padding-left: 18px; font-size: 0.85rem; }
+.md-kf-list li { margin: 2px 0; }
+.md-kf-list .btn-link { padding: 0 6px; font-size: 0.8rem; }
+.md-mb-name { max-width: 200px; }
+@media (max-width: 575.98px) {
+    .md-kf-num { width: 70px; }
+    .md-mb-name { max-width: 100%; }
+}

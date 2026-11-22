@@ -88,13 +88,14 @@
                         </div>
                     </div>
                     <div class="md-combo-row">
-                        <button id="combo_start" type="button" class="btn btn-sm btn-outline-secondary">+ Combo: two buttons together</button>
+                        <button id="combo_start" type="button" class="btn btn-sm btn-outline-secondary">+ Combo: buttons together</button>
                         <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" role="switch" id="combo_exclusive" checked>
-                            <label class="form-check-label small" for="combo_exclusive">Block each button's own action while both are held</label>
+                            <label class="form-check-label small" for="combo_exclusive">Block each button's own action when they're pressed together</label>
                         </div>
                         <div id="combo_bar" class="md-combo-bar d-none" role="status">
                             <span id="combo_text"></span>
+                            <button id="combo_done" type="button" class="btn btn-sm btn-primary d-none">Done</button>
                             <button id="combo_cancel" type="button" class="btn btn-sm btn-outline-secondary">Cancel</button>
                         </div>
                     </div>
@@ -221,6 +222,17 @@
                     <div class="md-board-foot">
                         <span id="board_change" class="md-board-change me-auto"></span>
                         <button id="board_save" type="button" class="btn btn-primary">Save to board</button>
+                    </div>
+                </section>
+
+                <section class="md-board mt-4" aria-labelledby="kf_title">
+                    <div class="md-board-head">
+                        <h2 id="kf_title" class="md-card-title">Key features</h2>
+                    </div>
+                    <p id="kf_note" class="md-board-p px-3 pt-2 mb-0 d-none">This board has older MicDrop firmware: these settings are kept on the page and in saved files, but the board needs the latest firmware to use them.</p>
+                    <div class="md-board-body" id="kf_body"></div>
+                    <div class="md-board-foot">
+                        <span class="md-board-change me-auto">Save to device to keep changes.</span>
                     </div>
                 </section>
 
@@ -409,6 +421,8 @@
                         <h2 id="mb_title" class="md-card-title me-auto">Macro builder</h2>
                         <label for="mb_slot" class="visually-hidden">Macro</label>
                         <select id="mb_slot" class="form-select form-select-sm w-auto"></select>
+                        <label for="mb_name" class="visually-hidden">Macro name</label>
+                        <input id="mb_name" type="text" maxlength="40" class="form-control form-control-sm md-mb-name" placeholder="Name (e.g. Normal chest)" autocomplete="off">
                     </div>
                     <p class="md-mb-p">A macro plays a list of steps when its button is pressed. Each step is the keys held at that moment. Build one here, then use <b>Use this macro</b> to put it on a button.</p>
 
@@ -820,6 +834,8 @@
                     </div>
                     <div class="col powermic_usages mt-3">
                     </div>
+                    <div class="col micdrop_usages mt-3">
+                    </div>
                     <div class="col other_usages mt-3">
                     </div>
                     <div class="col extra_usages mt-3">
@@ -877,6 +893,8 @@
                     <div class="col media_usages mt-3">
                     </div>
                     <div class="col powermic_usages mt-3">
+                    </div>
+                    <div class="col micdrop_usages mt-3">
                     </div>
                     <div class="col other_usages mt-3">
                     </div>
