@@ -529,3 +529,13 @@ hr { border-color: var(--line); opacity: 1; }
 .md-mb-storage { font-size: 0.82rem; color: var(--muted); }
 .md-mb-storage.over { color: #ff8a7a; }
 #mb_combo.active, #mb_record.active { background: var(--marker); border-color: var(--marker); color: #1b1600; }
+
+/* collisions */
+.md-collide-badge { display: block; width: 100%; margin: 0 0 4px; font-size: 0.78rem; font-weight: 600; color: #1b1600; background: var(--marker); border-radius: 6px; padding: 2px 8px; }
+.mapping_container.md-collide { box-shadow: inset 3px 0 0 var(--marker); }
+.md-key.collide { outline: 2px dashed var(--marker); outline-offset: 1px; }
+.md-insp-warn { margin: 8px 12px 0; padding: 8px 10px; border-radius: 8px; background: rgba(242, 201, 76, 0.12); border: 1px solid var(--marker); color: var(--bone); font-size: 0.85rem; }
+.md-insp-link { padding: 2px 0; font-size: 0.82rem; }
+.md-insp-note { font-size: 0.8rem; color: var(--muted); }
+.md-insp-text { margin-top: 8px; }
+.md-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }

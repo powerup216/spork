@@ -1658,7 +1658,9 @@ function interval_override_onchange() {
 }
 
 function our_descriptor_number_onchange() {
+    const before = parseInt(config['our_descriptor_number']);
     config['our_descriptor_number'] = parseInt(document.getElementById("our_descriptor_number_dropdown").value, 10);
+    offer_target_substitution(before, config['our_descriptor_number']);
     set_ui_state();
     render_live_device();
     render_board_settings();
@@ -2825,6 +2827,37 @@ function kb_hit(usage, value, hub_port = 0) {
     });
 }
 
+// Mappings that fire together by mistake: same input, a layer in common, and the
+// same port (or one of them on Any port). A tap mapping and a hold mapping of one
+// key are a pair, not a collision. Returns Map(mapping -> [indexes of the others]).
+function mapping_collisions() {
+    const out = new Map();
+    const ms = config['mappings'];
+    for (let i = 0; i < ms.length; i++) {
+        for (let j = i + 1; j < ms.length; j++) {
+            const a = ms[i], b = ms[j];
+            if ((a['source_usage'] || '').toLowerCase() != (b['source_usage'] || '').toLowerCase() || a['source_usage'] == '0x00000000') {
+                continue;
+            }
+            const pa = a['source_port'] || 0, pb = b['source_port'] || 0;
+            if (pa != pb && pa != 0 && pb != 0) {
+                continue;
+            }
+            if (!(a['layers'] || [0]).some((l) => (b['layers'] || [0]).includes(l))) {
+                continue;
+            }
+            if ((a['tap'] && b['hold']) || (a['hold'] && b['tap'])) {
+                continue;
+            }
+            if (!out.has(a)) out.set(a, []);
+            if (!out.has(b)) out.set(b, []);
+            out.get(a).push(j);
+            out.get(b).push(i);
+        }
+    }
+    return out;
+}
+
 function md_refresh() {
     if (selected_mapping && !config['mappings'].includes(selected_mapping)) {
         selected_mapping = null;
@@ -2902,10 +2935,28 @@ function md_refresh() {
         other.appendChild(chip);
     });
     // rows
+    const collisions = mapping_collisions();
+    document.querySelectorAll('#kb_picture .md-key[data-usage]').forEach((key) => {
+        const u = key.dataset.usage;
+        key.classList.toggle('collide', config['mappings'].some((m) => collisions.has(m) && m['source_usage'] == u && (key.dataset.expr == '1' || [0, port].includes(m['source_port'] || 0))));
+    });
     const rows = document.querySelectorAll('#mappings .mapping_container');
     rows.forEach((row, i) => {
         const m = config['mappings'][i];
         row.classList.toggle('md-selected', !!m && m === selected_mapping);
+        const others = m ? collisions.get(m) : null;
+        row.classList.toggle('md-collide', !!others);
+        let warn = row.querySelector('.md-collide-badge');
+        if (others) {
+            if (!warn) {
+                warn = md_element('span', { class: 'md-collide-badge' });
+                row.prepend(warn);
+            }
+            warn.innerText = '⚠ fires together with #' + others.map((k) => k + 1).join(', #');
+            warn.title = 'Same input, same port and a layer in common: both mappings fire. Delete one, or give them different layers or ports.';
+        } else if (warn) {
+            warn.remove();
+        }
         if (!row.dataset.mdBound) {
             row.dataset.mdBound = '1';
             row.addEventListener('click', (event) => {
@@ -3059,6 +3110,11 @@ function render_inspector() {
     titles.appendChild(md_element('div', { class: 'md-insp-sub' }, 'Mapping ' + (index + 1) + ' · input ' + m['source_usage']));
     head.appendChild(titles);
     insp.appendChild(head);
+    const clash = mapping_collisions().get(m);
+    if (clash) {
+        insp.appendChild(md_element('div', { class: 'md-insp-warn' },
+            '⚠ This input is also used by mapping #' + clash.map((k) => k + 1).join(', #') + ' on the same port and layer, so both fire. Delete one, or give them different layers or ports.'));
+    }
 
     const body = md_element('div', { class: 'md-insp-body' });
 
@@ -3076,6 +3132,25 @@ function render_inspector() {
     });
     input_row.appendChild(change_input);
     input_set.appendChild(input_row);
+    // several inputs, one action: a copy of this mapping with its own input
+    const another = md_element('button', { type: 'button', class: 'btn btn-sm btn-link md-insp-link' }, '+ Another input does the same');
+    another.addEventListener('click', () => {
+        const copy = Object.assign({}, m, { 'source_usage': '0x00000000', 'layers': [...(m['layers'] || [0])] });
+        delete copy['source_name'];
+        config['mappings'].push(copy);
+        set_mappings_ui_state();
+        selected_mapping = copy;
+        md_refresh();
+        const row = mapping_row(copy);
+        if (row) {
+            row.querySelector('.source_button').click();  // pick its input straight away
+        }
+    });
+    input_set.appendChild(another);
+    const same = config['mappings'].filter((x) => x !== m && x['target_usage'] == m['target_usage'] && m['target_usage'] != '0x00000000');
+    if (same.length) {
+        input_set.appendChild(md_element('div', { class: 'md-insp-note' }, 'Also sent by: ' + same.map((x) => '#' + (mapping_index(x) + 1) + ' ' + readable_usage_name(x['source_usage'])).join(', ')));
+    }
     body.appendChild(input_set);
 
     // output
@@ -3115,6 +3190,75 @@ function render_inspector() {
         }
         output_set.appendChild(grid);
     }
+    // type a phrase: made into a macro and sent by this mapping
+    const text_row = md_element('div', { class: 'input-group input-group-sm md-insp-text' });
+    const text_in = md_element('input', { type: 'text', class: 'form-control', placeholder: 'Type text… e.g. No acute findings.', 'aria-label': 'Text this input types' });
+    const text_go = md_element('button', { type: 'button', class: 'btn btn-outline-secondary' }, 'Use');
+    const use_text = () => {
+        const { steps, skipped } = mb_text_steps(text_in.value);
+        if (!steps.length) {
+            return;
+        }
+        // reuse this mapping's macro if it already sends one, else the first empty macro
+        let slot = /^0xfff2[0-9a-f]{4}$/i.test(m['target_usage']) ? (parseInt(m['target_usage'], 16) & 0xFFFF) - 1 : config['macros'].findIndex((x) => !x || x.length == 0);
+        if (slot < 0) {
+            alert('All ' + NMACROS + ' macros are in use. Clear one on the Macros tab first.');
+            return;
+        }
+        if (skipped.size) {
+            alert('These characters have no key on a US keyboard and were left out: ' + [...skipped].join(' '));
+        }
+        const keep = mb_slot;
+        mb_slot = slot;
+        config['macros'][slot] = [];
+        mb_append(steps);
+        mb_slot = keep;
+        m['target_usage'] = '0xfff2' + (slot + 1).toString(16).padStart(4, '0');
+        md_mapping_changed();
+    };
+    text_go.addEventListener('click', use_text);
+    text_in.addEventListener('keydown', (e) => {
+        if (e.key == 'Enter') {
+            e.preventDefault();
+            use_text();
+        }
+    });
+    text_row.appendChild(text_in);
+    text_row.appendChild(text_go);
+    output_set.appendChild(text_row);
+    // presets for things layers can already do
+    const presets = md_element('div', { class: 'md-presets' });
+    const mode_btn = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', title: 'Press once for layer 1, again to go back (like a shift lock for your mappings)' }, 'Mode switch (layer 1)');
+    mode_btn.addEventListener('click', () => {
+        m['target_usage'] = '0xfff10001';
+        m['sticky'] = true;
+        m['tap'] = false;
+        m['hold'] = false;
+        m['layers'] = [...new Set([...(m['layers'] || [0]), 0, 1])].sort();
+        md_mapping_changed();
+    });
+    const pause_btn = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', title: 'Press once to turn every mapping off (keys pass through as normal), again to turn them back on' }, 'Pause all mappings');
+    pause_btn.addEventListener('click', () => {
+        // layer 7 with nothing on it, keys passing through there
+        const users = config['mappings'].filter((x) => x !== m && (x['layers'] || []).includes(7));
+        if (users.length && !confirm(users.length + ' mapping(s) also work on layer 7, so they would stay on while paused. Continue?')) {
+            return;
+        }
+        m['target_usage'] = '0xfff10007';
+        m['sticky'] = true;
+        m['tap'] = false;
+        m['hold'] = false;
+        m['layers'] = [...new Set([...(m['layers'] || [0]), 0, 7])].sort();
+        const pass = new Set(config['unmapped_passthrough_layers'] || []);
+        pass.add(7);
+        config['unmapped_passthrough_layers'] = [...pass].sort();
+        set_ui_state();
+        md_mapping_changed();
+    });
+    presets.appendChild(md_element('span', { class: 'md-insp-note' }, 'Presets:'));
+    presets.appendChild(mode_btn);
+    presets.appendChild(pause_btn);
+    output_set.appendChild(presets);
     body.appendChild(output_set);
 
     // layers
@@ -3539,7 +3683,9 @@ function render_board_settings() {
 }
 
 function board_set_type(n) {
+    const before = parseInt(config['our_descriptor_number']);
     config['our_descriptor_number'] = n;
+    offer_target_substitution(before, n);
     document.getElementById('our_descriptor_number_dropdown').value = String(n);
     set_ui_state();
     render_live_device();
@@ -4329,5 +4475,76 @@ function xcombo_undo(x) {
     set_expressions_ui_state();
     set_mappings_ui_state();
     selected_mapping = null;
+    md_refresh();
+}
+
+
+// ---------------------------------------------------------------------------
+// Device-type substitution: switching between PowerMic II, PowerMic 4,
+// SpeechMike and foot pedal offers to move each mapping's output to the new
+// device's button for the same PowerScribe job (PowerScribe One defaults; the
+// SpeechMike's from Microsoft's "Using Philips SpeechMike 3700" page).
+
+const SUBST_FAMILY = { 6: 'pm2', 8: 'pm2', 9: 'pm4', 10: 'smp', 7: 'pedal' };
+const SUBST_TABLE = [
+    // job              PowerMic II    PowerMic 4     SpeechMike     foot pedal
+    ['Dictate',         '0xff010003', '0xff030001', '0xff040001', '0xff020002'],
+    ['Play/Stop',       '0xff010007', '0xff030003', '0xff040003', null],
+    ['Previous field',  '0xff010002', '0xff030005', '0xff040005', '0xff020001'],
+    ['Next field',      '0xff010004', '0xff030004', '0xff040004', '0xff020003'],
+    ['Rewind',          '0xff010005', '0xff030006', null, null],
+    ['Fast forward',    '0xff010006', '0xff030007', null, null],
+    ['Enter/Select',    '0xff010009', '0xff030008', null, null],
+    ['Custom Left',     '0xff010008', '0xff03000a', '0xff04000a', null],
+    ['Custom Right',    '0xff01000a', '0xff03000b', '0xff04000b', null],
+    ['Function C / F3', null,         '0xff03000c', '0xff04000c', null],
+    ['Function D / F4', null,         '0xff03000d', '0xff04000d', null],
+];
+const SUBST_COL = { pm2: 1, pm4: 2, smp: 3, pedal: 4 };
+const SUBST_NAME = { pm2: 'PowerMic II', pm4: 'PowerMic 4', smp: 'SpeechMike', pedal: 'foot pedal' };
+const SUBST_PAGE = { pm2: '0xff01', pm4: '0xff03', smp: '0xff04', pedal: '0xff02' };
+
+function offer_target_substitution(before, after) {
+    const from = SUBST_FAMILY[before], to = SUBST_FAMILY[after];
+    if (!from || !to || from == to) {
+        return;
+    }
+    const lookup = {};
+    for (const row of SUBST_TABLE) {
+        if (row[SUBST_COL[from]]) {
+            lookup[row[SUBST_COL[from]]] = { job: row[0], to: row[SUBST_COL[to]] };
+        }
+    }
+    const affected = config['mappings'].filter((m) => (m['target_usage'] || '').toLowerCase().startsWith(SUBST_PAGE[from]));
+    if (!affected.length) {
+        return;
+    }
+    const moves = affected.filter((m) => lookup[m['target_usage'].toLowerCase()] && lookup[m['target_usage'].toLowerCase()].to);
+    const stuck = affected.filter((m) => !moves.includes(m));
+    // names from each type's own list (the page has already switched type)
+    const name_in = (type, u) => ((usages[type] || {})[u] || {}).name || u;
+    const lines = [...new Set(moves.map((m) => {
+        const t = m['target_usage'].toLowerCase();
+        return name_in(before, t) + ' → ' + name_in(after, lookup[t].to);
+    }))];
+    let msg = affected.length + ' mapping' + (affected.length == 1 ? '' : 's') + ' send ' + SUBST_NAME[from] + ' buttons, which the ' + SUBST_NAME[to] + ' type doesn\'t have.';
+    if (moves.length) {
+        msg += '\n\nSwitch them to the ' + SUBST_NAME[to] + '\'s buttons for the same job?\n' + lines.join('\n');
+    }
+    if (stuck.length) {
+        msg += '\n\n' + stuck.length + ' have no equivalent and stay as they are (they won\'t do anything until you change them): ' +
+            [...new Set(stuck.map((m) => name_in(before, m['target_usage'].toLowerCase())))].join(', ');
+    }
+    if (!moves.length) {
+        alert(msg);
+        return;
+    }
+    if (!confirm(msg)) {
+        return;
+    }
+    for (const m of moves) {
+        m['target_usage'] = lookup[m['target_usage'].toLowerCase()].to;
+    }
+    set_mappings_ui_state();
     md_refresh();
 }
