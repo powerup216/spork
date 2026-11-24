@@ -600,7 +600,7 @@ a { text-decoration-color: rgba(212, 175, 55, 0.4); text-underline-offset: 2px; 
 .md-nav .nav-link.md-sub.active { color: var(--marker); }
 .md-side-link { padding: 4px 0; text-align: left; font-size: 0.85rem; color: var(--lightbox); }
 .md-side-foot { margin-top: 10px; padding-top: 12px; border-top: 1px solid #1F1F24; font-size: 0.8rem; }
-.md-side-foot a { color: var(--muted); text-decoration: none; }
+.md-side-foot a { display: block; margin: 2px 0; color: var(--muted); text-decoration: none; }
 .md-side-foot a:hover { color: var(--marker); }
 .md-prof.on { background: #17150E; border-color: #6B5A22; box-shadow: none; }
 .md-prof .a { color: var(--lightbox); letter-spacing: 0.04em; }

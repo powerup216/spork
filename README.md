@@ -5,6 +5,8 @@
 <p align="center">
   <a href="https://powerup216.github.io/spork/"><b>Open the configurator</b></a>
   &nbsp;&nbsp;
+  <a href="https://powerup216.github.io/spork/docs.html">Guide</a>
+  &nbsp;&nbsp;
   <a href="https://powerup216.github.io/spork/magscroll.html">MagScroll knob page</a>
 </p>
 

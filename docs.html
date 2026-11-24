@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrueMap Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --film: #0A0A0B; --head: #0E0E10; --panel: #121214; --panel2: #17171A;
+  --line: #24242A; --line2: #1C1C21; --ink: #F2EFE8; --ink2: #CFCAC0; --muted: #A8A398; --faint: #8F8A80;
+  --gold: #D4AF37; --gold2: #E9C766; --gold3: #F5DC94; --goldbg: rgba(212,175,55,0.12);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+body { margin: 0; background: var(--film); color: var(--ink); font: 15px/1.6 Inter, system-ui, sans-serif; }
+a { color: var(--gold2); }
+a:hover { color: var(--gold3); }
+code, kbd, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.86em; }
+code { background: #1A1A1E; border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--gold3); }
+kbd { background: #1E1E22; border: 1px solid #3A3A42; border-bottom-width: 2px; border-radius: 6px; padding: 1px 7px; color: var(--ink); }
+
+header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px; padding: 12px 28px; background: rgba(14,14,16,0.94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; margin-right: auto; }
+.brand svg { color: var(--gold); flex: none; }
+.word { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 21px; }
+.word span { color: var(--gold); }
+.brand small { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+.btn { display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--gold); background: var(--gold); color: #14110A; font-weight: 600; font-size: 13px; text-decoration: none; white-space: nowrap; }
+.btn:hover { background: var(--gold2); color: #14110A; }
+#menu_btn { display: none; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #34343B; background: transparent; color: var(--ink); font: inherit; font-size: 13px; }
+
+.wrap { display: flex; gap: 40px; max-width: 1280px; margin: 0 auto; padding: 28px 28px 80px; }
+nav.toc { flex: 0 0 240px; position: sticky; top: 84px; align-self: flex-start; max-height: calc(100vh - 100px); overflow-y: auto; padding-right: 6px; }
+.toc input { width: 100%; height: 38px; padding: 0 12px; margin-bottom: 14px; border-radius: 10px; border: 1px solid #34343B; background: var(--panel); color: var(--ink); font: inherit; font-size: 14px; }
+.toc input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+.toc .grp { margin: 16px 0 4px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+.toc a { display: block; padding: 6px 10px; border-radius: 8px; color: var(--ink2); text-decoration: none; font-size: 14px; }
+.toc a:hover { background: #18181C; color: var(--ink); }
+.toc a.on { background: var(--goldbg); color: var(--gold2); font-weight: 600; box-shadow: inset 2px 0 0 var(--gold); }
+#no_match { display: none; color: var(--muted); font-size: 13px; padding: 6px 10px; }
+
+main { flex: 1 1 auto; min-width: 0; max-width: 860px; }
+.hero { padding: 8px 0 28px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.hero h1 { font-family: 'Space Grotesk', sans-serif; font-size: 40px; line-height: 1.1; margin: 0 0 12px; letter-spacing: -0.01em; }
+.hero h1 span { color: var(--gold); }
+.hero p { color: var(--ink2); font-size: 17px; margin: 0; max-width: 680px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.chips a { padding: 5px 12px; border-radius: 999px; border: 1px solid #2E2A1C; background: #15130C; color: var(--gold2); text-decoration: none; font-size: 13px; }
+.chips a:hover { border-color: var(--gold); }
+
+section.doc { padding: 34px 0 6px; border-bottom: 1px solid var(--line2); }
+section.doc.hide { display: none; }
+h2 { font-family: 'Space Grotesk', sans-serif; font-size: 26px; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; }
+h2 .n { font-size: 14px; color: var(--gold); font-family: 'JetBrains Mono', monospace; }
+h2 + .lead { color: var(--muted); margin: 0 0 18px; }
+h3 { font-family: 'Space Grotesk', sans-serif; font-size: 18px; margin: 26px 0 8px; color: var(--ink); }
+p, li { color: var(--ink2); }
+strong { color: var(--ink); font-weight: 600; }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+ol.steps { list-style: none; padding: 0; counter-reset: s; }
+ol.steps > li { position: relative; padding: 2px 0 10px 44px; counter-increment: s; }
+ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--gold); color: var(--gold2); font: 600 13px/26px 'Space Grotesk', sans-serif; text-align: center; }
+
+.tbl { overflow-x: auto; margin: 12px 0 18px; border: 1px solid var(--line); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 520px; }
+th { text-align: left; padding: 10px 14px; background: var(--panel); color: var(--faint); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; border-bottom: 1px solid var(--line); }
+td { padding: 10px 14px; border-top: 1px solid var(--line2); color: var(--ink2); vertical-align: top; }
+td:first-child { color: var(--ink); font-weight: 500; }
+tr:first-child td { border-top: 0; }
+
+.note, .tip, .warn { border-radius: 12px; padding: 12px 16px; margin: 14px 0; font-size: 14px; border: 1px solid var(--line); background: var(--panel); }
+.note p, .tip p, .warn p { margin: 0; }
+.tip { border-color: #3A3218; background: #15130C; }
+.tip::before { content: 'Tip'; display: block; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 2px; }
+.warn { border-color: #4A2A22; background: #1A1210; }
+.warn::before { content: 'Careful'; display: block; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #E8957E; font-weight: 600; margin-bottom: 2px; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 14px 0; }
+.card { border: 1px solid var(--line); background: var(--panel); border-radius: 14px; padding: 16px; }
+.card h4 { margin: 0 0 4px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; color: var(--ink); }
+.card p { margin: 0; font-size: 14px; }
+.card .tag { display: inline-block; margin-bottom: 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
+
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 16px 0; }
+.flow .box { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 10px 14px; font-size: 14px; color: var(--ink); }
+.flow .box.gold { border-color: var(--gold); background: #15130C; color: var(--gold3); font-weight: 600; }
+.flow .arr { color: var(--gold); font-size: 18px; }
+pre { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; overflow-x: auto; font-size: 13px; color: var(--ink2); }
+pre code { background: none; border: 0; padding: 0; color: inherit; }
+.path { color: var(--gold2); font-weight: 500; }
+footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
+
+@media (max-width: 900px) {
+  .wrap { display: block; padding: 20px 16px 60px; }
+  header { padding: 10px 16px; }
+  .brand small { display: none; }
+  .btn .long { display: none; }
+  #menu_btn { display: inline-flex; align-items: center; }
+  nav.toc { display: none; position: fixed; top: 60px; left: 0; right: 0; bottom: 0; max-height: none; z-index: 9; background: var(--film); padding: 16px; }
+  nav.toc.open { display: block; }
+  .hero h1 { font-size: 30px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="index.html">
+    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x="1" y="1" width="32" height="32" rx="9" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 11h16M17 11v13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="25" cy="24" r="2.4" fill="currentColor"/></svg>
+    <span><span class="word">True<span>Map</span></span> <small>Guide</small></span>
+  </a>
+  <button id="menu_btn" type="button" aria-expanded="false" aria-controls="toc">Contents</button>
+  <a class="btn" href="index.html">Open<span class="long">&nbsp;the configurator</span></a>
+</header>
+
+<div class="wrap">
+
+<nav class="toc" id="toc" aria-label="Guide contents">
+  <label for="find" style="position:absolute;left:-9999px">Search the guide</label>
+  <input id="find" type="search" placeholder="Search the guide…" autocomplete="off">
+  <div id="toc_links">
+    <div class="grp">Start</div>
+    <a href="#overview">What TrueMap does</a>
+    <a href="#start">First setup</a>
+    <a href="#types">What your computer sees</a>
+    <div class="grp">Mapping</div>
+    <a href="#mappings">Mappings</a>
+    <a href="#layers">Layers, tap and hold</a>
+    <a href="#perkey">Tap dance, cycles, combos</a>
+    <a href="#wheels">Wheels and knobs as keys</a>
+    <a href="#outputs">TrueMap actions</a>
+    <a href="#dictation">Dictation buttons</a>
+    <div class="grp">Macros</div>
+    <a href="#macros">Macros</a>
+    <a href="#expressions">Expressions</a>
+    <a href="#examples">Examples</a>
+    <div class="grp">Board</div>
+    <a href="#settings">Settings</a>
+    <a href="#features">Key features</a>
+    <a href="#profiles">Profiles</a>
+    <a href="#live">Live test</a>
+    <a href="#firmware">Firmware and safe start</a>
+    <div class="grp">Help</div>
+    <a href="#recipes">Recipes</a>
+    <a href="#trouble">Troubleshooting</a>
+    <a href="#limits">Limits and reference</a>
+  </div>
+  <div id="no_match">Nothing matches. Try another word.</div>
+</nav>
+
+<main>
+
+<div class="hero">
+  <h1>Everything <span>TrueMap</span> can do, and how.</h1>
+  <p>TrueMap is a small USB board that sits between your keyboard, mouse or foot pedal and the computer. It changes what each button does before the computer ever sees it, so your setup works in every program, on any workstation, with nothing installed.</p>
+  <div class="chips">
+    <a href="#start">Set up in 5 minutes</a>
+    <a href="#outputs">Scroll lock and auto-scroll</a>
+    <a href="#macros">Copy, paste, undo macros</a>
+    <a href="#profiles">Profiles per device</a>
+    <a href="#trouble">Something's off</a>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<section class="doc" id="overview">
+  <h2><span class="n">01</span>What TrueMap does</h2>
+  <p class="lead">One box, any input, any output.</p>
+  <div class="flow" role="img" aria-label="Your keyboard, mouse and pedal plug into the TrueMap board, which sends remapped input to the computer">
+    <span class="box">Keyboard · mouse · pedal · knob</span><span class="arr">→</span>
+    <span class="box gold">TrueMap board</span><span class="arr">→</span>
+    <span class="box">Workstation (sees a keyboard, mouse, PowerMic or pedal)</span>
+  </div>
+  <p>Every press, click, scroll and turn goes through the board. For each one it checks your <strong>mappings</strong>: if one matches, it sends what you chose instead; if none match, the input passes through unchanged. All of it runs on the board itself, so:</p>
+  <ul>
+    <li><strong>Nothing to install</strong> on the workstation. Locked-down hospital PCs are fine.</li>
+    <li><strong>It works in every program</strong>, including PowerScribe when it isn't the active window (the board can pretend to be a PowerMic or a foot pedal).</li>
+    <li><strong>Your setup travels with you.</strong> Unplug the board, take it to another reading room, and it behaves the same.</li>
+  </ul>
+  <div class="cards">
+    <div class="card"><span class="tag">Remap</span><h4>Any button to anything</h4><p>Keys, mouse buttons, wheel tilts, knobs and pedals to keys, shortcuts, clicks or dictation buttons.</p></div>
+    <div class="card"><span class="tag">Automate</span><h4>Macros</h4><p>Shortcuts, typed phrases and multi-step sequences on one button, with pauses and repeat-while-held.</p></div>
+    <div class="card"><span class="tag">Scroll</span><h4>Scroll lock, auto-scroll</h4><p>Move the mouse to scroll through a stack, or let it scroll on its own at a speed you set.</p></div>
+    <div class="card"><span class="tag">Switch</span><h4>8 profiles</h4><p>Different setups for different readers, PACS or devices, switched by a key or automatically.</p></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="start">
+  <h2><span class="n">02</span>First setup</h2>
+  <p class="lead">From box to working mapping.</p>
+  <ol class="steps">
+    <li><strong>Plug your devices into the board</strong>, and the board into the computer. A USB hub on the board's input lets you use several devices; each hub socket is a <em>port</em> (1, 2, 3…).</li>
+    <li><strong>Open the <a href="index.html">configurator</a></strong> in Chrome or Edge (they can talk to USB serial devices). Click <span class="path">Open device</span> and pick the board in the list.</li>
+    <li><strong>Tell it what's plugged in.</strong> On <span class="path">Mappings → Your devices</span>, pick a picture for each port (68-key keyboard, G502, EM06, foot pedal…). It only changes the picture; it makes clicking keys easy.</li>
+    <li><strong>Click a key in the picture</strong>, then pick what it should send from the output list. That's a mapping.</li>
+    <li><strong>Click <span class="path">Save to device</span>.</strong> The board uses the new setup straight away.</li>
+    <li><strong>Check it in <span class="path">Live test</span></strong>: press the key and watch what the computer receives.</li>
+  </ol>
+  <div class="tip"><p>Not sure what a button sends? Open <span class="path">Live test</span> and press it. The raw code table shows its name, code and port.</p></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="types">
+  <h2><span class="n">03</span>What your computer sees</h2>
+  <p class="lead">Settings → Board settings → What your computer sees.</p>
+  <p>The board always shows up as a keyboard and mouse (so unmapped keys keep working). On top of that it can pretend to be one more device. Change it and click <span class="path">Save to board</span>; the board restarts as the new device and you click <span class="path">Open device</span> again.</p>
+  <div class="tbl"><table>
+    <tr><th>Type</th><th>The computer sees</th><th>Use it for</th></tr>
+    <tr><td>Mouse and keyboard</td><td>A normal keyboard and mouse</td><td>General remapping, macros, scroll lock</td></tr>
+    <tr><td>Foot Pedal</td><td>A 3-pedal dictation foot pedal</td><td>PowerScribe pedal actions from any key</td></tr>
+    <tr><td>PowerMic II</td><td>A Nuance PowerMic II (plus a silent microphone)</td><td>Dictate, Next/Previous Field and the other mic buttons from any key</td></tr>
+    <tr><td>PowerMic 4</td><td>A PowerMic 4</td><td>The newer mic's buttons, including Function A–D</td></tr>
+    <tr><td>SpeechMike Premium</td><td>A Philips SpeechMike (SMP3700)</td><td>Software that expects a SpeechMike</td></tr>
+    <tr><td>Absolute mouse and keyboard</td><td>A touchscreen-style mouse</td><td>Jumping the pointer to fixed screen spots</td></tr>
+    <tr><td>Gamepads (Switch, PS4 stick, Stadia, XAC)</td><td>A game controller</td><td>Accessibility setups</td></tr>
+  </table></div>
+  <div class="note"><p>In PowerMic mode the board also appears as a microphone in Windows Sound settings, like a real PowerMic II. It only sends silence, so keep PowerScribe's audio on your real microphone. Unplug any real PowerMic or pedal while using the board: PowerScribe may only listen to the first one it finds.</p></div>
+  <h3>Board name</h3>
+  <p>Under <span class="path">Name, restart and automatic profiles</span> you can name the board (up to 24 characters). The name shows on the settings port, and as the device name when the type is <em>Mouse and keyboard</em>. Emulated devices (PowerMic, pedal) keep their real names so PowerScribe recognises them. It's saved on the board, not per profile, and applies after a restart.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="mappings">
+  <h2><span class="n">04</span>Mappings</h2>
+  <p class="lead">An input, an output, and when it applies.</p>
+  <p>A mapping says “when <strong>this</strong> is pressed, send <strong>that</strong>”. You can make them by clicking the device picture or with <span class="path">Add mapping</span> in the table under it.</p>
+  <h3>Making one from the picture</h3>
+  <ol class="steps">
+    <li>Click a key or button in the picture. Its panel opens on the right.</li>
+    <li>Pick the output: a key, shortcut, mouse button, dictation button, macro or a TrueMap action. Type to search the list.</li>
+    <li>Optional: pick a layer, tap/hold, or one of the per-key features (tap dance, cycle, hold time).</li>
+    <li>Gold keys are mapped. Click one again to change or remove it.</li>
+  </ol>
+  <h3>The mapping table</h3>
+  <div class="tbl"><table>
+    <tr><th>Column</th><th>What it means</th></tr>
+    <tr><td>Input</td><td>The button, key or axis that triggers it, and which port it must come from (or any port).</td></tr>
+    <tr><td>Output</td><td>What gets sent instead.</td></tr>
+    <tr><td>Layer</td><td>Which layers (0–7) the mapping is active on. Layer 0 is the normal one.</td></tr>
+    <tr><td>Sticky</td><td>A press turns the output on, the next press turns it off. Good for layer switches and holding a button down.</td></tr>
+    <tr><td>Tap / Hold</td><td>Only fires on a short tap, or only when held past the tap-hold threshold. One key can do two things.</td></tr>
+    <tr><td>Scaling</td><td>Multiplies a movement (pointer, wheel). Negative reverses it; 0.5 halves it.</td></tr>
+  </table></div>
+  <h3>Ports</h3>
+  <p>With a hub, the same key on two devices can do different things: map the input on <em>port 2</em> and only the device on port 2 triggers it. <em>Any port</em> works whichever socket the device is in. Which picture goes with which port is saved with the profile.</p>
+  <h3>Pass through</h3>
+  <p><span class="path">Pass through keys that aren't remapped</span> (Settings) keeps everything you didn't map working normally. Turn it off for a device where only your mappings should do anything. Per-layer control is under <span class="path">All settings → Unmapped inputs passthrough on layer</span>.</p>
+  <div class="note"><p>A mapped key stops sending its own key. If you map <kbd>F2</kbd> to Dictate, F2 no longer types F2. Map another key to F2 if you still need it.</p></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="layers">
+  <h2><span class="n">05</span>Layers, tap and hold</h2>
+  <p class="lead">More actions than you have buttons.</p>
+  <p>Layers are complete alternate sets of mappings, like the Fn key on a laptop. Layer 0 is always there; layers 1–7 are on only while you switch to them.</p>
+  <div class="tbl"><table>
+    <tr><th>How</th><th>Output to use</th><th>Behaviour</th></tr>
+    <tr><td>Hold for a layer</td><td>Layer 1–7 (non-sticky)</td><td>The layer is on while the key is held.</td></tr>
+    <tr><td>Toggle a layer</td><td>Layer 1–7 with Sticky ticked</td><td>Press once to turn on, again to turn off.</td></tr>
+    <tr><td>Switch</td><td>Switch to layer 1–7 / Switch to base layer</td><td>Stays on that layer until you switch back.</td></tr>
+    <tr><td>Next key only</td><td>One-shot layer 1–7</td><td>The next key press uses that layer, then it's back to normal.</td></tr>
+  </table></div>
+  <p><strong>Tap and hold:</strong> tick <em>Tap</em> on one mapping and <em>Hold</em> on another for the same key. A quick press sends the tap action; holding past the <span class="path">Tap-hold threshold</span> (All settings) sends the hold action. You can give a single key its own hold time in its panel (<span class="path">Hold time for this key</span>), and choose to treat it as held as soon as another key is pressed.</p>
+  <p><strong>Back to base:</strong> in Key features, <span class="path">Back to the base layer</span> returns to layer 0 after a number of seconds without input, so a forgotten layer switch can't confuse the next person.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="perkey">
+  <h2><span class="n">06</span>Tap dance, cycles, combos</h2>
+  <p class="lead">Made from a key's panel or the Mappings toolbar. Need TrueMap firmware 20 or later.</p>
+  <div class="cards">
+    <div class="card"><span class="tag">Tap dance</span><h4>Tap, double tap, hold</h4><p>Three actions on one key. Click the key, then <span class="path">Tap dance</span>, and fill in each. The timing window is adjustable.</p></div>
+    <div class="card"><span class="tag">Cycle</span><h4>Each press, the next action</h4><p>Press 1 sends the first action, press 2 the second, and so on, then round again. Great for window layouts or EM06 keys.</p></div>
+    <div class="card"><span class="tag">Combo</span><h4>Buttons together</h4><p><span class="path">+ Combo: buttons together</span>, click two or more keys, <span class="path">Done</span>, then pick the output.</p></div>
+  </div>
+  <p>For combos, <span class="path">Block each button's own action when they're pressed together</span> decides whether the individual keys still fire. Blocking waits a few milliseconds to see if the other key follows; turn it off for keys where any delay matters.</p>
+  <p>Everything set up this way is listed under <span class="path">Settings → Key features → On this profile</span>, where you can remove it.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="wheels">
+  <h2><span class="n">07</span>Wheels and knobs as keys</h2>
+  <p class="lead">Turn a scroll wheel, tilt, jog dial or shuttle ring into separate key presses.</p>
+  <p>A wheel normally sends one movement value, so "up" and "down" can't be mapped separately on their own. Click the wheel (or a dial, tilt or ring) in the picture, choose <span class="path">Use as keys</span> and its kind:</p>
+  <div class="tbl"><table>
+    <tr><th>Kind</th><th>For</th><th>What you get</th></tr>
+    <tr><td>Relative</td><td>Scroll wheels, tilt, knobs that send clicks</td><td>A "one way" key and an "other way" key, pressed once per notch.</td></tr>
+    <tr><td>Wraps 0–255</td><td>Jog dials like the ShuttleXpress inner ring</td><td>A key per step clockwise and anticlockwise.</td></tr>
+    <tr><td>Holds a position</td><td>Spring-loaded shuttle rings</td><td>Near and far keys each way, held while the ring is turned.</td></tr>
+  </table></div>
+  <p>Then map those keys like any other. The wheel stops scrolling by itself on that port while it's used as keys. On the G502 picture the wheel tilts are already keys (F17/F18 once set up in Logitech's software, see <a href="#recipes">Recipes</a>).</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="outputs">
+  <h2><span class="n">08</span>TrueMap actions</h2>
+  <p class="lead">Special outputs in the list under "TrueMap". The board does these itself.</p>
+  <h3>Scrolling and pointer</h3>
+  <div class="tbl"><table>
+    <tr><th>Action</th><th>What it does</th></tr>
+    <tr><td>Scroll lock (mouse movement scrolls)</td><td>Toggle: while on, moving the mouse scrolls instead of moving the pointer. <strong>Any key or mouse button turns it off.</strong> Ideal for scrolling through a CT stack.</td></tr>
+    <tr><td>Scroll lock while held</td><td>Same, only while the button is held.</td></tr>
+    <tr><td>Scroll lock faster / slower</td><td>Steps through 5 speeds you set in Key features.</td></tr>
+    <tr><td>Auto-scroll up/down, slow/medium/fast</td><td>Scrolls on its own at a fixed speed. Press again or press Auto-scroll stop to end it.</td></tr>
+    <tr><td>Auto-scroll faster each press</td><td>Every press goes up a gear; the opposite direction slows it down, then reverses.</td></tr>
+    <tr><td>Auto-scroll stop</td><td>Stops any auto-scroll.</td></tr>
+    <tr><td>Precision pointer while held / on-off</td><td>Slows the pointer (30% by default) for measurements and fine placement.</td></tr>
+    <tr><td>Fast scroll while held</td><td>Multiplies the wheel (×5 by default) to jump through long series.</td></tr>
+    <tr><td>Click-lock (hold left button)</td><td>Holds the left button down until the next click: drag, window/level, or pan without holding.</td></tr>
+    <tr><td>Double-click</td><td>One press, two clicks.</td></tr>
+  </table></div>
+  <h3>Typing and keys</h3>
+  <div class="tbl"><table>
+    <tr><th>Action</th><th>What it does</th></tr>
+    <tr><td>Repeat last key or macro</td><td>Sends the last thing again.</td></tr>
+    <tr><td>Caps Word</td><td>Capitals until a space or punctuation; <code>-</code> becomes <code>_</code>. For acronyms.</td></tr>
+    <tr><td>IntelliComplete on/off</td><td>Capitalises the first letter after <code>. </code>, <code>? </code> or <code>! </code> as you type.</td></tr>
+    <tr><td>One-shot Shift / Ctrl / Alt / Win</td><td>Applies to the next key only. Press twice to lock (optional).</td></tr>
+  </table></div>
+  <h3>Board control</h3>
+  <div class="tbl"><table>
+    <tr><th>Action</th><th>What it does</th></tr>
+    <tr><td>Profile 1–8, Next / Previous profile</td><td>Switch the whole setup.</td></tr>
+    <tr><td>Layer outputs</td><td>See <a href="#layers">Layers</a>.</td></tr>
+    <tr><td>Restart the board</td><td>Restarts it, as if replugged.</td></tr>
+    <tr><td>Restart into firmware update mode</td><td>The board shows up as a USB drive for a new firmware file.</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="dictation">
+  <h2><span class="n">09</span>Dictation buttons</h2>
+  <p class="lead">Outputs that PowerScribe receives even when it's in the background.</p>
+  <p>Set the board's type first (<a href="#types">What your computer sees</a>), then map keys to the matching buttons:</p>
+  <div class="tbl"><table>
+    <tr><th>Board type</th><th>Buttons you can send</th></tr>
+    <tr><td>PowerMic II</td><td>Dictate (Record), Previous Field, Next Field, Transcribe, Rewind, Fast Forward, Stop/Play, Enter/Select, Custom Left, Custom Right</td></tr>
+    <tr><td>PowerMic 4</td><td>Dictate, Play/Pause, Rewind, Forward, Tab Backward/Forward, Enter/Select, Function A–D</td></tr>
+    <tr><td>SpeechMike</td><td>Record, Play/Stop, Rewind, Forward, EOL/PRIO, INS/OVR, F1–F4, Command</td></tr>
+    <tr><td>Foot Pedal</td><td>Left, middle and right pedal</td></tr>
+  </table></div>
+  <p>Defaults for PowerMic mode: <kbd>F1</kbd> Previous Field, <kbd>F2</kbd> Dictate, <kbd>F3</kbd> Next Field, <kbd>F4</kbd> Custom Left. For Foot pedal mode: <kbd>F1</kbd>/<kbd>F2</kbd>/<kbd>F3</kbd> left/middle/right.</p>
+  <div class="tip"><p>In PowerScribe, check that the PowerMic or foot pedal is enabled as an input device. If PowerScribe ignores the board but Live test shows the button, the problem is on the PowerScribe side.</p></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="macros">
+  <h2><span class="n">10</span>Macros</h2>
+  <p class="lead">Several keys, in order, from one press.</p>
+  <p>A macro is a list of steps; each step is the keys held at that moment. Build one in <span class="path">Macros → Macro builder</span>:</p>
+  <ol class="steps">
+    <li>Pick a macro slot and give it a <strong>name</strong> (for example “Copy”). Names show in the output list.</li>
+    <li>Add steps:
+      <ul>
+        <li><strong>Type text</strong>: types a phrase (US layout; capitals add Shift for you).</li>
+        <li><strong>Shortcut</strong>: press e.g. <kbd>Ctrl</kbd>+<kbd>C</kbd> once and it's added as a single step.</li>
+        <li><strong>Record keys</strong>: type on this computer's keyboard, then Stop.</li>
+        <li><strong>Enter</strong>, <strong>Any output…</strong> (mouse buttons, dictation buttons), and <strong>Pause</strong> (a wait in milliseconds).</li>
+      </ul>
+    </li>
+    <li>Optional: <strong>Repeat while held</strong>: after a delay, the macro repeats at a rate you choose until you let go.</li>
+    <li>Click <span class="path">Use this macro</span> and click the key it goes on. Then <span class="path">Save to device</span>.</li>
+  </ol>
+  <h3>Macro or two mappings?</h3>
+  <p>For a shortcut like Ctrl+C you <em>can</em> make two mappings (wheel click → Left Ctrl and wheel click → C). A macro is cleaner: one action per press, it shows up by name, and the keys go out in the right order. Use a macro.</p>
+  <div class="warn"><p>If a macro does nothing: check it isn't empty, that it's actually mapped to the key (the key turns gold), that the mapping is on the right port and layer, and that no other mapping on the same key overrides it. Live test shows what goes out.</p></div>
+  <p><span class="path">Macro step duration</span> (All settings) sets how long each step is held. Raise it if a program misses keys.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="expressions">
+  <h2><span class="n">11</span>Expressions</h2>
+  <p class="lead">Small programs for when nothing else fits. Macros → Expressions.</p>
+  <p>An expression is a short formula the board runs on every input report. It can read inputs, keep state and produce an output value, which you map like any other input. Most things people used expressions for (scroll lock, auto-scroll, direction keys) are now built in; use those first. They are simpler and faster.</p>
+  <p>Comments written <code>/* like this */</code> aren't saved to the board but are kept in exported JSON files. The <a href="#examples">Examples</a> tab has working expressions you can load and read.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="examples">
+  <h2><span class="n">12</span>Examples</h2>
+  <p class="lead">Ready-made setups under Macros → Examples.</p>
+  <p>Load one to see how something is built, then change it. Loading an example replaces what's on the page (not the board) until you save, so export your setup first if you want to keep it.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="settings">
+  <h2><span class="n">13</span>Settings</h2>
+  <p class="lead">Board-wide and per-profile settings.</p>
+  <h3>Board settings</h3>
+  <div class="tbl"><table>
+    <tr><th>Setting</th><th>What it does</th></tr>
+    <tr><td>What your computer sees</td><td>The device type. See <a href="#types">section 3</a>.</td></tr>
+    <tr><td>Pass through keys that aren't remapped</td><td>Unmapped input keeps working.</td></tr>
+    <tr><td>Name</td><td>The board's name (per board).</td></tr>
+    <tr><td>Restart</td><td>Restarts the board.</td></tr>
+    <tr><td>Switch profile when a device is plugged in</td><td>Automatic profiles. See <a href="#profiles">Profiles</a>.</td></tr>
+    <tr><td>Firmware update / Delete all other profiles</td><td>Update mode, and clean up profiles you don't use.</td></tr>
+  </table></div>
+  <h3>All settings</h3>
+  <div class="tbl"><table>
+    <tr><th>Setting</th><th>What it does</th></tr>
+    <tr><td>Unmapped inputs passthrough on layer</td><td>Per layer: whether unmapped keys still work there.</td></tr>
+    <tr><td>Partial scroll timeout</td><td>How long a fraction of a scroll step is remembered (with scaling below 1).</td></tr>
+    <tr><td>Tap-hold threshold</td><td>How long a press must last to count as a hold.</td></tr>
+    <tr><td>GPIO debounce time</td><td>For buttons wired straight to the board's pins.</td></tr>
+    <tr><td>Macro step duration</td><td>How long each macro step is held.</td></tr>
+    <tr><td>Override polling rate</td><td>How often the board reports to the computer (62.5–1000 Hz).</td></tr>
+    <tr><td>Emulated device type</td><td>The full list of types, including gamepads.</td></tr>
+    <tr><td>Input labels, GPIO output mode, Normalize gamepad inputs, Ignore auth device inputs</td><td>For gamepads and wired-in buttons.</td></tr>
+    <tr><td>Custom usages</td><td>Add codes not in the lists (for unusual devices).</td></tr>
+  </table></div>
+  <h3>Actions</h3>
+  <p><span class="path">Settings → Actions</span> has Export JSON / Import JSON (your whole setup as a file), and firmware flashing.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="features">
+  <h2><span class="n">14</span>Key features</h2>
+  <p class="lead">Settings → Key features. Tuning for the built-in actions. Saved per profile.</p>
+  <div class="tbl"><table>
+    <tr><th>Group</th><th>Settings</th></tr>
+    <tr><td>Auto-scroll</td><td>Speed of slow/medium/fast (time between steps and lines per step), and the gears for “faster each press”.</td></tr>
+    <tr><td>One-shot keys</td><td>How long it waits for the next key (0 = no limit); press twice to lock.</td></tr>
+    <tr><td>Typing</td><td>IntelliComplete on at start-up; Caps Word ends after 5 s without typing.</td></tr>
+    <tr><td>Scroll lock</td><td>Five speeds (mouse movement per scroll line; smaller = faster), which speed it starts at, sideways movement scrolls sideways, reverse direction.</td></tr>
+    <tr><td>Pointer and scrolling</td><td>Precision speed %, fast scroll ×, and per port: pointer speed % (10–400), acceleration (0–10) and debounce ms for buttons that double-click by themselves.</td></tr>
+    <tr><td>Back to the base layer</td><td>Seconds without input before layers reset (0 = never).</td></tr>
+    <tr><td>On this profile</td><td>Every combo, tap dance, cycle, wheel-as-keys and per-key hold time, with Remove buttons.</td></tr>
+  </table></div>
+  <div class="tip"><p>Scroll lock too twitchy on a high-DPI mouse? Raise the numbers for speeds 1–5 (more movement per line). Too slow? Lower them, or start at a higher speed.</p></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="profiles">
+  <h2><span class="n">15</span>Profiles</h2>
+  <p class="lead">Up to 8 complete setups on one board.</p>
+  <p>A profile holds everything: mappings, macros, expressions, settings, key features, device pictures and device type. <span class="path">Save to device</span> always saves into the profile in use.</p>
+  <ul>
+    <li><strong>Save as:</strong> on the Profiles tab, save the page into any slot with a name (e.g. “GE PACS reading”).</li>
+    <li><strong>Switch with a button:</strong> map a key to Profile 1–8, Next profile or Previous profile.</li>
+    <li><strong>Switch automatically:</strong> in Settings, under <span class="path">Switch profile when a device is plugged in</span>, pick a device from the list of what's plugged in now (no typing IDs) or a port, and the profile to use. Up to 8 rules. Choosing “any device on port N” matches whatever is on that port.</li>
+    <li><strong>Back up all profiles</strong> to one file, and <strong>Restore from a backup</strong> on another board or after a reset.</li>
+    <li>The side bar lists the profiles on the board, so you can see which one is in use.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="live">
+  <h2><span class="n">16</span>Live test</h2>
+  <p class="lead">See exactly what goes in and what comes out.</p>
+  <div class="tbl"><table>
+    <tr><th>Part</th><th>Shows</th></tr>
+    <tr><td>What PowerScribe sees</td><td>A picture of the emulated mic or pedal, lighting up as your mappings fire.</td></tr>
+    <tr><td>Presses, newest first</td><td>Each input, its state (down/up, double, combo) and what was sent.</td></tr>
+    <tr><td>Board state</td><td>Current layer and profile, and whether scroll lock, auto-scroll, precision, Caps Word and one-shots are on.</td></tr>
+    <tr><td>Raw codes</td><td>Every input on every port with its code and range. Use it to find out what an odd button sends.</td></tr>
+  </table></div>
+  <p><strong>Test without sending</strong>: the board keeps telling the computer nothing is pressed, so you can try buttons (even Restart or a long macro) without anything happening. It turns itself off after 2 minutes if the page is closed.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="firmware">
+  <h2><span class="n">17</span>Firmware and safe start</h2>
+  <p class="lead">Keeping the board up to date, and getting out of trouble.</p>
+  <h3>Updating</h3>
+  <ol class="steps">
+    <li>Download the latest firmware file (<code>.uf2</code>) for your board.</li>
+    <li>Click <span class="path">Restart into firmware update mode</span> (Settings), or hold the board's BOOT button while plugging it in.</li>
+    <li>A drive called <code>RPI-RP2</code> appears. Copy the <code>.uf2</code> file onto it. The board restarts by itself.</li>
+  </ol>
+  <p>Your profiles survive updates. The configurator works with boards on older firmware, and tells you when a feature needs a newer one.</p>
+  <h3>Safe start</h3>
+  <p>If a mapping ever locks you out (say, every key is remapped), <strong>hold <kbd>Esc</kbd> for 2 seconds within 8 seconds of plugging the board in</strong>. It starts with every mapping off until the next restart. Your saved settings aren't touched, so open the configurator and fix the setup.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="recipes">
+  <h2><span class="n">18</span>Recipes</h2>
+  <p class="lead">Common reading-room setups.</p>
+
+  <h3>Dictate from the mouse</h3>
+  <p>Set the type to PowerMic II. Map a side mouse button to <em>PowerMic Dictate</em>, the other to <em>Next Field</em>. Leave PowerScribe in the background; it still reacts.</p>
+
+  <h3>Scroll a stack by moving the mouse</h3>
+  <p>Map a spare button to <em>Scroll lock</em>. Press it, move the mouse to scroll; any click or key ends it. Put <em>Scroll lock faster/slower</em> on two more buttons, or set the speeds in Key features.</p>
+
+  <h3>Hands-free cine</h3>
+  <p>Map <kbd>←</kbd> to <em>Auto-scroll up, fast</em> and <kbd>→</kbd> to <em>Auto-scroll down, fast</em> (or the “faster each press” versions). Press the same key or <em>Auto-scroll stop</em> to end it.</p>
+
+  <h3>Copy, paste, undo on mouse buttons</h3>
+  <p>Make three named macros (Copy = <kbd>Ctrl</kbd>+<kbd>C</kbd>, Paste = <kbd>Ctrl</kbd>+<kbd>V</kbd>, Undo = <kbd>Ctrl</kbd>+<kbd>Z</kbd>) with the Shortcut button, then put them on buttons.</p>
+
+  <h3>Logitech G502 with all its buttons</h3>
+  <p>The G502 handles some buttons inside the mouse (DPI, G-shift). To get them to the board, use Logitech's Onboard Memory Manager once and set them to keys nothing else uses, then map those in TrueMap:</p>
+  <div class="tbl"><table>
+    <tr><th>G502 button</th><th>Set in the Logitech tool to</th></tr>
+    <tr><td>Sniper (thumb)</td><td>F13</td></tr>
+    <tr><td>DPI front / back (beside left button)</td><td>F14 / F15</td></tr>
+    <tr><td>Behind the wheel</td><td>F16</td></tr>
+    <tr><td>Wheel tilt right / left</td><td>F17 / F18</td></tr>
+  </table></div>
+  <p>Save it to the mouse's onboard memory and close the Logitech app. The G502 picture in TrueMap is labelled with these keys.</p>
+
+  <h3>One keypad, several jobs (EM06 / macro pad)</h3>
+  <p>Use a <em>Cycle</em> on a key to step through hanging protocols or window layouts, one per press.</p>
+
+  <h3>Different readers, one board</h3>
+  <p>Save each person's setup as its own profile and put <em>Profile 1</em>, <em>Profile 2</em>… on a spare key, or let the board switch when it sees a particular keyboard or mouse.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="trouble">
+  <h2><span class="n">19</span>Troubleshooting</h2>
+  <p class="lead">Quick checks, most likely first.</p>
+  <div class="tbl"><table>
+    <tr><th>Problem</th><th>Try</th></tr>
+    <tr><td>The board isn't in the Open device list</td><td>Use Chrome or Edge. Replug it. A board on very old firmware needs current TrueMap firmware first.</td></tr>
+    <tr><td>A mapping does nothing</td><td>Did you Save to device? Is it on the right port and layer? Press the key in Live test and check the "Sent as" column.</td></tr>
+    <tr><td>A key stopped typing</td><td>It's mapped; mapped keys are taken over. Change or remove the mapping.</td></tr>
+    <tr><td>PowerScribe ignores the board</td><td>Check the board type, unplug other dictation devices, and enable the PowerMic/pedal in PowerScribe.</td></tr>
+    <tr><td>A button double-clicks on its own</td><td>Key features → Pointer and scrolling → add a debounce (10–30 ms) for that port.</td></tr>
+    <tr><td>Stuck on a layer or in scroll lock</td><td>Press any key (scroll lock), or set Back to the base layer. Live test shows the current state.</td></tr>
+    <tr><td>Locked out completely</td><td><a href="#firmware">Safe start</a>: hold Esc for 2 s just after plugging in.</td></tr>
+    <tr><td>"Needs the latest firmware"</td><td>Update the board (section 17). The settings stay on the page and in saved files meanwhile.</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="doc" id="limits">
+  <h2><span class="n">20</span>Limits and reference</h2>
+  <p class="lead">Numbers worth knowing.</p>
+  <div class="tbl"><table>
+    <tr><th>Item</th><th>Limit</th></tr>
+    <tr><td>Profiles</td><td>8 per board</td></tr>
+    <tr><td>Layers</td><td>8 (0–7)</td></tr>
+    <tr><td>Automatic profile rules</td><td>8 per board</td></tr>
+    <tr><td>Board name</td><td>24 characters</td></tr>
+    <tr><td>Profile name</td><td>20 characters</td></tr>
+    <tr><td>Scroll lock speeds</td><td>5</td></tr>
+    <tr><td>Test without sending</td><td>Turns off after 2 minutes without the page</td></tr>
+    <tr><td>Safe start</td><td>Esc held 2 s, within 8 s of power-up</td></tr>
+  </table></div>
+  <h3>Code ranges you'll see in Live test</h3>
+  <div class="tbl"><table>
+    <tr><th>Code starts with</th><th>Means</th></tr>
+    <tr><td><code>0x0007…</code></td><td>Keyboard keys</td></tr>
+    <tr><td><code>0x0009…</code></td><td>Mouse buttons</td></tr>
+    <tr><td><code>0x0001…</code></td><td>Movement and wheels (X, Y, wheel)</td></tr>
+    <tr><td><code>0x000C…</code></td><td>Media keys (volume, play)</td></tr>
+    <tr><td><code>0xFF01…</code> – <code>0xFF04…</code></td><td>PowerMic, foot pedal, PowerMic 4, SpeechMike buttons</td></tr>
+    <tr><td><code>0xFFE…</code></td><td>TrueMap's own actions</td></tr>
+  </table></div>
+  <footer>TrueMap is built on HID Remapper. The configurator is MIT licensed. <a href="index.html">Back to the configurator</a> · <a href="magscroll.html">MagScroll knob setup</a></footer>
+</section>
+
+</main>
+</div>
+
+<script>
+(function () {
+  const links = Array.from(document.querySelectorAll('#toc_links a'));
+  const secs = Array.from(document.querySelectorAll('section.doc'));
+  const byId = (id) => links.find((a) => a.getAttribute('href') === '#' + id);
+
+  // highlight the section in view
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        links.forEach((a) => a.classList.remove('on'));
+        const a = byId(e.target.id);
+        if (a) a.classList.add('on');
+      }
+    });
+  }, { rootMargin: '-90px 0px -70% 0px' });
+  secs.forEach((s) => io.observe(s));
+
+  // search: filter sections and contents links
+  const find = document.getElementById('find');
+  const none = document.getElementById('no_match');
+  find.addEventListener('input', () => {
+    const q = find.value.trim().toLowerCase();
+    let shown = 0;
+    secs.forEach((s) => {
+      const hit = !q || s.textContent.toLowerCase().includes(q);
+      s.classList.toggle('hide', !hit);
+      const a = byId(s.id);
+      if (a) a.style.display = hit ? '' : 'none';
+      if (hit) shown++;
+    });
+    document.querySelectorAll('#toc_links .grp').forEach((g) => { g.style.display = q ? 'none' : ''; });
+    none.style.display = shown ? 'none' : 'block';
+  });
+
+  // phone menu
+  const btn = document.getElementById('menu_btn');
+  const toc = document.getElementById('toc');
+  btn.addEventListener('click', () => {
+    const open = toc.classList.toggle('open');
+    btn.setAttribute('aria-expanded', String(open));
+  });
+  links.forEach((a) => a.addEventListener('click', () => { toc.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }));
+})();
+</script>
+</body>
+</html>
