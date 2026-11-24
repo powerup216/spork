@@ -1550,6 +1550,7 @@ function setup_usage_modal(source_or_target) {
 
     const search_box = modal_element.querySelector('.usage_search_box');
     search_box.addEventListener("keyup", usage_search_onchange(search_box));
+    search_box.addEventListener("input", usage_search_onchange(search_box));
     search_box.addEventListener("keydown", (e) => {
         if (e.key == 'Enter') {
             modal_element.querySelectorAll('.usage_button').forEach((usage_button) => {
@@ -2414,7 +2415,7 @@ const F_KEYS = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => ['F
 // fills in an expression for it (see dir_expressions) and maps that expression.
 //   sign: the input is a signed movement or position (tilt, shuttle ring)
 //   wrap: the input is a 0-255 position that wraps around (ShuttleXpress jog)
-const DIR = (axis, kind, sign) => ({ axis, kind, sign });
+const DIR = (axis, kind, sign, far = false) => ({ axis, kind, sign, far });
 
 function mouse_keys(extra = [], wheel_x = 2.6) {
     return [
@@ -2553,10 +2554,12 @@ const DEVICES = {
             ['Shuttle ring', 0x00010038, 1.15, 1.25, 2.5, 2.5, true, 'ring'], ['Jog', 0x00010037, 1.8, 1.9, 1.2, 1.2, true],
             ['◀ ring', null, 0.12, 2.25, 0.95, 0.55, false, 'dirk', DIR(0x00010038, 'sign', -1)],
             ['ring ▶', null, 3.73, 2.25, 0.95, 0.55, false, 'dirk', DIR(0x00010038, 'sign', 1)],
+            ['◀◀ far', null, 0.12, 2.85, 0.95, 0.55, false, 'dirk', DIR(0x00010038, 'sign', -1, true)],
+            ['far ▶▶', null, 3.73, 2.85, 0.95, 0.55, false, 'dirk', DIR(0x00010038, 'sign', 1, true)],
             ['↺ jog', null, 1.3, 3.95, 1.0, 0.55, false, 'dirk', DIR(0x00010037, 'wrap', -1)],
             ['jog ↻', null, 2.5, 3.95, 1.0, 0.55, false, 'dirk', DIR(0x00010037, 'wrap', 1)],
         ],
-        note: '◀ ring / ring ▶ and ↺ jog / jog ↻ set up expressions so each direction can do its own thing (e.g. jog ↻ = Right arrow). Needs a board that handles low-speed USB: the Feather works, the Waveshare RP2350 doesn\'t.',
+        note: '◀ ring / ring ▶ fire on a small turn, ◀◀ far / far ▶▶ on a bigger one (set where "far" starts in the panel). ↺ jog / jog ↻ fire once per click. Needs a board that handles low-speed USB: the Feather works, the Waveshare RP2350 doesn\'t.',
     },
 };
 const DEVICE_ORDER = ['full', 'k75', 'k68', 'km16', 'mouse', 'g502', 'g303', 'em06', 'magscroll', 'shuttle'];
@@ -2722,6 +2725,7 @@ function render_device_picture() {
                 key.dataset.axis = key_usage(dir.axis);
                 key.dataset.kind = dir.kind;
                 key.dataset.sign = String(dir.sign);
+                key.dataset.far = dir.far ? '1' : '';
                 key.setAttribute('aria-label', readable_usage_name(key_usage(dir.axis)) + ' ' + label);
                 key.addEventListener('click', () => dir_key_clicked(dir));
             } else if (fixed) {
@@ -2788,7 +2792,7 @@ function dir_key_usage(dir, port) {
     if (config['extras'] && config['extras']['wheel_keys']) {
         const w = config['extras']['wheel_keys'].findIndex((k) => parseInt(k.usage, 16) == dir.axis && (k.port || 0) == port);
         if (w >= 0) {
-            const usage = x_wheel_usage(w, dir.sign > 0 ? 1 : 2);
+            const usage = x_wheel_usage(w, (dir.sign > 0 ? 1 : 2) + (dir.far ? 2 : 0));
             if (config['mappings'].some((m) => x_same_key(m['source_usage'], usage))) {
                 return usage;
             }
@@ -2803,10 +2807,14 @@ function dir_key_clicked(dir) {
         return;  // wheels and knobs can't be part of a combo
     }
     const port = parseInt(current_port);
+    if (dir.far && device != null && !device_v21()) {
+        alert('Far turns need the latest TrueMap firmware on the board.');
+        return;
+    }
     if (device == null || device_v21()) {
         // the board reads wheels, jogs and dials itself: no expression needed
         const kind = dir.kind == 'wrap' ? 1 : (dir.axis == 0x00010038 ? 2 : 0);
-        const m = wheel_keys_mapping(xu(dir.axis), port, kind, dir.sign > 0 ? 1 : 2);
+        const m = wheel_keys_mapping(xu(dir.axis), port, kind, (dir.sign > 0 ? 1 : 2) + (dir.far ? 2 : 0));
         if (m) {
             set_mappings_ui_state();
             md_select(m, true);
@@ -2980,7 +2988,7 @@ function md_refresh() {
         }
     });
     document.querySelectorAll('#kb_picture .md-key[data-axis]').forEach((key) => {
-        const dir = { axis: parseInt(key.dataset.axis, 16), kind: key.dataset.kind, sign: parseInt(key.dataset.sign) };
+        const dir = { axis: parseInt(key.dataset.axis, 16), kind: key.dataset.kind, sign: parseInt(key.dataset.sign), far: key.dataset.far == '1' };
         const usage = dir_key_usage(dir, port);
         if (usage) {
             key.dataset.usage = usage;
@@ -5242,6 +5250,8 @@ function render_key_features(m, body) {
             wrap.appendChild(md_element('label', { class: 'form-check-label', for: id }, 'Block each key\'s own action when they\'re pressed together'));
             set.appendChild(wrap);
         }
+    } else if (/^0xffe8/i.test(u || '') && (x21().wheel_keys || [])[(parseInt(u, 16) & 0xFFFF) >> 4]) {
+        insp_wheel_key_options(set, m, u);
     } else if (is_real_key(u) && [0x00010038, 0x000c0238, 0x00010037, 0x00010036].includes(parseInt(u, 16))) {
         // a wheel, tilt, jog or dial: offer it as keys
         const port = m['source_port'] || 0;
@@ -5589,7 +5599,8 @@ function wheel_key_name(usage) {
     const a = v & 0xF;
     const plain = { '0x00010037': 'Jog', '0x00010038': 'Wheel / ring', '0x000c0238': 'Tilt', '0x00010036': 'Slider' };
     const nm = w ? readable_usage_name(w.usage) : '';
-    const base = w ? ((/^0x[0-9a-f]{8}$/i.test(nm) && plain[w.usage.toLowerCase()]) ? plain[w.usage.toLowerCase()] : nm) + (w.port ? ' (port ' + w.port + ')' : '') : 'Wheel ' + ((v >> 4) + 1);
+    const kindName = w && w.kind == 2 ? 'Ring' : w && w.kind == 1 ? 'Jog' : null;
+    const base = w ? (kindName || ((/^0x[0-9a-f]{8}$/i.test(nm) && plain[w.usage.toLowerCase()]) ? plain[w.usage.toLowerCase()] : nm)) + (w.port ? ' (port ' + w.port + ')' : '') : 'Wheel ' + ((v >> 4) + 1);
     const names = w && w.kind == 2 ? { 1: 'turned right', 2: 'turned left', 3: 'turned far right', 4: 'turned far left' }
         : w && w.kind == 1 ? { 1: 'jog clockwise', 2: 'jog counter-clockwise' }
         : { 1: 'turned up / right', 2: 'turned down / left' };
@@ -6401,6 +6412,23 @@ function pk_before_show(modal_element, side, mapping, element) {
             }
         });
     }
+    // wheels / rings / jogs used as keys (they change as you set them up)
+    const wk = modal_element.querySelector('.wheelkey_usages');
+    if (wk) {
+        clear_children(wk);
+        (x21().wheel_keys || []).forEach((w, i) => {
+            for (let a = 1; a <= (w.kind == 2 ? 4 : 2); a++) {
+                const usage = x_wheel_usage(i, a);
+                const name = wheel_key_name(usage);
+                const b = md_element('button', { type: 'button', class: 'usage_button pk-pill', 'data-hid-usage': usage, title: usage });
+                b.dataset.name = name;
+                b.dataset.search = name;
+                b.appendChild(md_element('span', { class: 'pk-ic', 'aria-hidden': 'true' }, a == 1 ? '↻' : a == 2 ? '↺' : a == 3 ? '⟳' : '⟲'));
+                b.appendChild(md_element('span', { class: 'pk-lbl' }, name));
+                wk.appendChild(b);
+            }
+        });
+    }
     // recent row
     const recent = modal_element.querySelector('.recent_usages');
     clear_children(recent);
@@ -6958,4 +6986,89 @@ function mt_drag_setup() {
         const h = list.children[to].querySelector('.mt-num');
         h.focus();
     });
+}
+
+
+// ---------------------------------------------------------------------------
+// TrueMap: options for a wheel / ring / jog used as keys (inspector).
+
+function insp_wheel_key_options(set, m, u) {
+    const x = x21();
+    const i = (parseInt(u, 16) & 0xFFFF) >> 4;
+    const w = x.wheel_keys[i];
+    const add = (a, label) => {
+        const src = x_wheel_usage(i, a);
+        const have = config['mappings'].find((k) => x_same_key(k['source_usage'], src));
+        const b = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, (have ? 'Go to ' : '+ ') + label);
+        b.addEventListener('click', () => {
+            const mm = wheel_keys_mapping(w.usage, w.port || 0, w.kind, a);
+            set_mappings_ui_state();
+            md_select(mm, true);
+        });
+        return b;
+    };
+    if (w.kind == 2) {
+        set.appendChild(md_element('p', { class: 'md-insp-note' }, 'A small turn fires "turned right / left" while the ring is held there. Turning it to the far point or past it also fires "turned far right / left". Map the far ones to anything.'));
+        const row = md_element('div', { class: 'md-kf-row' });
+        row.appendChild(md_element('span', {}, 'Far starts at notch'));
+        const step = md_element('input', { type: 'number', class: 'form-control form-control-sm md-kf-num', min: '1', max: '7', 'aria-label': 'Far starts at notch' });
+        step.value = String(w.step || 4);
+        step.addEventListener('change', () => {
+            const v = Math.max(1, Math.min(7, parseInt(step.value) || 4));
+            step.value = String(v);
+            w.step = v;
+            md_mapping_changed();
+        });
+        row.appendChild(step);
+        row.appendChild(md_element('span', { class: 'md-insp-note m-0' }, 'of 7'));
+        set.appendChild(row);
+        const btns = md_element('div', { class: 'md-presets' });
+        btns.appendChild(add(1, 'turned right'));
+        btns.appendChild(add(2, 'turned left'));
+        btns.appendChild(add(3, 'turned far right'));
+        btns.appendChild(add(4, 'turned far left'));
+        set.appendChild(btns);
+    } else {
+        const btns = md_element('div', { class: 'md-presets' });
+        btns.appendChild(add(1, w.kind == 1 ? 'jog clockwise' : 'turned up / right'));
+        btns.appendChild(add(2, w.kind == 1 ? 'jog counter-clockwise' : 'turned down / left'));
+        set.appendChild(btns);
+    }
+    const t = m['target_usage'] || '';
+    if (/^0x0007/i.test(t)) {
+        set.appendChild(md_element('p', { class: 'md-insp-note' }, 'Held keys repeat in Windows while the ring stays turned. For a single press per turn, put the key in a macro and map the macro instead.'));
+        const once = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, 'Send it once per turn');
+        once.addEventListener('click', () => {
+            const n = macro_slot_for_single_key(t);
+            if (n === null) {
+                alert('All macros are in use. Clear one on the Macros tab first.');
+                return;
+            }
+            m['target_usage'] = '0xfff2' + (n + 1).toString(16).padStart(4, '0');
+            set_mappings_ui_state();
+            md_select(m, true);
+        });
+        set.appendChild(once);
+    }
+}
+
+// a macro that presses one key once: reuse one that already does, or fill a free slot
+function macro_slot_for_single_key(usage) {
+    const u = usage.toLowerCase();
+    const n = config['macros'].length;
+    let i = config['macros'].findIndex((mac) => mac.length == 1 && mac[0].length == 1 && mac[0][0].toLowerCase() == u);
+    if (i < 0) {
+        i = config['macros'].findIndex((mac) => mac.length == 0 || mac.every((st) => st.length == 0));
+        if (i < 0 || i >= n) {
+            return null;
+        }
+        config['macros'][i] = [[u]];
+        const x = extras();
+        x.macro_names = x.macro_names || {};
+        x.macro_names[i] = readable_usage_name(u) + ' once';
+        if (typeof set_macros_ui_state == 'function') {
+            set_macros_ui_state();
+        }
+    }
+    return i;
 }
