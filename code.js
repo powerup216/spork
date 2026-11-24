@@ -1521,13 +1521,11 @@ function setup_usage_modal(source_or_target) {
     let template = document.getElementById('usage_button_template');
     const add_usage_buttons = (relevant_usages) => {
         for (const [usage, usage_def] of Object.entries(relevant_usages)) {
-            if (usage_def['hidden'] && !config['mappings'].some((m) => (m['target_usage'] || '').toLowerCase() == usage.toLowerCase())) {
-                continue;
-            }
             let clone = template.content.cloneNode(true).firstElementChild;
             clone.title = usage;
             clone.setAttribute('data-hid-usage', usage);
-            pk_place(usage_classes, clone, usage, usage_def['name'], usage_def['class']);
+            // older outputs live under "More keys"
+            pk_place(usage_classes, clone, usage, usage_def['name'], usage_def['hidden'] ? 'more' : usage_def['class']);
         }
     }
 
