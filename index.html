@@ -113,7 +113,7 @@
                     <div class="mt-toolbar">
                         <div class="mt-titles">
                             <h2 id="mt_title" class="md-card-title">Mappings <span id="mt_count" class="mt-count"></span></h2>
-                            <span class="mt-hint">Click a row to edit it in the panel. Gold keys in the picture above are mapped.</span>
+                            <span class="mt-hint">Drag a row by its number to reorder · click a row to edit it in the panel</span>
                         </div>
                         <div class="mt-find">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="7" cy="7" r="5"></circle><path d="M11 11l3.5 3.5" stroke-linecap="round"></path></svg>
@@ -612,7 +612,7 @@
 
     <template id="mapping_template">
         <div class="mapping_container mt-row">
-            <div class="mt-num"></div>
+            <div class="mt-num" tabindex="0" role="button" aria-label="Drag to reorder (or Alt+arrow keys)" title="Drag to reorder"></div>
             <button type="button" class="source_button mt-chip">
                 <span class="mt-ic"></span>
                 <span class="mt-t"><span class="button_label">source</span><small><span class="hub_port_badge">0</span><span class="mt-sub"></span></small></span>
@@ -853,7 +853,7 @@
                     </section>
                     <section class="pk-sec " data-name="Advanced">
                         <div class="pk-h"><h3>Advanced</h3><span>expressions, registers, GPIO</span></div>
-                        <div class="other_usages pk-flow"></div>
+                        <details class="pk-more"><summary>Expressions, registers, GPIO pins and analog inputs</summary><div class="other_usages pk-flow"></div></details>
                     </section>
                     <section class="pk-sec " data-name="Custom">
                         <div class="pk-h"><h3>Custom</h3><span>codes you added</span></div>
@@ -933,7 +933,7 @@
                     </section>
                     <section class="pk-sec " data-name="Advanced">
                         <div class="pk-h"><h3>Advanced</h3><span>expressions, registers, GPIO</span></div>
-                        <div class="other_usages pk-flow"></div>
+                        <details class="pk-more"><summary>Expressions, registers, GPIO pins and analog inputs</summary><div class="other_usages pk-flow"></div></details>
                     </section>
                     <section class="pk-sec " data-name="Custom">
                         <div class="pk-h"><h3>Custom</h3><span>codes you added</span></div>

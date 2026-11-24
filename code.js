@@ -207,6 +207,7 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("add_mapping").addEventListener("click", add_mapping_onclick);
     mt_setup();
     pk_setup();
+    mt_drag_setup();
     document.getElementById("download_json").addEventListener("click", download_json);
     document.getElementById("upload_json").addEventListener("click", upload_json);
     document.getElementById("flash_firmware").addEventListener("click", flash_firmware);
@@ -2733,6 +2734,7 @@ function render_device_picture() {
             }
             pic.appendChild(key);
         }
+        md_fit_labels_soon();
         const note = document.getElementById('dev_note');
         note.innerText = device.note || '';
         note.classList.toggle('d-none', !device.note);
@@ -6797,4 +6799,163 @@ function mt_setup() {
         }
     });
     window.addEventListener('resize', mt_close_menu);
+}
+
+
+// ---------------------------------------------------------------------------
+// TrueMap: shrink key labels in the device picture so the words fit.
+
+let md_fit_pending = false;
+function md_fit_labels_soon() {
+    if (md_fit_pending) {
+        return;
+    }
+    md_fit_pending = true;
+    requestAnimationFrame(() => {
+        md_fit_pending = false;
+        md_fit_labels();
+    });
+}
+
+function md_fit_labels() {
+    const pic = document.getElementById('kb_picture');
+    if (!pic || !pic.offsetWidth) {
+        return;
+    }
+    pic.querySelectorAll('.md-key > span').forEach((span) => {
+        const key = span.parentElement;
+        span.style.fontSize = '';
+        span.style.letterSpacing = '';
+        const room = key.clientWidth - (key.classList.contains('round') ? 8 : 6);
+        if (room <= 0) {
+            return;
+        }
+        let size = parseFloat(getComputedStyle(span).fontSize);
+        while (span.scrollWidth > room && size > 7.5) {
+            size -= 0.5;
+            span.style.fontSize = size + 'px';
+            span.style.letterSpacing = '-0.02em';
+        }
+    });
+}
+
+(function md_fit_watch() {
+    const pic = document.getElementById('kb_picture');
+    if (pic && 'ResizeObserver' in window) {
+        new ResizeObserver(() => md_fit_labels_soon()).observe(pic);
+    }
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => md_fit_labels_soon());
+    }
+})();
+
+// ---------------------------------------------------------------------------
+// TrueMap: drag mapping rows by their number to reorder them.
+
+let mt_drag = null;
+
+function mt_drag_setup() {
+    const list = document.getElementById('mappings');
+    list.addEventListener('pointerdown', (e) => {
+        const handle = e.target.closest('.mt-num');
+        if (!handle || e.button !== 0) {
+            return;
+        }
+        const row = handle.closest('.mapping_container');
+        const rows = Array.from(list.children);
+        const from = rows.indexOf(row);
+        if (from < 0) {
+            return;
+        }
+        e.preventDefault();
+        const r = row.getBoundingClientRect();
+        const ghost = md_element('div', { class: 'mt-ghost' });
+        ghost.appendChild(md_element('b', {}, String(from + 1)));
+        ghost.appendChild(md_element('span', {}, row.querySelector('.source_button .button_label').innerText));
+        ghost.appendChild(md_element('i', {}, '→'));
+        ghost.appendChild(md_element('span', {}, row.querySelector('.target_button .button_label').innerText));
+        ghost.style.left = (r.left + 20) + 'px';
+        ghost.style.top = r.top + 'px';
+        document.body.appendChild(ghost);
+        row.classList.add('mt-dragging');
+        mt_close_menu();
+        mt_drag = { row, from, to: from, ghost, dy: e.clientY - r.top, x: r.left };
+        handle.setPointerCapture(e.pointerId);
+    });
+    list.addEventListener('pointermove', (e) => {
+        if (!mt_drag) {
+            return;
+        }
+        mt_drag.ghost.style.top = (e.clientY - mt_drag.dy) + 'px';
+        const rows = Array.from(list.children).filter((x) => !x.classList.contains('d-none'));
+        let to = null;
+        for (const x of rows) {
+            const b = x.getBoundingClientRect();
+            if (e.clientY < b.top + b.height / 2) {
+                to = Array.from(list.children).indexOf(x);
+                break;
+            }
+        }
+        if (to === null) {
+            to = list.children.length;
+        }
+        list.querySelectorAll('.mt-drop-before, .mt-drop-after').forEach((x) => x.classList.remove('mt-drop-before', 'mt-drop-after'));
+        if (to < list.children.length) {
+            list.children[to].classList.add('mt-drop-before');
+        } else {
+            rows[rows.length - 1].classList.add('mt-drop-after');
+        }
+        mt_drag.to = to;
+        // scroll the page when dragging near the edges
+        if (e.clientY < 60) {
+            window.scrollBy(0, -12);
+        } else if (e.clientY > window.innerHeight - 60) {
+            window.scrollBy(0, 12);
+        }
+    });
+    const finish = () => {
+        if (!mt_drag) {
+            return;
+        }
+        const { from, ghost, row } = mt_drag;
+        let to = mt_drag.to;
+        ghost.remove();
+        row.classList.remove('mt-dragging');
+        list.querySelectorAll('.mt-drop-before, .mt-drop-after').forEach((x) => x.classList.remove('mt-drop-before', 'mt-drop-after'));
+        mt_drag = null;
+        if (to > from) {
+            to--;
+        }
+        if (to === from) {
+            return;
+        }
+        const [m] = config['mappings'].splice(from, 1);
+        config['mappings'].splice(to, 0, m);
+        set_mappings_ui_state();
+        const moved = document.getElementById('mappings').children[to];
+        if (moved) {
+            moved.classList.add('mt-moved');
+            setTimeout(() => moved.classList.remove('mt-moved'), 900);
+        }
+    };
+    list.addEventListener('pointerup', finish);
+    list.addEventListener('pointercancel', finish);
+    // keyboard: focus the number, then Alt+↑ / Alt+↓
+    list.addEventListener('keydown', (e) => {
+        const handle = e.target.closest('.mt-num');
+        if (!handle || !e.altKey || (e.key != 'ArrowUp' && e.key != 'ArrowDown')) {
+            return;
+        }
+        e.preventDefault();
+        const from = Array.from(list.children).indexOf(handle.closest('.mapping_container'));
+        const to = from + (e.key == 'ArrowUp' ? -1 : 1);
+        if (to < 0 || to >= config['mappings'].length) {
+            return;
+        }
+        const [m] = config['mappings'].splice(from, 1);
+        config['mappings'].splice(to, 0, m);
+        set_mappings_ui_state();
+        const h = list.children[to].querySelector('.mt-num');
+        h.focus();
+    });
 }
