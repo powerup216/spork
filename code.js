@@ -2452,7 +2452,6 @@ const DEVICES = {
         keys: [
             ['↺ Vol−', 0x000c00ea, 15.25, 0, 1, 1, false, 'turn'],
             ['↻ Vol+', 0x000c00e9, 16.25, 0, 1, 1, false, 'turn'],
-            ['⏹', 0x000c00b7, 17.25, 0, 1, 1],
             ['⏮', 0x000c00b6, 18.5, 0, 1, 1],
             ['⏯', 0x000c00cd, 19.5, 0, 1, 1],
             ['⏭', 0x000c00b5, 20.5, 0, 1, 1],
@@ -2562,7 +2561,7 @@ const DEVICES = {
             ['0', 0x62, 18.5, 6.75, 2, 1],
             ['.', 0x63, 20.5, 6.75, 1, 1],
         ],
-        note: 'The volume wheel sends Volume down / up once per notch (↺ / ↻), so each direction can be mapped on its own. The media keys (stop, previous, play/pause, next, mute) can be mapped like any key. The Z15’s own Fn key never leaves the keyboard, so its Fn combinations can’t be mapped.',
+        note: 'The volume wheel sends Volume down / up once per notch (↺ / ↻), so each direction can be mapped on its own. The media keys (previous, play/pause, next, mute) can be mapped like any key. The Z15’s own Fn key never leaves the keyboard, so its Fn combinations can’t be mapped.',
     },
     k75: {
         code: 10, name: '75% keyboard', unit: 38, w: 15, h: 6,
