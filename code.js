@@ -1521,6 +1521,9 @@ function setup_usage_modal(source_or_target) {
     let template = document.getElementById('usage_button_template');
     const add_usage_buttons = (relevant_usages) => {
         for (const [usage, usage_def] of Object.entries(relevant_usages)) {
+            if (usage_def['hidden'] && !config['mappings'].some((m) => (m['target_usage'] || '').toLowerCase() == usage.toLowerCase())) {
+                continue;
+            }
             let clone = template.content.cloneNode(true).firstElementChild;
             clone.title = usage;
             clone.setAttribute('data-hid-usage', usage);
@@ -5376,7 +5379,7 @@ function render_key_features_card() {
 
     // auto-scroll
     const as = sec('Auto-scroll');
-    as.appendChild(md_element('p', { class: 'md-board-p' }, 'Put "Auto-scroll" outputs on buttons (in the output list under TrueMap). Fixed speeds start and stop with one key; "faster each press" goes up a gear with every press, and the opposite direction slows it down.'));
+    as.appendChild(md_element('p', { class: 'md-board-p' }, 'Put "Auto-scroll" outputs on buttons (in the output list under TrueMap). They all use these three speeds: the fixed ones scroll at one speed, "fast/slow" swaps between fast and slow, and "3 speeds" steps through all three. With fast/slow and 3 speeds the other direction turns round at the same speed.'));
     const fixed = md_element('div', { class: 'md-kf-grid' });
     ['Slow', 'Medium', 'Fast'].forEach((name, i) => {
         const row = md_element('div', { class: 'md-kf-row' });
@@ -5389,8 +5392,10 @@ function render_key_features_card() {
         fixed.appendChild(row);
     });
     as.appendChild(fixed);
-    as.appendChild(md_element('h4', { class: 'md-kf-sub' }, 'Faster each press'));
-    const gears = md_element('div', { class: 'md-kf-grid' });
+    const uses_gears = config['mappings'].some((m) => /^0xffe4000[78]$/i.test(m['target_usage'] || ''));
+    const gears_h = md_element('h4', { class: 'md-kf-sub' + (uses_gears ? '' : ' d-none') }, 'Faster each press (older outputs)');
+    as.appendChild(gears_h);
+    const gears = md_element('div', { class: 'md-kf-grid' + (uses_gears ? '' : ' d-none') });
     x.autoscroll.gears.forEach((g, i) => {
         const row = md_element('div', { class: 'md-kf-row' });
         row.appendChild(md_element('span', { class: 'md-kf-name' }, 'Gear ' + (i + 1)));
@@ -5408,7 +5413,7 @@ function render_key_features_card() {
     });
     as.appendChild(gears);
     const gb = md_element('div', { class: 'md-board-btns' });
-    if (x.autoscroll.gears.length < X_MAX.gears) {
+    if (uses_gears && x.autoscroll.gears.length < X_MAX.gears) {
         const add = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, '+ Gear');
         add.addEventListener('click', () => {
             const last = x.autoscroll.gears[x.autoscroll.gears.length - 1] || [100, 1];
@@ -6213,6 +6218,10 @@ const PK_HELP = {
     '0xffe40009': 'Stops any auto-scroll',
     '0xffe4000a': 'Starts scrolling up fast; press again to swap between fast and slow. The down key turns round at the same speed. Any other key stops it',
     '0xffe4000b': 'Starts scrolling down fast; press again to swap between fast and slow. The up key turns round at the same speed. Any other key stops it',
+    '0xffe4000c': 'Starts up at the fast speed; each press goes one slower (fast → medium → slow → fast). The down key turns round at the same speed. Next time it starts at the speed you last used',
+    '0xffe4000d': 'Starts down at the fast speed; each press goes one slower (fast → medium → slow → fast). The up key turns round at the same speed. Next time it starts at the speed you last used',
+    '0xffe4000e': 'Starts up at the slow speed; each press goes one faster (slow → medium → fast → slow). The down key turns round at the same speed. Next time it starts at the speed you last used',
+    '0xffe4000f': 'Starts down at the slow speed; each press goes one faster (slow → medium → fast → slow). The up key turns round at the same speed. Next time it starts at the speed you last used',
     '0xffe70001': 'Sends the last key or macro again',
     '0xffe70002': 'Types capitals until a space or punctuation (- becomes _): for acronyms',
     '0xffe70003': 'Restarts the board, as if you replugged it',
