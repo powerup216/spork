@@ -205,6 +205,8 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("load_from_device").addEventListener("click", load_from_device);
     document.getElementById("save_to_device").addEventListener("click", save_to_device);
     document.getElementById("add_mapping").addEventListener("click", add_mapping_onclick);
+    mt_setup();
+    pk_setup();
     document.getElementById("download_json").addEventListener("click", download_json);
     document.getElementById("upload_json").addEventListener("click", upload_json);
     document.getElementById("flash_firmware").addEventListener("click", flash_firmware);
@@ -874,6 +876,7 @@ function set_mappings_ui_state() {
     for (const mapping of config['mappings']) {
         add_mapping(mapping);
     }
+    mt_apply_filter();
     md_refresh_soon();
 }
 
@@ -1022,6 +1025,10 @@ function set_ui_state() {
 
 function set_port_badge(button_element, port) {
     const port_badge = button_element.querySelector('.hub_port_badge');
+    if (button_element.classList.contains('mt-chip')) {
+        mt_chip(button_element);
+        return;
+    }
     port_badge.innerText = port;
     if (port == 0) {
         port_badge.classList.add('d-none');
@@ -1065,6 +1072,9 @@ function add_mapping(mapping) {
     target_button.title = mapping['target_usage'];
     target_button.addEventListener("click", show_usage_modal(mapping, 'target', clone));
     set_port_badge(target_button, mapping['target_port']);
+    source_button._mapping = mapping;
+    target_button._mapping = mapping;
+    mt_decorate(clone, mapping);
     container.appendChild(clone);
     set_forced_layers(mapping, clone);
     set_forced_flags(mapping, clone);
@@ -1395,6 +1405,7 @@ function show_usage_modal(mapping_, source_or_target, element_) {
         // XXX it would be better not to do this every time we show the modal
         const modal_element = document.getElementById(
             (source_or_target == 'source' ? 'source' : 'target') + '_usage_modal');
+        pk_before_show(modal_element, source_or_target, mapping_, element_);
         const modal_ = source_or_target == 'source' ? source_modal : target_modal;
         modal_element.querySelectorAll('.usage_button').forEach((button) => {
             let clone = button.cloneNode(true);
@@ -1411,6 +1422,11 @@ function show_usage_modal(mapping_, source_or_target, element_) {
                     source_or_target == "source" ? readable_usage_name(usage) : readable_target_usage_name(usage);
 
                 element.title = usage;
+                pk_remember(source_or_target, usage);
+                if (element.classList.contains('mt-chip')) {
+                    mt_chip(element);
+                    mt_apply_filter();
+                }
 
                 if (source_or_target == "target") {
                     set_forced_layers(mapping, element.closest(".mapping_container"));
@@ -1465,6 +1481,7 @@ function add_empty_mapping(source_usage = '0x00000000') {
     };
     config['mappings'].push(new_mapping);
     add_mapping(new_mapping);
+    mt_apply_filter();
 }
 
 function add_mapping_onclick() {
@@ -1493,27 +1510,20 @@ function setup_usages_modals() {
 
 function setup_usage_modal(source_or_target) {
     const modal_element = document.getElementById(source_or_target + '_usage_modal');
-    let usage_classes = {
-        'mouse': modal_element.querySelector('.mouse_usages'),
-        'gamepad': modal_element.querySelector('.gamepad_usages'),
-        'keyboard': modal_element.querySelector('.keyboard_usages'),
-        'media': modal_element.querySelector('.media_usages'),
-        'powermic': modal_element.querySelector('.powermic_usages'),
-        'micdrop': modal_element.querySelector('.micdrop_usages'),
-        'other': modal_element.querySelector('.other_usages'),
-        'extra': modal_element.querySelector('.extra_usages'),
-    };
-    for (const [usage_class, element] of Object.entries(usage_classes)) {
-        clear_children(element);
+    let usage_classes = {};
+    for (const k of PK_CONTAINERS) {
+        usage_classes[k] = modal_element.querySelector('.' + k + '_usages');
+        clear_children(usage_classes[k]);
     }
+    pk_layout(usage_classes['keyboard'], PK_KEYBOARD);
+    pk_layout(usage_classes['nav'], PK_NAV);
     let template = document.getElementById('usage_button_template');
     const add_usage_buttons = (relevant_usages) => {
         for (const [usage, usage_def] of Object.entries(relevant_usages)) {
             let clone = template.content.cloneNode(true).firstElementChild;
-            clone.innerText = usage_def['name'];
             clone.title = usage;
             clone.setAttribute('data-hid-usage', usage);
-            usage_classes[usage_def['class']].appendChild(clone);
+            pk_place(usage_classes, clone, usage, usage_def['name'], usage_def['class']);
         }
     }
 
@@ -1531,10 +1541,9 @@ function setup_usage_modal(source_or_target) {
     for (const usage_ of extra_usages[source_or_target]) {
         if (!(usage_ in known_usages)) {
             let clone = template.content.cloneNode(true).firstElementChild;
-            clone.innerText = readable_usage_name(usage_);
             clone.title = usage_;
             clone.setAttribute('data-hid-usage', usage_);
-            usage_classes['extra'].appendChild(clone);
+            pk_place(usage_classes, clone, usage_, readable_usage_name(usage_), 'extra');
         }
     }
 
@@ -1904,6 +1913,7 @@ function set_forced_flags(mapping, mapping_container) {
         mapping['tap'] = false;
         mapping['hold'] = false;
     }
+    mt_sync(mapping_container);
 }
 
 function switch_to_mappings_tab() {
@@ -2141,14 +2151,18 @@ function usage_search_onchange(element) {
         let last_match = null;
         let hits = 0;
         modal_element.querySelectorAll('.usage_button').forEach((usage_button) => {
-            const label = usage_button.innerText.toLowerCase().replaceAll(" ", "");
+            if (usage_button.classList.contains('pk-recent')) {
+                return;
+            }
+            const label = (usage_button.dataset.search || usage_button.innerText).toLowerCase().replaceAll(" ", "");
             usage_button.classList.toggle('d-none', !label.includes(query));
             usage_button.removeAttribute('data-preferred-result');
             if (label.includes(query)) {
                 hits++;
                 last_match = usage_button;
             }
-            if (label == query) {
+            const exact_label = (usage_button.dataset.name || usage_button.innerText).toLowerCase().replaceAll(" ", "");
+            if ((exact_label == query) || (usage_button.dataset.short && usage_button.dataset.short.toLowerCase() == query)) {
                 exact_match = usage_button;
             }
         });
@@ -2163,6 +2177,8 @@ function usage_search_onchange(element) {
             }
         }
         element.closest('div').querySelector('.have_preferred_result_checkmark').classList.toggle('d-none', !have_preferred_result);
+        modal_element.classList.toggle('pk-searching', query != '');
+        pk_update_sections(modal_element);
     }
 }
 // ---------------------------------------------------------------------------
@@ -6126,4 +6142,659 @@ function v21_setup() {
         }
     });
     document.getElementById('profiles_restore').addEventListener('click', () => document.getElementById('profiles_restore_file').click());
+}
+
+// ---------------------------------------------------------------------------
+// TrueMap: output/input picker (the usage modals).
+
+const PK_CONTAINERS = ['nothing', 'recent', 'keyboard', 'nav', 'fkey', 'mouse', 'gamepad', 'media', 'powermic', 'micdrop', 'layer', 'macro', 'more', 'other', 'extra'];
+
+// keyboard page codes: [code, short label, width in keys]; null = gap
+const PK_KEYBOARD = [
+    [[0x29, 'Esc'], null, [0x3a], [0x3b], [0x3c], [0x3d], [null, 0.5], [0x3e], [0x3f], [0x40], [0x41], [null, 0.5], [0x42], [0x43], [0x44], [0x45]],
+    [[0x35, '`'], [0x1e], [0x1f], [0x20], [0x21], [0x22], [0x23], [0x24], [0x25], [0x26], [0x27], [0x2d, '-'], [0x2e, '='], [0x2a, 'Bksp', 2]],
+    [[0x2b, 'Tab', 1.5], [0x14], [0x1a], [0x08], [0x15], [0x17], [0x1c], [0x18], [0x0c], [0x12], [0x13], [0x2f, '['], [0x30, ']'], [0x31, '\\', 1.5]],
+    [[0x39, 'Caps', 1.75], [0x04], [0x16], [0x07], [0x09], [0x0a], [0x0b], [0x0d], [0x0e], [0x0f], [0x33, ';'], [0x34, "'"], [0x28, 'Enter', 2.25]],
+    [[0xe1, 'Shift', 2.25], [0x1d], [0x1b], [0x06], [0x19], [0x05], [0x11], [0x10], [0x36, ','], [0x37, '.'], [0x38, '/'], [0xe5, 'R Shift', 2.75]],
+    [[0xe0, 'Ctrl', 1.25], [0xe3, 'Win', 1.25], [0xe2, 'Alt', 1.25], [0x2c, 'Space', 6.25], [0xe6, 'R Alt', 1.25], [0xe7, 'R Win', 1.25], [0x65, 'Menu', 1.25], [0xe4, 'R Ctrl', 1.25]],
+];
+const PK_NAV = [
+    [[0x46, 'PrtSc'], [0x47, 'ScrLk'], [0x48, 'Pause']],
+    [[0x49, 'Ins'], [0x4a, 'Home'], [0x4b, 'PgUp']],
+    [[0x4c, 'Del'], [0x4d, 'End'], [0x4e, 'PgDn']],
+    [[null, 1]],
+    [[null, 1], [0x52, '↑'], [null, 1]],
+    [[0x50, '←'], [0x51, '↓'], [0x4f, '→']],
+];
+const PK_SLOT = {};
+for (const [layout, where] of [[PK_KEYBOARD, 'keyboard'], [PK_NAV, 'nav']]) {
+    layout.forEach((row, r) => row.forEach((k, i) => {
+        if (k && k[0] !== null) {
+            PK_SLOT[k[0]] = { where, r, i, label: k[1], w: k[2] || 1 };
+        }
+    }));
+}
+
+const PK_ICONS = {
+    '0x00090001': '◧', '0x00090002': '◨', '0x00090003': '◉', '0x00090004': '‹', '0x00090005': '›',
+    '0x00010030': '↔', '0x00010031': '↕', '0x00010038': '⇕', '0x000c0238': '⇔',
+    '0x000c00e9': '+', '0x000c00ea': '−', '0x000c00e2': '⊘', '0x000b002f': '🎙︎', '0x000c00cd': '⏯︎', '0x000c00b7': '⏹︎', '0x000c00b5': '⏭︎', '0x000c00b6': '⏮︎',
+};
+const PK_DICTATION_ICONS = { 'record': '●', 'dictate': '●', 'rewind': '⏪︎', 'fast forward': '⏩︎', 'forward': '⏩︎', 'play': '⏯︎', 'previous field': '⇤', 'tab back': '⇤', 'next field': '⇥', 'tab forward': '⇥', 'enter': '↵', 'pedal left': 'L', 'pedal middle': 'M', 'pedal right': 'R' };
+
+const PK_HELP = {
+    '0xffe40007': 'Each press goes up a gear; the other direction slows it down, then reverses',
+    '0xffe40008': 'Each press goes up a gear; the other direction slows it down, then reverses',
+    '0xffe40009': 'Stops any auto-scroll',
+    '0xffe70001': 'Sends the last key or macro again',
+    '0xffe70002': 'Types capitals until a space or punctuation (- becomes _): for acronyms',
+    '0xffe70003': 'Restarts the board, as if you replugged it',
+    '0xffe70004': 'The board shows up as a USB drive so you can copy new firmware onto it',
+    '0xffe70005': 'Capitalises the first letter after ". ", "? " or "! " as you type',
+    '0xffe70006': 'Holds the left button down until the next click: drag, window/level or pan hands-free',
+    '0xffe70007': 'Mouse movement scrolls instead of moving the pointer. Any key or button turns it off',
+    '0xffe70008': 'Mouse movement scrolls while this is held',
+    '0xffe70009': 'Next scroll lock speed (set the 5 speeds in Settings → Key features)',
+    '0xffe7000a': 'Previous scroll lock speed',
+    '0xffe7000b': 'Slow, precise pointer while held: for measurements',
+    '0xffe7000c': 'Turns the slow, precise pointer on or off',
+    '0xffe7000d': 'Multiplies the wheel while held, to jump through long series',
+    '0xffe7000e': 'One press, two clicks',
+    '0x00000000': 'Sends nothing: the key is switched off',
+};
+function pk_help(usage, name) {
+    const u = usage.toLowerCase();
+    if (u in PK_HELP) {
+        return PK_HELP[u];
+    }
+    if (/^0xffe4000[1-6]$/.test(u)) {
+        return 'Scrolls on its own at a fixed speed. Press again (or Auto-scroll stop) to end it';
+    }
+    if (/^0xffe500e/.test(u)) {
+        return 'Applies to the next key only. Press twice to lock it on (if enabled in Key features)';
+    }
+    if (/^0xffe501/.test(u)) {
+        return 'The next key press uses this layer, then it goes back';
+    }
+    if (/^0xffe6/.test(u)) {
+        return 'Switches to this layer and stays there until you switch back';
+    }
+    if (/^0xfff1/.test(u)) {
+        return 'This layer is on while the key is held. Tick Sticky in the row menu to toggle it instead';
+    }
+    if (/^0xfffa/.test(u)) {
+        return /next|previous/i.test(name) ? 'Switches to the next or previous saved profile, wrapping around' : 'Switches the whole setup to this profile';
+    }
+    if (/^0xfff2/.test(u)) {
+        return 'Plays this macro. Build macros on the Macros tab';
+    }
+    if (/^0xff0[1-4]/.test(u)) {
+        return 'PowerScribe receives this even when it is in the background (set the board type to match in Settings)';
+    }
+    if (/^0xfff3/.test(u)) {
+        return 'The result of this expression (Macros → Expressions)';
+    }
+    if (/^0xfff5/.test(u)) {
+        return 'A value an expression stored';
+    }
+    return '';
+}
+
+function pk_route(usage, cls) {
+    const u = parseInt(usage, 16) >>> 0;
+    const page = u >>> 16;
+    const low = u & 0xFFFF;
+    if (u === 0) {
+        return 'nothing';
+    }
+    if (cls == 'keyboard') {
+        if (page == 0x7 && low in PK_SLOT) {
+            return PK_SLOT[low].where;
+        }
+        if (page == 0x7 && low >= 0x68 && low <= 0x73) {
+            return 'fkey';
+        }
+        return 'more';
+    }
+    if (cls == 'other') {
+        if (page == 0xfff1 || page == 0xfffa) {
+            return 'layer';
+        }
+        if (page == 0xfff2) {
+            return 'macro';
+        }
+        return 'other';
+    }
+    if (cls == 'micdrop' && (page == 0xffe6 || (page == 0xffe5 && (low >> 8) == 1))) {
+        return 'layer';
+    }
+    return cls;
+}
+
+function pk_layout(container, layout) {
+    if (!container) {
+        return;
+    }
+    layout.forEach((row, r) => {
+        const rowEl = md_element('div', { class: 'pk-kbrow' });
+        row.forEach((k, i) => {
+            const w = k ? (k[0] === null ? k[1] : (k[2] || 1)) : 0.5;
+            const slot = md_element('span', { class: 'pk-slot', 'data-slot': r + '_' + i });
+            slot.style.setProperty('--w', w);
+            rowEl.appendChild(slot);
+        });
+        container.appendChild(rowEl);
+    });
+}
+
+function pk_place(containers, button, usage, name, cls) {
+    const where = pk_route(usage, cls);
+    button.dataset.name = name;
+    button.dataset.search = name;
+    const u = parseInt(usage, 16) >>> 0;
+    if (where == 'keyboard' || where == 'nav') {
+        const slotDef = PK_SLOT[u & 0xFFFF];
+        const short = slotDef.label || name.split(' ')[0];
+        button.classList.add('pk-cap');
+        button.style.setProperty('--w', slotDef.w);
+        button.innerText = short;
+        button.dataset.short = short;
+        if (short.length > 3) {
+            button.classList.add('pk-word');
+        }
+        button.dataset.search = name + ' ' + short;
+        const slot = containers[where].querySelector('[data-slot="' + slotDef.r + '_' + slotDef.i + '"]');
+        if (slot && !slot.querySelector('.usage_button')) {
+            slot.classList.add('filled');
+            slot.appendChild(button);
+            return;
+        }
+        button.classList.remove('pk-cap');
+        button.innerText = name;
+        containers['more'].appendChild(button);
+        return;
+    }
+    if (where == 'fkey') {
+        button.classList.add('pk-cap');
+        button.innerText = name;
+        containers['fkey'].appendChild(button);
+        return;
+    }
+    if (where == 'micdrop') {
+        button.classList.add('pk-card');
+        button.appendChild(md_element('b', {}, name));
+        const help = pk_help(usage, name);
+        if (help) {
+            button.appendChild(md_element('span', {}, help));
+            button.dataset.search = name + ' ' + help;
+        }
+        containers['micdrop'].appendChild(button);
+        return;
+    }
+    let icon = PK_ICONS[usage.toLowerCase()];
+    if (!icon && where == 'powermic') {
+        const n = name.toLowerCase();
+        const key = Object.keys(PK_DICTATION_ICONS).find((k) => n.includes(k));
+        icon = key ? PK_DICTATION_ICONS[key] : '◆';
+        button.classList.add('pk-dict');
+    }
+    if (where == 'nothing') {
+        button.classList.add('pk-nothing');
+        icon = '⊘';
+        name = 'Nothing (key off)';
+    }
+    if (icon) {
+        button.appendChild(md_element('span', { class: 'pk-ic', 'aria-hidden': 'true' }, icon));
+    }
+    button.appendChild(md_element('span', { class: 'pk-lbl' }, name));
+    containers[where].appendChild(button);
+}
+
+function pk_recent_key(side) {
+    return 'truemap_recent_' + (side == 'source' ? 'source' : 'target');
+}
+
+function pk_recent(side) {
+    try {
+        const v = JSON.parse(localStorage.getItem(pk_recent_key(side)) || '[]');
+        return Array.isArray(v) ? v : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function pk_remember(side, usage) {
+    if (!usage || /^0x0+$/i.test(usage)) {
+        return;
+    }
+    const list = [usage].concat(pk_recent(side).filter((x) => x.toLowerCase() != usage.toLowerCase())).slice(0, 10);
+    try {
+        localStorage.setItem(pk_recent_key(side), JSON.stringify(list));
+    } catch (e) {
+        // no storage: recent picks just aren't kept
+    }
+}
+
+function pk_label_of(button) {
+    return button.dataset.name || button.innerText;
+}
+
+function pk_before_show(modal_element, side, mapping, element) {
+    // current value
+    let current = null;
+    if (side == 'macro_item') {
+        current = element ? element.getAttribute('data-hid-usage') : null;
+    } else if (mapping) {
+        current = mapping[side + '_usage'];
+    }
+    // macro names on macro buttons
+    if (side != 'source') {
+        modal_element.querySelectorAll('.macro_usages .usage_button').forEach((b) => {
+            const name = readable_target_usage_name(b.getAttribute('data-hid-usage'));
+            b.dataset.name = name;
+            b.dataset.search = name;
+            const lbl = b.querySelector('.pk-lbl');
+            if (lbl) {
+                lbl.innerText = name;
+            }
+        });
+    }
+    // recent row
+    const recent = modal_element.querySelector('.recent_usages');
+    clear_children(recent);
+    for (const u of pk_recent(side)) {
+        const orig = Array.from(modal_element.querySelectorAll('.usage_button:not(.pk-recent)')).find((b) => b.getAttribute('data-hid-usage').toLowerCase() == u.toLowerCase());
+        if (!orig) {
+            continue;
+        }
+        const b = md_element('button', { type: 'button', class: 'usage_button pk-pill pk-recent', 'data-hid-usage': orig.getAttribute('data-hid-usage'), title: orig.title });
+        b.dataset.name = pk_label_of(orig);
+        const ic = orig.querySelector('.pk-ic');
+        if (ic) {
+            b.appendChild(ic.cloneNode(true));
+        }
+        b.appendChild(md_element('span', { class: 'pk-lbl' }, side != 'source' && /^0xfff2/i.test(u) ? readable_target_usage_name(u) : pk_label_of(orig)));
+        recent.appendChild(b);
+        if (recent.children.length >= 8) {
+            break;
+        }
+    }
+    // highlight the current one
+    modal_element.querySelectorAll('.usage_button').forEach((b) => {
+        b.classList.toggle('pk-cur', !!current && b.getAttribute('data-hid-usage').toLowerCase() == String(current).toLowerCase());
+    });
+    const now = modal_element.querySelector('.pk-now');
+    const has = current && !/^0x0+$/i.test(current);
+    now.classList.toggle('d-none', !has);
+    if (has) {
+        now.querySelector('.pk-now-v').innerText = side == 'source' ? readable_usage_name(current) : readable_target_usage_name(current);
+    }
+    // title
+    const forEl = modal_element.querySelector('.pk-for');
+    const title = modal_element.querySelector('.usage_modal_title');
+    if (side == 'target' && mapping) {
+        const i = config['mappings'].indexOf(mapping);
+        forEl.innerText = 'Mapping ' + (i + 1) + (mapping['source_usage'] && !/^0x0+$/i.test(mapping['source_usage']) ? ' · when you press ' + readable_usage_name(mapping['source_usage']) : '');
+        title.innerText = 'What should it send?';
+    } else if (side == 'source') {
+        const i = mapping ? config['mappings'].indexOf(mapping) : -1;
+        forEl.innerText = i >= 0 ? 'Mapping ' + (i + 1) : '';
+        title.innerText = 'Which button or key?';
+    } else {
+        forEl.innerText = 'Macro step';
+        title.innerText = 'What should this step send?';
+    }
+    modal_element.querySelector('.pk-help-t').innerText = 'Hover over an option to see what it does.';
+}
+
+function pk_visible(button) {
+    if (button.classList.contains('d-none')) {
+        return false;
+    }
+    for (let e = button.parentElement; e && !e.classList.contains('pk-body'); e = e.parentElement) {
+        if (e.classList.contains('d-none')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function pk_update_sections(modal_element) {
+    const searching = modal_element.classList.contains('pk-searching');
+    const jump = modal_element.querySelector('.pk-jump');
+    clear_children(jump);
+    modal_element.querySelectorAll('.pk-sec').forEach((sec) => {
+        const any = Array.from(sec.querySelectorAll('.usage_button')).some(pk_visible);
+        const recentSec = sec.classList.contains('pk-recent-sec');
+        sec.classList.toggle('d-none', !any || (recentSec && searching));
+        const more = sec.querySelector('.pk-more');
+        if (more) {
+            more.open = searching && any;
+        }
+        if (any && !searching && !recentSec) {
+            const chip = md_element('button', { type: 'button', class: 'pk-jchip' }, sec.dataset.name);
+            chip.addEventListener('click', () => {
+                if (more) {
+                    more.open = true;
+                }
+                const body = modal_element.querySelector('.pk-body');
+                body.scrollTo({ top: sec.offsetTop - body.offsetTop - 8, behavior: 'smooth' });
+            });
+            jump.appendChild(chip);
+        }
+    });
+    jump.classList.toggle('d-none', searching);
+}
+
+function pk_setup() {
+    for (const id of ['source_usage_modal', 'target_usage_modal']) {
+        const modal_element = document.getElementById(id);
+        const help = modal_element.querySelector('.pk-help-t');
+        modal_element.querySelector('.pk-body').addEventListener('mouseover', (e) => {
+            const b = e.target.closest('.usage_button');
+            if (!b) {
+                return;
+            }
+            const usage = b.getAttribute('data-hid-usage');
+            const name = pk_label_of(b);
+            const text = pk_help(usage, name);
+            clear_children(help);
+            help.appendChild(md_element('b', {}, name));
+            if (text) {
+                help.appendChild(document.createTextNode(' · ' + text));
+            }
+            help.appendChild(md_element('span', { class: 'pk-code' }, usage));
+        });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// TrueMap: mapping table rows.
+
+let mt_filter = { port: null, layer: '', text: '' };
+
+function mt_kind(usage, side) {
+    const u = parseInt(usage, 16) >>> 0;
+    const page = u >>> 16;
+    const low = u & 0xFFFF;
+    if (u === 0) {
+        return { cls: 'none', ic: '—', sub: side == 'source' ? 'pick a button' : 'nothing (key off)' };
+    }
+    if (page == 0x7) {
+        const slot = PK_SLOT[low];
+        const name = side == 'source' ? readable_usage_name(usage) : readable_target_usage_name(usage);
+        let ic = slot && slot.label ? slot.label : name;
+        if (ic.length > 4) {
+            ic = ic.replace(/^(Left|Right) /, '').slice(0, 4);
+        }
+        return { cls: 'key', ic, sub: 'Key' };
+    }
+    if (page == 0x9 || page == 0x1 || usage.toLowerCase() == '0x000c0238') {
+        return { cls: 'mouse', ic: PK_ICONS[usage.toLowerCase()] || '◎', sub: 'Mouse' };
+    }
+    if (page == 0xc || page == 0xb) {
+        return { cls: 'mouse', ic: PK_ICONS[usage.toLowerCase()] || '♪', sub: 'Media' };
+    }
+    if (page >= 0xff01 && page <= 0xff04) {
+        const n = readable_target_usage_name(usage).toLowerCase();
+        const key = Object.keys(PK_DICTATION_ICONS).find((k) => n.includes(k));
+        return { cls: 'gold', ic: key ? PK_DICTATION_ICONS[key] : '◆', sub: page == 0xff02 ? 'Foot pedal' : page == 0xff04 ? 'SpeechMike' : 'PowerMic' };
+    }
+    if (page == 0xfff2) {
+        return { cls: 'green', ic: '⧉', sub: 'Macro' };
+    }
+    if (page == 0xfff1) {
+        return { cls: 'violet', ic: 'L' + low, sub: 'Layer while held' };
+    }
+    if (page == 0xfffa) {
+        return { cls: 'violet', ic: low <= 8 ? 'P' + low : '⇄', sub: 'Profile' };
+    }
+    if (page == 0xfff3) {
+        return { cls: 'violet', ic: 'ƒ', sub: 'Expression' };
+    }
+    if (page == 0xfff5) {
+        const writer = (config['expressions'] || []).findIndex((e) => new RegExp('(^|\\s)' + low + ' store(\\s|$)').test(e || ''));
+        return { cls: 'violet', ic: 'ƒ', sub: writer >= 0 ? 'set by Expression ' + (writer + 1) : 'Register' };
+    }
+    if ((page & 0xFFF0) == 0xffe0) {
+        return { cls: 'violet', ic: '✦', sub: side == 'source' ? 'TrueMap feature' : 'TrueMap' };
+    }
+    return { cls: 'violet', ic: '•', sub: '' };
+}
+
+function mt_chip(button) {
+    const mapping = button._mapping;
+    if (!mapping) {
+        return;
+    }
+    const side = button.classList.contains('source_button') ? 'source' : 'target';
+    const usage = mapping[side + '_usage'] || '0x00000000';
+    const k = mt_kind(usage, side);
+    const ic = button.querySelector('.mt-ic');
+    ic.className = 'mt-ic ' + k.cls;
+    ic.innerText = k.ic;
+    ic.classList.toggle('long', k.ic.length > 2);
+    const badge = button.querySelector('.hub_port_badge');
+    const sub = button.querySelector('.mt-sub');
+    if (side == 'source') {
+        const port = mapping_port(mapping);
+        badge.classList.remove('d-none');
+        badge.innerText = port ? 'P' + port : 'Any port';
+        const dev = port && DEVICES[port_devices()[port]] ? DEVICES[port_devices()[port]].name : '';
+        sub.innerText = dev || (port ? 'port ' + port : '');
+    } else {
+        const port = mapping['target_port'] || 0;
+        badge.classList.toggle('d-none', !port);
+        badge.innerText = 'P' + port;
+        sub.innerText = k.sub + (mapping['sticky'] ? ' · press on, press off' : '');
+    }
+    button.classList.toggle('mt-empty-chip', /^0x0+$/i.test(usage));
+}
+
+function mt_sync(row) {
+    const tap = row.querySelector('.tap_checkbox');
+    const hold = row.querySelector('.hold_checkbox');
+    if (!tap || !row.querySelector('.mt-seg')) {
+        return;
+    }
+    const mode = { always: !tap.checked && !hold.checked, tap: tap.checked, hold: hold.checked };
+    row.querySelectorAll('.mt-seg button').forEach((b) => {
+        b.classList.toggle('on', mode[b.dataset.mode]);
+        b.disabled = tap.disabled;
+        b.setAttribute('aria-pressed', String(mode[b.dataset.mode]));
+    });
+    const scale = row.querySelector('.scaling_input');
+    row.querySelector('.mt-scale').classList.toggle('set', scale.value !== '' && parseFloat(scale.value) != 1);
+    const target = row.querySelector('.target_button');
+    if (target) {
+        mt_chip(target);
+    }
+}
+
+function mt_set_check(input, value) {
+    if (input.checked != value) {
+        input.checked = value;
+        input.dispatchEvent(new Event('change'));
+    }
+}
+
+function mt_decorate(row, mapping) {
+    row.querySelectorAll('.mt-seg button').forEach((b) => {
+        b.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tap = row.querySelector('.tap_checkbox');
+            const hold = row.querySelector('.hold_checkbox');
+            mt_set_check(tap, b.dataset.mode == 'tap');
+            mt_set_check(hold, b.dataset.mode == 'hold');
+            mt_sync(row);
+            md_refresh_soon();
+        });
+    });
+    row.querySelector('.scaling_input').addEventListener('input', () => mt_sync(row));
+    row.querySelectorAll('.mt-l input').forEach((c) => c.addEventListener('change', () => mt_apply_filter()));
+    row.querySelector('.mt-menu-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        mt_menu(row, mapping, e.currentTarget);
+    });
+    mt_chip(row.querySelector('.source_button'));
+    mt_chip(row.querySelector('.target_button'));
+    mt_sync(row);
+}
+
+function mt_close_menu() {
+    const m = document.getElementById('mt_menu');
+    if (m) {
+        m.remove();
+    }
+}
+
+function mt_menu(row, mapping, anchor) {
+    const open = document.getElementById('mt_menu');
+    mt_close_menu();
+    if (open && open._anchor === anchor) {
+        return;
+    }
+    const menu = md_element('div', { id: 'mt_menu', class: 'mt-menu', role: 'menu' });
+    menu._anchor = anchor;
+    const sticky = row.querySelector('.sticky_checkbox');
+    const item = (text, fn, cls = '') => {
+        const b = md_element('button', { type: 'button', role: 'menuitem', class: cls }, text);
+        b.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mt_close_menu();
+            fn();
+        });
+        menu.appendChild(b);
+    };
+    item('Change the input…', () => row.querySelector('.source_button').click());
+    item('Change the output…', () => row.querySelector('.target_button').click());
+    item('Duplicate', () => {
+        const i = config['mappings'].indexOf(mapping);
+        const copy = JSON.parse(JSON.stringify(mapping));
+        config['mappings'].splice(i + 1, 0, copy);
+        set_mappings_ui_state();
+    });
+    if (!sticky.disabled) {
+        item((sticky.checked ? '✓ ' : '') + 'Sticky: press on, press off', () => {
+            mt_set_check(sticky, !sticky.checked);
+            mt_sync(row);
+        });
+    }
+    item('Try it in Live test', () => {
+        const tab = document.getElementById('nav-live-tab');
+        if (tab) {
+            bootstrap.Tab.getOrCreateInstance(tab).show();
+        }
+    });
+    menu.appendChild(md_element('div', { class: 'mt-menu-sep' }));
+    item('Delete', () => row.querySelector('.delete_button').click(), 'danger');
+    document.body.appendChild(menu);
+    const r = anchor.getBoundingClientRect();
+    const w = menu.offsetWidth;
+    menu.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + window.scrollX + 'px';
+    let top = r.bottom + 6;
+    if (top + menu.offsetHeight > window.innerHeight - 8) {
+        top = r.top - menu.offsetHeight - 6;
+    }
+    menu.style.top = top + window.scrollY + 'px';
+    menu.querySelector('button').focus();
+}
+
+function mt_ports_in_use() {
+    const set = new Set();
+    for (const m of config['mappings']) {
+        set.add(mapping_port(m));
+    }
+    return Array.from(set).sort((a, b) => a - b);
+}
+
+function mt_render_ports() {
+    const box = document.getElementById('mt_ports');
+    if (!box) {
+        return;
+    }
+    clear_children(box);
+    const ports = mt_ports_in_use();
+    if (ports.length < 2) {
+        mt_filter.port = null;
+        return;
+    }
+    const chip = (label, value) => {
+        const b = md_element('button', { type: 'button', class: 'mt-fchip' + (mt_filter.port === value ? ' on' : ''), 'aria-pressed': String(mt_filter.port === value) }, label);
+        b.addEventListener('click', () => {
+            mt_filter.port = value;
+            mt_apply_filter();
+        });
+        box.appendChild(b);
+    };
+    chip('All', null);
+    for (const p of ports) {
+        const dev = p && DEVICES[port_devices()[p]] ? DEVICES[port_devices()[p]].name.replace(/ keyboard.*$| \(.*\)$|^Logitech /g, '') : '';
+        chip(p == 0 ? 'Any port' : 'Port ' + p + (dev ? ' · ' + dev : ''), p);
+    }
+}
+
+function mt_apply_filter() {
+    if (typeof config == 'undefined' || !document.getElementById('mappings')) {
+        return;
+    }
+    if (mt_filter.port !== null && !mt_ports_in_use().includes(mt_filter.port)) {
+        mt_filter.port = null;
+    }
+    mt_render_ports();
+    const rows = document.querySelectorAll('#mappings .mapping_container');
+    const text = mt_filter.text.trim().toLowerCase();
+    let shown = 0;
+    rows.forEach((row, i) => {
+        const m = config['mappings'][i];
+        let ok = !!m;
+        if (ok && mt_filter.port !== null) {
+            ok = mapping_port(m) == mt_filter.port;
+        }
+        if (ok && mt_filter.layer !== '') {
+            ok = m['layers'].includes(parseInt(mt_filter.layer));
+        }
+        if (ok && text) {
+            ok = row.innerText.toLowerCase().includes(text);
+        }
+        row.classList.toggle('d-none', !ok);
+        if (ok) {
+            shown++;
+        }
+    });
+    const n = config['mappings'].length;
+    const count = document.getElementById('mt_count');
+    if (count) {
+        count.innerText = shown == n ? '· ' + n : '· ' + shown + ' of ' + n;
+    }
+    document.getElementById('mt_empty').classList.toggle('d-none', !(n && !shown));
+}
+
+function mt_setup() {
+    document.getElementById('mt_add').addEventListener('click', () => document.getElementById('add_mapping').click());
+    document.getElementById('mt_search').addEventListener('input', (e) => {
+        mt_filter.text = e.target.value;
+        mt_apply_filter();
+    });
+    document.getElementById('mt_layer').addEventListener('change', (e) => {
+        mt_filter.layer = e.target.value;
+        mt_apply_filter();
+    });
+    document.getElementById('mt_clear_filter').addEventListener('click', () => {
+        mt_filter = { port: null, layer: '', text: '' };
+        document.getElementById('mt_search').value = '';
+        document.getElementById('mt_layer').value = '';
+        mt_apply_filter();
+    });
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#mt_menu')) {
+            mt_close_menu();
+        }
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key == 'Escape') {
+            mt_close_menu();
+        }
+    });
+    window.addEventListener('resize', mt_close_menu);
 }

@@ -109,25 +109,44 @@
                     <p class="md-dev-note mb-3">Which device is on which port is saved on the board with the profile (and in exported JSON). "Any port" means mappings that work whichever port the device is on; with a USB hub, the board numbers the hub's ports 1, 2, 3...</p>
                 </section>
 
-                <div class="row pb-2 mt-3" style="overflow-x: auto;">
-                    <div style="min-width: 720px; width: 100%;">
-                        <div class="row my-2 align-items-end">
-                            <div class="col-1"></div>
-                            <div class="col-3 text-center"><a href="#" id="input-column-header" class="text-decoration-none text-reset d-block">Input</a></div>
-                            <div class="col-3 text-center"><a href="#" id="output-column-header" class="text-decoration-none text-reset d-block">Output</a></div>
-                            <div class="col-3">
-                                <div class="d-flex align-items-end">
-                                    <div class="flex-fill text-center"><a href="#" id="layer-column-header" class="text-decoration-none text-reset d-block">Layer</a></div>
-                                    <div class="text-start pt-1" style="writing-mode: vertical-rl; transform: rotate(180deg); line-height: 1.2em;">Sticky<br>Tap<br>Hold</div>
-                                </div>
-                            </div>
-                            <div class="col-2 text-center">Scaling</div>
+                <section class="mt-card mt-3" aria-labelledby="mt_title">
+                    <div class="mt-toolbar">
+                        <div class="mt-titles">
+                            <h2 id="mt_title" class="md-card-title">Mappings <span id="mt_count" class="mt-count"></span></h2>
+                            <span class="mt-hint">Click a row to edit it in the panel. Gold keys in the picture above are mapped.</span>
                         </div>
-
+                        <div class="mt-find">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="7" cy="7" r="5"></circle><path d="M11 11l3.5 3.5" stroke-linecap="round"></path></svg>
+                            <label for="mt_search" class="visually-hidden">Find a mapping</label>
+                            <input id="mt_search" type="search" placeholder="Find a mapping…" autocomplete="off">
+                        </div>
+                        <div id="mt_ports" class="mt-filters" role="group" aria-label="Show mappings from"></div>
+                        <label for="mt_layer" class="visually-hidden">Layer</label>
+                        <select id="mt_layer" class="form-select form-select-sm mt-layer-filter">
+                            <option value="">All layers</option>
+                            <option value="0">Layer 0</option><option value="1">Layer 1</option><option value="2">Layer 2</option><option value="3">Layer 3</option>
+                            <option value="4">Layer 4</option><option value="5">Layer 5</option><option value="6">Layer 6</option><option value="7">Layer 7</option>
+                        </select>
+                        <button id="mt_add" type="button" class="btn btn-primary btn-sm">+ Add mapping</button>
+                    </div>
+                    <div class="mt-scroll">
+                    <div class="mt-table">
+                        <div class="mt-head">
+                            <span></span>
+                            <a href="#" id="input-column-header">When you press</a>
+                            <span></span>
+                            <a href="#" id="output-column-header">The computer gets</a>
+                            <a href="#" id="layer-column-header">On layers</a>
+                            <span>Fires on</span>
+                            <span class="text-center">Scale</span>
+                            <span></span>
+                        </div>
                         <div id="mappings">
                         </div>
+                        <p id="mt_empty" class="mt-empty d-none">No mappings match. <button type="button" id="mt_clear_filter" class="btn btn-link btn-sm p-0 align-baseline">Show all</button></p>
                     </div>
-                </div>
+                    </div>
+                </section>
 
                 <div class="text-center mt-2 mb-3 d-flex flex-wrap justify-content-center gap-2">
                     <button id="add_mapping" type="button" class="btn btn-primary">Add mapping</button>
@@ -592,78 +611,33 @@
     </div>
 
     <template id="mapping_template">
-        <div class="row mb-1 mapping_container">
-            <div class="col-1"><button type="button" class="btn btn-primary delete_button">×</button></div>
-            <div class="col-3">
-                <button type="button" class="btn btn-primary w-100 source_button position-relative">
-                    <span class="position-absolute top-50 start-0 translate-middle badge bg-info rounded-pill hub_port_badge">0</span>
-                    <span class="button_label">source</span>
-                </button>
+        <div class="mapping_container mt-row">
+            <div class="mt-num"></div>
+            <button type="button" class="source_button mt-chip">
+                <span class="mt-ic"></span>
+                <span class="mt-t"><span class="button_label">source</span><small><span class="hub_port_badge">0</span><span class="mt-sub"></span></small></span>
+            </button>
+            <span class="mt-arrow" aria-hidden="true">→</span>
+            <button type="button" class="target_button mt-chip">
+                <span class="mt-ic"></span>
+                <span class="mt-t"><span class="button_label">target</span><small><span class="hub_port_badge">0</span><span class="mt-sub"></span></small></span>
+            </button>
+            <div class="mt-layers" role="group" aria-label="Layers"><label class="mt-l" title="Layer 0"><input class="layer_checkbox0" type="checkbox"><span>0</span></label><label class="mt-l" title="Layer 1"><input class="layer_checkbox1" type="checkbox"><span>1</span></label><label class="mt-l" title="Layer 2"><input class="layer_checkbox2" type="checkbox"><span>2</span></label><label class="mt-l" title="Layer 3"><input class="layer_checkbox3" type="checkbox"><span>3</span></label><label class="mt-l" title="Layer 4"><input class="layer_checkbox4" type="checkbox"><span>4</span></label><label class="mt-l" title="Layer 5"><input class="layer_checkbox5" type="checkbox"><span>5</span></label><label class="mt-l" title="Layer 6"><input class="layer_checkbox6" type="checkbox"><span>6</span></label><label class="mt-l" title="Layer 7"><input class="layer_checkbox7" type="checkbox"><span>7</span></label></div>
+            <div class="mt-seg" role="group" aria-label="Fires on">
+                <button type="button" data-mode="always">Always</button><button type="button" data-mode="tap">Tap</button><button type="button" data-mode="hold">Hold</button>
+                <input class="tap_checkbox d-none" type="checkbox" tabindex="-1" aria-hidden="true"><input class="hold_checkbox d-none" type="checkbox" tabindex="-1" aria-hidden="true">
             </div>
-            <div class="col-3">
-                <button type="button" class="btn btn-primary w-100 target_button position-relative">
-                    <span class="position-absolute top-50 start-0 translate-middle badge bg-info rounded-pill hub_port_badge">0</span>
-                    <span class="button_label">target</span>
-                </button>
+            <label class="mt-scale" title="Scale: multiplies movement (pointer, wheel). Negative reverses it."><span>×</span><input class="scaling_input" type="number" step="0.1" aria-label="Scale"></label>
+            <div class="mt-more">
+                <button type="button" class="mt-menu-btn" aria-label="More actions" aria-haspopup="menu">⋯</button>
+                <input class="sticky_checkbox d-none" type="checkbox" tabindex="-1" aria-hidden="true">
+                <button type="button" class="delete_button d-none" tabindex="-1" aria-hidden="true">×</button>
             </div>
-            <div class="col-3">
-                <div class="d-flex lh-1 text-center">
-                    <div class="flex-fill row gx-1 justify-content-center">
-                        <div class="col-auto">
-                            <input class="form-check-input layer_checkbox0" type="checkbox" value="">
-                            <br><span class="text-muted small">0</span>
-                        </div>
-                        <div class="col-auto">
-                            <input class="form-check-input layer_checkbox1" type="checkbox" value="">
-                            <br><span class="text-muted small">1</span>
-                        </div>
-                        <div class="col-auto">
-                            <input class="form-check-input layer_checkbox2" type="checkbox" value="">
-                            <br><span class="text-muted small">2</span>
-                        </div>
-                        <div class="col-auto">
-                            <input class="form-check-input layer_checkbox3" type="checkbox" value="">
-                            <br><span class="text-muted small">3</span>
-                        </div>
-                        <div class="col-auto">
-                            <input class="form-check-input layer_checkbox4" type="checkbox" value="">
-                            <br><span class="text-muted small">4</span>
-                        </div>
-                        <div class="col-auto">
-                            <input class="form-check-input layer_checkbox5" type="checkbox" value="">
-                            <br><span class="text-muted small">5</span>
-                        </div>
-                        <div class="col-auto">
-                            <input class="form-check-input layer_checkbox6" type="checkbox" value="">
-                            <br><span class="text-muted small">6</span>
-                        </div>
-                        <div class="col-auto">
-                            <input class="form-check-input layer_checkbox7" type="checkbox" value="">
-                            <br><span class="text-muted small">7</span>
-                        </div>
-                    </div>
-                    <div class="row gx-1">
-                        <div class="col-auto ms-1" title="Sticky">
-                            <input class="form-check-input sticky_checkbox" type="checkbox" value="">
-                            <br><span class="text-muted small">S</span>
-                        </div>
-                        <div class="col-auto" title="Tap">
-                            <input class="form-check-input tap_checkbox" type="checkbox" value="">
-                            <br><span class="text-muted small">T</span>
-                        </div>
-                        <div class="col-auto" title="Hold">
-                            <input class="form-check-input hold_checkbox" type="checkbox" value="">
-                            <br><span class="text-muted small">H</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-2"><input class="form-control scaling_input text-end" type="number"></div>
         </div>
     </template>
 
     <template id="usage_button_template">
-        <button type="button" class="btn btn-primary usage_button m-1"></button>
+        <button type="button" class="usage_button pk-pill"></button>
     </template>
 
     <template id="example_template">
@@ -804,133 +778,169 @@
         </div>
     </template>
 
-    <div id="source_usage_modal" class="modal fade" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div id="source_usage_modal" class="modal fade pk-modal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title usage_modal_title">Select input</h5>
+                <div class="modal-header pk-head">
+                    <div class="pk-titles">
+                        <span class="pk-for"></span>
+                        <h5 class="modal-title usage_modal_title">Select input</h5>
+                    </div>
+                    <span class="pk-now d-none">Now <span class="pk-now-v"></span></span>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body" style="overflow-y: scroll;">
-                    <div class="row hub_port_container">
-                        <div class="col-auto">
-                            <label for="source_port_dropdown" class="col-form-label">Port</label>
+                <div class="pk-top">
+                    <div class="hub_port_container pk-toprow">
+                        <div class="pk-search position-relative">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="7" cy="7" r="5"></circle><path d="M11 11l3.5 3.5" stroke-linecap="round"></path></svg>
+                            <input type="text" class="form-control usage_search_box" placeholder="Search… try “ctrl”, “dictate”, “f14”" aria-label="Search">
+                            <span class="have_preferred_result_checkmark pk-enter d-none">↵ picks it</span>
                         </div>
-                        <div class="col-auto">
-                            <select class="form-select hub_port_dropdown" id="source_port_dropdown">
-                                <option value="0">all</option>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="5">5</option>
-                                <option value="6">6</option>
-                                <option value="7">7</option>
-                                <option value="8">8</option>
-                                <option value="9">9</option>
-                                <option value="10">10</option>
-                                <option value="11">11</option>
-                                <option value="12">12</option>
-                                <option value="13">13</option>
-                                <option value="14">14</option>
-                                <option value="15">15</option>
-                            </select>
+                        <div class="pk-field">
+                            <label for="source_port_dropdown" class="">From port</label>
+                            <select class="form-select form-select-sm hub_port_dropdown" id="source_port_dropdown"><option value="0">any</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option></select>
                         </div>
-                        <div class="col">
-                        </div>
-                        <div class="col-auto">
-                            <label for="input_labels_modal_dropdown" class="col-form-label">Input labels</label>
-                        </div>
-                        <div class="col-auto">
-                            <select class="form-select" id="input_labels_modal_dropdown">
+                        <div class="pk-field">
+                            <label for="input_labels_modal_dropdown">Input labels</label>
+                            <select class="form-select form-select-sm" id="input_labels_modal_dropdown">
                                 <option value="0">mouse</option>
                                 <option value="1">gamepad</option>
                             </select>
                         </div>
-                        <div class="col">
-                        </div>
-                        <div class="col-3 position-relative">
-                            <span class="position-absolute top-50 start-100 badge bg-success rounded-pill have_preferred_result_checkmark d-none" style="translate: -100% -50%">&check;</span>
-                            <input type="text" class="form-control usage_search_box" placeholder="Search">
-                        </div>
                     </div>
-                    <div class="col mouse_usages mt-3">
-                    </div>
-                    <div class="col gamepad_usages mt-3">
-                    </div>
-                    <div class="col keyboard_usages mt-3">
-                    </div>
-                    <div class="col media_usages mt-3">
-                    </div>
-                    <div class="col powermic_usages mt-3">
-                    </div>
-                    <div class="col micdrop_usages mt-3">
-                    </div>
-                    <div class="col other_usages mt-3">
-                    </div>
-                    <div class="col extra_usages mt-3">
-                    </div>
+                    <nav class="pk-jump" aria-label="Jump to"></nav>
                 </div>
+                <div class="modal-body pk-body">
+                    <section class="pk-sec pk-recent-sec" data-name="Recent">
+                        <div class="pk-h"><h3>Recent</h3><span>your last picks</span></div>
+                        <div class="pk-flow"><span class="nothing_usages pk-contents"></span><span class="recent_usages pk-contents"></span></div>
+                    </section>
+                    <section class="pk-sec " data-name="Keyboard">
+                        <div class="pk-h"><h3>Keyboard</h3><span>laid out like a keyboard</span></div>
+                        <div class="pk-kbwrap"><div class="keyboard_usages pk-kb"></div><div class="nav_usages pk-kb pk-navkeys"></div></div><div class="fkey_usages pk-flow pk-fstrip"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Mouse">
+                        <div class="pk-h"><h3>Mouse</h3></div>
+                        <div class="mouse_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Gamepad">
+                        <div class="pk-h"><h3>Gamepad</h3></div>
+                        <div class="gamepad_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Media">
+                        <div class="pk-h"><h3>Media</h3></div>
+                        <div class="media_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Dictation">
+                        <div class="pk-h"><h3>Dictation</h3><span>PowerScribe gets these in the background</span></div>
+                        <div class="powermic_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="TrueMap">
+                        <div class="pk-h"><h3>TrueMap</h3><span>done by the board itself</span></div>
+                        <div class="micdrop_usages pk-cards"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Layers & profiles">
+                        <div class="pk-h"><h3>Layers & profiles</h3></div>
+                        <div class="layer_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Macros">
+                        <div class="pk-h"><h3>Macros</h3></div>
+                        <div class="macro_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="More keys">
+                        <div class="pk-h"><h3>More keys</h3></div>
+                        <details class="pk-more"><summary>Keypad, lock keys, LEDs and international keys</summary><div class="more_usages pk-flow"></div></details>
+                    </section>
+                    <section class="pk-sec " data-name="Advanced">
+                        <div class="pk-h"><h3>Advanced</h3><span>expressions, registers, GPIO</span></div>
+                        <div class="other_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Custom">
+                        <div class="pk-h"><h3>Custom</h3><span>codes you added</span></div>
+                        <div class="extra_usages pk-flow"></div>
+                    </section>
+                </div>
+                <div class="modal-footer pk-help"><span class="pk-dot"></span><span class="pk-help-t">Hover over an option to see what it does.</span></div>
             </div>
         </div>
     </div>
 
-    <div id="target_usage_modal" class="modal fade" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div id="target_usage_modal" class="modal fade pk-modal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title usage_modal_title">Select output</h5>
+                <div class="modal-header pk-head">
+                    <div class="pk-titles">
+                        <span class="pk-for"></span>
+                        <h5 class="modal-title usage_modal_title">Select output</h5>
+                    </div>
+                    <span class="pk-now d-none">Now <span class="pk-now-v"></span></span>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body" style="overflow-y: scroll;">
-                    <div class="row hub_port_container">
-                        <div class="col-auto hub_port_inputs">
-                            <label for="target_port_dropdown" class="col-form-label">Port</label>
+                <div class="pk-top">
+                    <div class="hub_port_container pk-toprow">
+                        <div class="pk-search position-relative">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="7" cy="7" r="5"></circle><path d="M11 11l3.5 3.5" stroke-linecap="round"></path></svg>
+                            <input type="text" class="form-control usage_search_box" placeholder="Search… try “ctrl”, “dictate”, “f14”" aria-label="Search">
+                            <span class="have_preferred_result_checkmark pk-enter d-none">↵ picks it</span>
                         </div>
-                        <div class="col-auto hub_port_inputs">
-                            <select class="form-select hub_port_dropdown" id="target_port_dropdown">
-                                <option value="0">all</option>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="5">5</option>
-                                <option value="6">6</option>
-                                <option value="7">7</option>
-                                <option value="8">8</option>
-                                <option value="9">9</option>
-                                <option value="10">10</option>
-                                <option value="11">11</option>
-                                <option value="12">12</option>
-                                <option value="13">13</option>
-                                <option value="14">14</option>
-                                <option value="15">15</option>
-                            </select>
-                        </div>
-                        <div class="col">
-                        </div>
-                        <div class="col-3 position-relative">
-                            <span class="position-absolute top-50 start-100 badge bg-success rounded-pill have_preferred_result_checkmark d-none" style="translate: -100% -50%">&check;</span>
-                            <input type="text" class="form-control usage_search_box" placeholder="Search">
+                        <div class="pk-field hub_port_inputs">
+                            <label for="target_port_dropdown" class="hub_port_inputs">Send on port</label>
+                            <select class="form-select form-select-sm hub_port_dropdown" id="target_port_dropdown"><option value="0">any</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option></select>
                         </div>
                     </div>
-                    <div class="col mouse_usages mt-3">
-                    </div>
-                    <div class="col gamepad_usages mt-3">
-                    </div>
-                    <div class="col keyboard_usages mt-3">
-                    </div>
-                    <div class="col media_usages mt-3">
-                    </div>
-                    <div class="col powermic_usages mt-3">
-                    </div>
-                    <div class="col micdrop_usages mt-3">
-                    </div>
-                    <div class="col other_usages mt-3">
-                    </div>
-                    <div class="col extra_usages mt-3">
-                    </div>
+                    <nav class="pk-jump" aria-label="Jump to"></nav>
                 </div>
+                <div class="modal-body pk-body">
+                    <section class="pk-sec pk-recent-sec" data-name="Recent">
+                        <div class="pk-h"><h3>Recent</h3><span>your last picks</span></div>
+                        <div class="pk-flow"><span class="nothing_usages pk-contents"></span><span class="recent_usages pk-contents"></span></div>
+                    </section>
+                    <section class="pk-sec " data-name="Keyboard">
+                        <div class="pk-h"><h3>Keyboard</h3><span>laid out like a keyboard</span></div>
+                        <div class="pk-kbwrap"><div class="keyboard_usages pk-kb"></div><div class="nav_usages pk-kb pk-navkeys"></div></div><div class="fkey_usages pk-flow pk-fstrip"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Mouse">
+                        <div class="pk-h"><h3>Mouse</h3></div>
+                        <div class="mouse_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Gamepad">
+                        <div class="pk-h"><h3>Gamepad</h3></div>
+                        <div class="gamepad_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Media">
+                        <div class="pk-h"><h3>Media</h3></div>
+                        <div class="media_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Dictation">
+                        <div class="pk-h"><h3>Dictation</h3><span>PowerScribe gets these in the background</span></div>
+                        <div class="powermic_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="TrueMap">
+                        <div class="pk-h"><h3>TrueMap</h3><span>done by the board itself</span></div>
+                        <div class="micdrop_usages pk-cards"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Layers & profiles">
+                        <div class="pk-h"><h3>Layers & profiles</h3></div>
+                        <div class="layer_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Macros">
+                        <div class="pk-h"><h3>Macros</h3></div>
+                        <div class="macro_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="More keys">
+                        <div class="pk-h"><h3>More keys</h3></div>
+                        <details class="pk-more"><summary>Keypad, lock keys, LEDs and international keys</summary><div class="more_usages pk-flow"></div></details>
+                    </section>
+                    <section class="pk-sec " data-name="Advanced">
+                        <div class="pk-h"><h3>Advanced</h3><span>expressions, registers, GPIO</span></div>
+                        <div class="other_usages pk-flow"></div>
+                    </section>
+                    <section class="pk-sec " data-name="Custom">
+                        <div class="pk-h"><h3>Custom</h3><span>codes you added</span></div>
+                        <div class="extra_usages pk-flow"></div>
+                    </section>
+                </div>
+                <div class="modal-footer pk-help"><span class="pk-dot"></span><span class="pk-help-t">Hover over an option to see what it does.</span></div>
             </div>
         </div>
     </div>
