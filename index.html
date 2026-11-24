@@ -5,12 +5,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
-    <title>MicDrop</title>
+    <title>TrueMap</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <link href="bs-theme.css" rel="stylesheet">
-    <script src="bs-skeletons.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.min.js" integrity="sha384-QJHtvGhmr9XOIpI6YVutG+2QOK9T+ZnN4kzFN1RtK3zEFEIsxhlmWl5/YESvpZ13" crossorigin="anonymous"></script>
     <script src="code.js" type="module"></script>
     </script>
@@ -20,7 +19,10 @@
 
     <header class="md-header">
         <div class="md-header-inner">
-            <a class="md-brand" href="index.html"><span class="md-wordmark">MicDrop</span><span class="md-tagline">Put the handheld mic down. Keep dictating.</span></a>
+            <a class="md-brand" href="index.html">
+                <svg class="md-logo" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x="1" y="1" width="32" height="32" rx="9" fill="none" stroke="currentColor" stroke-width="1.5"></rect><path d="M9 11h16M17 11v13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><circle cx="25" cy="24" r="2.4" fill="currentColor"></circle></svg>
+                <span class="md-brand-text"><span class="md-wordmark">True<span>Map</span></span><span class="md-tagline">Remap any input. Dictate from anywhere.</span></span>
+            </a>
             <span id="connection_pill" class="md-pill" role="status">Not connected</span>
             <button id="open_serial_device" type="button" class="btn btn-primary">Open device</button>
             <button id="load_from_device" type="button" class="btn btn-outline-secondary">Load from device</button>
@@ -34,30 +36,29 @@
     <div class="md-app">
 
     <aside class="md-side" aria-labelledby="side_profiles_title">
-        <h2 id="side_profiles_title" class="md-label">Saved on the board</h2>
+        <nav class="nav md-nav" id="nav-tab" role="tablist" aria-label="Sections">
+            <button class="nav-link active" id="nav-mappings-tab" data-bs-toggle="tab" data-bs-target="#nav-mappings" type="button" role="tab">Mappings</button>
+            <button class="nav-link" id="nav-live-tab" data-bs-toggle="tab" data-bs-target="#nav-live" type="button" role="tab">Live test</button>
+            <button class="nav-link" id="nav-macros-tab" data-bs-toggle="tab" data-bs-target="#nav-macros" type="button" role="tab">Macros</button>
+            <button class="nav-link md-sub" id="nav-expressions-tab" data-bs-toggle="tab" data-bs-target="#nav-expressions" type="button" role="tab">Expressions</button>
+            <button class="nav-link md-sub" id="nav-examples-tab" data-bs-toggle="tab" data-bs-target="#nav-examples" type="button" role="tab">Examples</button>
+            <button class="nav-link" id="nav-settings-tab" data-bs-toggle="tab" data-bs-target="#nav-settings" type="button" role="tab">Settings</button>
+            <button class="nav-link md-sub" id="nav-actions-tab" data-bs-toggle="tab" data-bs-target="#nav-actions" type="button" role="tab">Actions</button>
+            <button class="nav-link" id="nav-profiles-tab" data-bs-toggle="tab" data-bs-target="#nav-profiles" type="button" role="tab">Profiles</button>
+            <button class="nav-link d-none" id="nav-monitor-tab" data-bs-toggle="tab" data-bs-target="#nav-monitor" type="button" role="tab" tabindex="-1" aria-hidden="true">Monitor</button>
+        </nav>
+        <h2 id="side_profiles_title" class="md-label mt-3">Profiles on the board</h2>
         <div id="side_profiles" class="md-side-list"></div>
         <p id="side_profiles_note" class="md-side-note">Click <strong>Open device</strong> to see the profiles on the board.</p>
-        <button id="side_manage_profiles" type="button" class="btn btn-outline-secondary w-100">Manage profiles</button>
+        <button id="side_manage_profiles" type="button" class="btn btn-link md-side-link">Manage profiles</button>
+        <div class="md-side-foot">
+            <a href="magscroll.html">MagScroll knob setup &#8599;</a>
+        </div>
     </aside>
 
     <main class="md-center d-flex flex-column">
 
-        <p class="lead md-lead">MicDrop turns the keyboard, mouse or buttons you already use into a PowerMic or a dictation foot pedal. PowerScribe hears every press even while you're scrolling through images in another window, so you never have to click back to start dictating.</p>
-        <p class="md-intro">Click <strong>Open device</strong> and pick the board (it is listed as a serial port). In <strong>Settings</strong>, choose <strong>PowerMic II</strong> or <strong>Foot Pedal</strong>; map your keys in <strong>Mappings</strong>; then click <strong>Save to device</strong>. Keep several setups on the board as <strong>profiles</strong>. If you changed the device type, the board restarts by itself as the new device; click <strong>Open device</strong> again. You can check it without PowerScribe on the <strong>Live test</strong> tab. Use Chrome, Edge or Firefox. Setting up a MagScroll knob? It has its own <a href="magscroll.html">MagScroll page</a>.</p>
-
         <div id="error" class="alert alert-danger d-none"></div>
-
-        <div class="nav nav-tabs" id="nav-tab" role="tablist">
-            <button class="nav-link active" id="nav-mappings-tab" data-bs-toggle="tab" data-bs-target="#nav-mappings" type="button" role="tab">Mappings</button>
-            <button class="nav-link" id="nav-profiles-tab" data-bs-toggle="tab" data-bs-target="#nav-profiles" type="button" role="tab">Profiles</button>
-            <button class="nav-link" id="nav-live-tab" data-bs-toggle="tab" data-bs-target="#nav-live" type="button" role="tab">Live test</button>
-            <button class="nav-link" id="nav-settings-tab" data-bs-toggle="tab" data-bs-target="#nav-settings" type="button" role="tab">Settings</button>
-            <button class="nav-link" id="nav-macros-tab" data-bs-toggle="tab" data-bs-target="#nav-macros" type="button" role="tab">Macros</button>
-            <button class="nav-link" id="nav-expressions-tab" data-bs-toggle="tab" data-bs-target="#nav-expressions" type="button" role="tab">Expressions</button>
-            <button class="nav-link" id="nav-actions-tab" data-bs-toggle="tab" data-bs-target="#nav-actions" type="button" role="tab">Actions</button>
-            <button class="nav-link" id="nav-monitor-tab" data-bs-toggle="tab" data-bs-target="#nav-monitor" type="button" role="tab">Monitor</button>
-            <button class="nav-link" id="nav-examples-tab" data-bs-toggle="tab" data-bs-target="#nav-examples" type="button" role="tab">Examples</button>
-        </div>
 
         <div class="tab-content flex-grow-1">
 
@@ -137,7 +138,7 @@
             <div class="tab-pane" id="nav-profiles" role="tabpanel" tabindex="0">
                 <p class="mt-4">The board can keep up to 8 complete setups (mappings, settings and device type) and switch between them. <strong>Save to device</strong> always saves into the profile in use.</p>
                 <div id="profiles_not_connected" class="alert alert-secondary">Click <strong>Open device</strong> to see the profiles on the board.</div>
-                <div id="profiles_unsupported" class="alert alert-info d-none">This board's firmware doesn't have profiles yet. Flash the latest MicDrop firmware to use them.</div>
+                <div id="profiles_unsupported" class="alert alert-info d-none">This board's firmware doesn't have profiles yet. Flash the latest TrueMap firmware to use them.</div>
                 <div class="table-responsive">
                     <table id="profiles_table" class="table align-middle d-none">
                         <thead>
@@ -159,6 +160,11 @@
                         <button id="profile_save_as" type="button" class="btn btn-primary w-100">Save as profile</button>
                     </div>
                 </div>
+                <div id="profiles_backup_row" class="md-board-btns mt-3">
+                    <button id="profiles_backup" type="button" class="btn btn-outline-secondary">Back up all profiles</button>
+                    <button id="profiles_restore" type="button" class="btn btn-outline-secondary">Restore from a backup…</button>
+                    <input id="profiles_restore_file" type="file" accept=".json,application/json" class="d-none" aria-label="Backup file">
+                </div>
                 <p class="small text-muted mt-4">To switch profiles with a key, pedal or button, map it to <strong>Profile 1</strong>&ndash;<strong>Profile 8</strong>, <strong>Next profile</strong> or <strong>Previous profile</strong> (in the output list). Map that key in every profile, or you can't switch back. A switch made with a key lasts until the board is unplugged; it always starts in the default profile. Switching to a profile with a different device type restarts the board.</p>
             </div>
 
@@ -175,11 +181,16 @@
                         </div>
                     </section>
                     <section class="md-live-log" aria-label="Event log">
+                        <div id="live_state" class="md-state" aria-live="polite"></div>
                         <div class="md-live-head">
                             <h2 class="md-card-title me-auto">Presses, newest first</h2>
+                            <div id="live_dry_wrap" class="form-check form-switch mb-0 d-none">
+                                <input class="form-check-input" type="checkbox" role="switch" id="live_dry">
+                                <label class="form-check-label" for="live_dry" title="The board keeps telling the PC nothing is pressed, so you can try buttons without anything happening">Test without sending</label>
+                            </div>
                             <div class="form-check form-switch mb-0">
                                 <input class="form-check-input" type="checkbox" role="switch" id="live_raw" checked>
-                                <label class="form-check-label" for="live_raw">Show raw values</label>
+                                <label class="form-check-label" for="live_raw">Show raw codes</label>
                             </div>
                             <button id="live_clear" type="button" class="btn btn-sm btn-outline-secondary">Clear</button>
                         </div>
@@ -189,6 +200,26 @@
                         <div class="md-live-foot"><span class="md-live-swatch"></span>Lit = pressed now. "Sent as" is worked out from the mappings on this page; save them to the board first.</div>
                     </section>
                 </div>
+                <section id="live_raw_section" class="md-card mt-3" aria-labelledby="live_raw_title">
+                    <div class="md-card-head">
+                        <h2 id="live_raw_title" class="md-card-title me-auto">Raw codes: every input, with its range</h2>
+                        <button id="monitor_clear" type="button" class="btn btn-sm btn-outline-secondary">Clear</button>
+                    </div>
+                    <div class="px-3 pb-3">
+                <div id="monitor_header" class="row p-1 mt-4 mb-2 d-none">
+                    <div class="col-1 text-center"></div>
+                    <div class="col-2 text-center monitor_usage">Usage</div>
+                    <div class="col-3 text-center monitor_readable_name"></div>
+                    <div class="col-2 text-center monitor_last_value">Last value</div>
+                    <div class="col-2 text-center monitor_min_value">Min value</div>
+                    <div class="col-2 text-center monitor_max_value">Max value</div>
+                </div>
+
+                <div id="monitor_container">
+                </div>
+
+                    </div>
+                </section>
             </div>
 
             <div class="tab-pane" id="nav-settings" role="tabpanel" tabindex="0">
@@ -212,7 +243,11 @@
                             </div>
                         </div>
                         <div class="md-board-sec">
-                            <h3 class="md-board-lbl">Restart and clean up</h3>
+                            <h3 class="md-board-lbl">Name, restart and automatic profiles</h3>
+                            <div id="board_v21"></div>
+                        </div>
+                        <div class="md-board-sec">
+                            <h3 class="md-board-lbl">Firmware update and clean up</h3>
                             <div class="md-board-btns">
                                 <button id="board_bootsel" type="button" class="btn btn-outline-secondary">Restart into firmware update mode</button>
                                 <button id="board_erase" type="button" class="btn btn-outline-danger">Delete all other profiles…</button>
@@ -229,7 +264,7 @@
                     <div class="md-board-head">
                         <h2 id="kf_title" class="md-card-title">Key features</h2>
                     </div>
-                    <p id="kf_note" class="md-board-p px-3 pt-2 mb-0 d-none">This board has older MicDrop firmware: these settings are kept on the page and in saved files, but the board needs the latest firmware to use them.</p>
+                    <p id="kf_note" class="md-board-p px-3 pt-2 mb-0 d-none">This board has older TrueMap firmware: these settings are kept on the page and in saved files, but the board needs the latest firmware to use them.</p>
                     <div class="md-board-body" id="kf_body"></div>
                     <div class="md-board-foot">
                         <span class="md-board-change me-auto">Save to device to keep changes.</span>
@@ -423,6 +458,17 @@
                         <select id="mb_slot" class="form-select form-select-sm w-auto"></select>
                         <label for="mb_name" class="visually-hidden">Macro name</label>
                         <input id="mb_name" type="text" maxlength="40" class="form-control form-control-sm md-mb-name" placeholder="Name (e.g. Normal chest)" autocomplete="off">
+                        <div class="form-check mb-0 ms-2">
+                            <input id="mb_repeat" type="checkbox" class="form-check-input">
+                            <label for="mb_repeat" class="form-check-label small">Repeat while held</label>
+                        </div>
+                        <span id="mb_repeat_opts" class="md-kf-row d-none">
+                            <label for="mb_repeat_delay" class="small">after</label>
+                            <input id="mb_repeat_delay" type="number" min="50" max="5000" class="form-control form-control-sm md-kf-num">
+                            <label for="mb_repeat_rate" class="small">ms, every</label>
+                            <input id="mb_repeat_rate" type="number" min="20" max="5000" class="form-control form-control-sm md-kf-num">
+                            <span class="small">ms</span>
+                        </span>
                     </div>
                     <p class="md-mb-p">A macro plays a list of steps when its button is pressed. Each step is the keys held at that moment. Build one here, then use <b>Use this macro</b> to put it on a button.</p>
 
@@ -525,24 +571,7 @@
 
             <div class="tab-pane" id="nav-monitor" role="tabpanel" tabindex="0">
 
-                <p class="mt-4">Interact with the device connected to HID Remapper to see what usage codes it generates.</p>
-
-                <div>
-                    <button id="monitor_clear" type="button" class="btn btn-primary">Clear</button>
-                </div>
-
-                <div id="monitor_header" class="row p-1 mt-4 mb-2 d-none">
-                    <div class="col-1 text-center"></div>
-                    <div class="col-2 text-center monitor_usage">Usage</div>
-                    <div class="col-3 text-center monitor_readable_name"></div>
-                    <div class="col-2 text-center monitor_last_value">Last value</div>
-                    <div class="col-2 text-center monitor_min_value">Min value</div>
-                    <div class="col-2 text-center monitor_max_value">Max value</div>
-                </div>
-
-                <div id="monitor_container">
-                </div>
-
+                <p class="mt-4">The raw input codes are on the Live test tab.</p>
             </div>
 
             <div class="tab-pane" id="nav-examples" role="tabpanel" tabindex="0">

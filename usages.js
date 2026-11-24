@@ -654,7 +654,7 @@ const common_target_usages = {
     "0xfff60005": { 'name': 'Analog 5', 'class': 'other' },
 }
 
-// MicDrop settings version 20 outputs (the board needs the latest firmware)
+// TrueMap settings version 20 outputs (the board needs the latest firmware)
 const micdrop_target_usages = {
     "0xffe40001": { 'name': 'Auto-scroll up, slow', 'class': 'micdrop' },
     "0xffe40002": { 'name': 'Auto-scroll down, slow', 'class': 'micdrop' },
@@ -693,6 +693,15 @@ const micdrop_target_usages = {
     "0xffe60007": { 'name': 'Switch to layer 7', 'class': 'micdrop' },
     "0xffe70003": { 'name': 'Restart the board', 'class': 'micdrop' },
     "0xffe70004": { 'name': 'Restart into firmware update mode', 'class': 'micdrop' },
+    "0xffe70007": { 'name': 'Scroll lock (mouse movement scrolls)', 'class': 'micdrop' },
+    "0xffe70008": { 'name': 'Scroll lock while held', 'class': 'micdrop' },
+    "0xffe70009": { 'name': 'Scroll lock faster', 'class': 'micdrop' },
+    "0xffe7000a": { 'name': 'Scroll lock slower', 'class': 'micdrop' },
+    "0xffe7000b": { 'name': 'Precision pointer while held', 'class': 'micdrop' },
+    "0xffe7000c": { 'name': 'Precision pointer on/off', 'class': 'micdrop' },
+    "0xffe7000d": { 'name': 'Fast scroll while held', 'class': 'micdrop' },
+    "0xffe7000e": { 'name': 'Double-click', 'class': 'micdrop' },
+    "0xffe70006": { 'name': 'Click-lock (hold left button)', 'class': 'micdrop' },
 };
 Object.assign(common_target_usages, micdrop_target_usages);
 
