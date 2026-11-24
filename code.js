@@ -5849,10 +5849,16 @@ async function dry_run_changed() {
 
 // ---- Settings: board name, version, restart, safe start, auto profile rules
 
+let board_name_draft = null;
+const rule_drafts = {};
+
 function render_board_v21() {
     const box = document.getElementById('board_v21');
     if (!box) {
         return;
+    }
+    if (box.contains(document.activeElement) && document.activeElement !== box) {
+        return;  // don't redraw under the cursor while something here is being edited
     }
     clear_children(box);
     const ok = device != null && device_v21();
@@ -5866,10 +5872,12 @@ function render_board_v21() {
     const nameRow = md_element('div', { class: 'md-kf-row' });
     nameRow.appendChild(md_element('label', { for: 'board_name' }, 'Board name'));
     const name = md_element('input', { id: 'board_name', type: 'text', class: 'form-control form-control-sm md-kf-wide', maxlength: String(BOARD_NAME_LEN), placeholder: 'TrueMap', autocomplete: 'off' });
-    name.value = board_info.name;
+    name.value = board_name_draft != null ? board_name_draft : board_info.name;
+    name.addEventListener('input', () => { board_name_draft = name.value; });
     const save = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, 'Save name');
     save.addEventListener('click', () => profile_action(async () => {
         await save_board_name(name.value.trim());
+        board_name_draft = null;
         display_info('Board name saved. It shows on the settings port (and as the device name in Standard mode) after the board restarts.');
     }));
     nameRow.appendChild(name);
@@ -5916,13 +5924,15 @@ function render_board_v21() {
             }
             groups[c.group].appendChild(md_element('option', { value: c.key }, c.label));
         }
-        what.value = current;
+        what.value = (rule_drafts[i] && rule_drafts[i].what !== undefined) ? rule_drafts[i].what : current;
+        what.addEventListener('change', () => { (rule_drafts[i] ??= {}).what = what.value; });
         const slot = md_element('select', { class: 'form-select form-select-sm', 'aria-label': 'Profile for rule ' + (i + 1) });
         slot.appendChild(md_element('option', { value: '255' }, '—'));
         for (const p of saved) {
             slot.appendChild(md_element('option', { value: String(p.slot) }, (p.slot + 1) + ' · ' + (p.name || 'Profile ' + (p.slot + 1))));
         }
-        slot.value = String(r.slot);
+        slot.value = (rule_drafts[i] && rule_drafts[i].slot !== undefined) ? rule_drafts[i].slot : String(r.slot);
+        slot.addEventListener('change', () => { (rule_drafts[i] ??= {}).slot = slot.value; });
         const apply = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, current ? 'Save' : 'Add');
         apply.addEventListener('click', () => profile_action(async () => {
             const s = parseInt(slot.value);
@@ -5931,6 +5941,7 @@ function render_board_v21() {
             }
             const [vid, pid, port] = what.value ? what.value.split(':').map((v) => parseInt(v, 16)) : [0, 0, 0];
             await save_board_rule({ index: i, vid, pid, port, slot: what.value ? s : 255 });
+            delete rule_drafts[i];
             render_board_v21();
         }));
         const del = md_element('button', { type: 'button', class: 'btn btn-sm btn-link text-danger' }, 'Remove');
