@@ -2792,9 +2792,13 @@ function dir_key_usage(dir, port) {
     if (config['extras'] && config['extras']['wheel_keys']) {
         const w = config['extras']['wheel_keys'].findIndex((k) => parseInt(k.usage, 16) == dir.axis && (k.port || 0) == port);
         if (w >= 0) {
-            const usage = x_wheel_usage(w, (dir.sign > 0 ? 1 : 2) + (dir.far ? 2 : 0));
-            if (config['mappings'].some((m) => x_same_key(m['source_usage'], usage))) {
-                return usage;
+            const kind2 = config['extras']['wheel_keys'][w].kind == 2;
+            const tries = dir.far ? [dir.sign > 0 ? 3 : 4] : (kind2 ? [dir.sign > 0 ? 5 : 6, dir.sign > 0 ? 1 : 2] : [dir.sign > 0 ? 1 : 2]);
+            for (const a of tries) {
+                const usage = x_wheel_usage(w, a);
+                if (config['mappings'].some((m) => x_same_key(m['source_usage'], usage))) {
+                    return usage;
+                }
             }
         }
     }
@@ -2814,7 +2818,10 @@ function dir_key_clicked(dir) {
     if (device == null || device_v21()) {
         // the board reads wheels, jogs and dials itself: no expression needed
         const kind = dir.kind == 'wrap' ? 1 : (dir.axis == 0x00010038 ? 2 : 0);
-        const m = wheel_keys_mapping(xu(dir.axis), port, kind, (dir.sign > 0 ? 1 : 2) + (dir.far ? 2 : 0));
+        const existing = dir_key_usage(dir, port);
+        const a = existing && /^0xffe8/i.test(existing) ? (parseInt(existing, 16) & 0xF)
+            : dir.far ? (dir.sign > 0 ? 3 : 4) : kind == 2 ? (dir.sign > 0 ? 5 : 6) : (dir.sign > 0 ? 1 : 2);
+        const m = wheel_keys_mapping(xu(dir.axis), port, kind, a);
         if (m) {
             set_mappings_ui_state();
             md_select(m, true);
@@ -5601,7 +5608,7 @@ function wheel_key_name(usage) {
     const nm = w ? readable_usage_name(w.usage) : '';
     const kindName = w && w.kind == 2 ? 'Ring' : w && w.kind == 1 ? 'Jog' : null;
     const base = w ? (kindName || ((/^0x[0-9a-f]{8}$/i.test(nm) && plain[w.usage.toLowerCase()]) ? plain[w.usage.toLowerCase()] : nm)) + (w.port ? ' (port ' + w.port + ')' : '') : 'Wheel ' + ((v >> 4) + 1);
-    const names = w && w.kind == 2 ? { 1: 'turned right', 2: 'turned left', 3: 'turned far right', 4: 'turned far left' }
+    const names = w && w.kind == 2 ? { 1: 'turned right (any amount)', 2: 'turned left (any amount)', 3: 'turned far right', 4: 'turned far left', 5: 'turned a little right', 6: 'turned a little left' }
         : w && w.kind == 1 ? { 1: 'jog clockwise', 2: 'jog counter-clockwise' }
         : { 1: 'turned up / right', 2: 'turned down / left' };
     return base + ': ' + (names[a] || '?');
@@ -6417,13 +6424,13 @@ function pk_before_show(modal_element, side, mapping, element) {
     if (wk) {
         clear_children(wk);
         (x21().wheel_keys || []).forEach((w, i) => {
-            for (let a = 1; a <= (w.kind == 2 ? 4 : 2); a++) {
+            for (const a of (w.kind == 2 ? [5, 6, 3, 4, 1, 2] : [1, 2])) {
                 const usage = x_wheel_usage(i, a);
                 const name = wheel_key_name(usage);
                 const b = md_element('button', { type: 'button', class: 'usage_button pk-pill', 'data-hid-usage': usage, title: usage });
                 b.dataset.name = name;
                 b.dataset.search = name;
-                b.appendChild(md_element('span', { class: 'pk-ic', 'aria-hidden': 'true' }, a == 1 ? '↻' : a == 2 ? '↺' : a == 3 ? '⟳' : '⟲'));
+                b.appendChild(md_element('span', { class: 'pk-ic', 'aria-hidden': 'true' }, { 1: '↻', 2: '↺', 3: '⟳', 4: '⟲', 5: '›', 6: '‹' }[a]));
                 b.appendChild(md_element('span', { class: 'pk-lbl' }, name));
                 wk.appendChild(b);
             }
@@ -7008,7 +7015,7 @@ function insp_wheel_key_options(set, m, u) {
         return b;
     };
     if (w.kind == 2) {
-        set.appendChild(md_element('p', { class: 'md-insp-note' }, 'A small turn fires "turned right / left" while the ring is held there. Turning it to the far point or past it also fires "turned far right / left". Map the far ones to anything.'));
+        set.appendChild(md_element('p', { class: 'md-insp-note' }, '"A little" fires while the ring is turned less than the far point, "far" from the far point on. "Any amount" fires for both.'));
         const row = md_element('div', { class: 'md-kf-row' });
         row.appendChild(md_element('span', {}, 'Far starts at notch'));
         const step = md_element('input', { type: 'number', class: 'form-control form-control-sm md-kf-num', min: '1', max: '7', 'aria-label': 'Far starts at notch' });
@@ -7023,10 +7030,12 @@ function insp_wheel_key_options(set, m, u) {
         row.appendChild(md_element('span', { class: 'md-insp-note m-0' }, 'of 7'));
         set.appendChild(row);
         const btns = md_element('div', { class: 'md-presets' });
-        btns.appendChild(add(1, 'turned right'));
-        btns.appendChild(add(2, 'turned left'));
-        btns.appendChild(add(3, 'turned far right'));
-        btns.appendChild(add(4, 'turned far left'));
+        btns.appendChild(add(5, 'a little right'));
+        btns.appendChild(add(6, 'a little left'));
+        btns.appendChild(add(3, 'far right'));
+        btns.appendChild(add(4, 'far left'));
+        btns.appendChild(add(1, 'right, any amount'));
+        btns.appendChild(add(2, 'left, any amount'));
         set.appendChild(btns);
     } else {
         const btns = md_element('div', { class: 'md-presets' });
