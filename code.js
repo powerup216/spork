@@ -2454,15 +2454,19 @@ const DEVICES = {
         ]),
     },
     k68: {
-        code: 2, name: '68-key keyboard (65%)', unit: 38, w: 16, h: 5,
-        keys: kb_rows([
-            [['Esc', 0x29]].concat(ROW_NUM.slice(1), [['`', 0x35]]),
-            ROW_Q.concat([['Del', 0x4c]]),
-            ROW_A.concat([['PgUp', 0x4b]]),
-            ROW_Z.concat([['Shift', 0xe5, 1.75], ['↑', 0x52], ['PgDn', 0x4e]]),
-            [['Ctrl', 0xe0, 1.25], ['Win', 0xe3, 1.25], ['Alt', 0xe2, 1.25], ['Space', 0x2c, 6.25], ['Alt', 0xe6], ['Fn', null], ['Ctrl', 0xe4], ['←', 0x50], ['↓', 0x51], ['→', 0x4f]],
-        ]),
-        note: 'Fn is handled inside the keyboard, so it can\'t be mapped. Fn layers (F1–F12 on the number row, Pause on `, Ins on Del, Home on PgUp, End on PgDn) send their own keys: press one in Live test to see its code.',
+        code: 2, name: '68-key keyboard (65%)', unit: 38, w: 16, h: 6.25,
+        keys: [].concat(
+            // F1-F12 are Fn + 1 ... Fn + = on this keyboard: drawn above the number keys they share
+            kb_rows([F_KEYS(1, 12)], 1, 0),
+            kb_rows([
+                [['Esc', 0x29]].concat(ROW_NUM.slice(1), [['`', 0x35]]),
+                ROW_Q.concat([['Del', 0x4c]]),
+                ROW_A.concat([['PgUp', 0x4b]]),
+                ROW_Z.concat([['Shift', 0xe5, 1.75], ['↑', 0x52], ['PgDn', 0x4e]]),
+                [['Ctrl', 0xe0, 1.25], ['Win', 0xe3, 1.25], ['Alt', 0xe2, 1.25], ['Space', 0x2c, 6.25], ['Alt', 0xe6], ['Fn', null], ['Ctrl', 0xe4], ['←', 0x50], ['↓', 0x51], ['→', 0x4f]],
+            ], 0, 1.25),
+        ),
+        note: 'The top row is Fn + 1 … Fn + = (F1–F12). Fn itself is handled inside the keyboard, so it can\'t be mapped. Other Fn keys (Pause on `, Ins on Del, Home on PgUp, End on PgDn) send their own keys: press one in Live test to see its code.',
     },
     km16: {
         // MMD KM16 Pro: aluminium case, two small knobs and a large dial above a 4x4 grid
