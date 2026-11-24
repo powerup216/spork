@@ -5463,7 +5463,7 @@ function key_features_setup() {
 
 const BOARD_GET_NAME = 109, BOARD_SET_NAME = 110, BOARD_GET_RULE = 111, BOARD_SET_RULE = 112;
 const FIRMWARE_INFO = 113, RESTART_BOARD = 114, DRY_RUN = 115, GET_STATE = 116;
-const PROFILE_RAW_READ = 117, PROFILE_RAW_BEGIN = 118, PROFILE_RAW_APPEND = 119, PROFILE_RAW_COMMIT = 120;
+const PROFILE_RAW_READ = 117, PROFILE_RAW_BEGIN = 118, PROFILE_RAW_APPEND = 119, PROFILE_RAW_COMMIT = 120, GET_DEVICE = 121;
 const X_SCROLL_LOCK = 9, X_DEVICE = 10, X_POINTER_MODES = 11, X_IDLE = 12, X_MACRO_REPEAT = 13, X_WHEEL_KEYS = 14;
 const BOARD_NAME_LEN = 24, NBOARD_RULES = 8;
 const WHEEL_KINDS = { 0: 'turns (wheel, tilt)', 1: 'jog (wraps 0-255)', 2: 'dial that holds its position' };
@@ -5472,7 +5472,7 @@ const KNOWN_DEVICES = [
     ['046d:c07e', 'Logitech G402'], ['05f3:00ff', 'Foot pedal (3Key)'],
 ];
 
-let board_info = { name: '', version: '', rules: [] };
+let board_info = { name: '', version: '', rules: [], devices: [] };
 let board_state = null;
 let state_timer = null;
 let dry_run_timer = null;
@@ -5634,7 +5634,7 @@ async function board_cmd(command, fields = []) {
 }
 
 async function load_board_info() {
-    board_info = { name: '', version: '', rules: [] };
+    board_info = { name: '', version: '', rules: [], devices: [] };
     if (device == null || !device_v21()) {
         return;
     }
@@ -5649,6 +5649,7 @@ async function load_board_info() {
         const [index, vid, pid, port, slot] = await read_config_feature([UINT8, UINT16, UINT16, UINT8, UINT8]);
         board_info.rules.push({ index: i, vid, pid, port, slot });
     }
+    await load_plugged_devices();
 }
 
 async function board_op(command, fields) {
@@ -5885,57 +5886,135 @@ function render_board_v21() {
     btns.appendChild(restart);
     box.appendChild(btns);
     box.appendChild(md_element('p', { class: 'md-board-p' }, 'Safe start: if a mapping ever locks you out, hold Esc for 2 seconds right after plugging the board in. It starts with every mapping off until the next restart; your settings stay saved.'));
-    // rules
+    // rules: pick from what is plugged in now, or a port
     box.appendChild(md_element('h3', { class: 'md-board-lbl mt-2' }, 'Switch profile when a device is plugged in'));
     const table = md_element('table', { class: 'md-kf-table' });
     const head = md_element('tr');
-    for (const h of ['Device (VID:PID)', 'Port', 'Profile', '']) {
+    for (const h of ['When this is plugged in', 'Switch to', '']) {
         head.appendChild(md_element('th', { scope: 'col' }, h));
     }
     table.appendChild(head);
     const saved = profiles.filter((p) => p.saved);
+    const choices = rule_choices();
     board_info.rules.forEach((r, i) => {
         if (r.slot == 0xFF && i > 0 && board_info.rules[i - 1].slot == 0xFF) {
             return;  // one empty row is enough
         }
         const tr = md_element('tr');
-        const id = md_element('input', { type: 'text', class: 'form-control form-control-sm', list: 'known_devices', placeholder: '0b33:0020', 'aria-label': 'Device ' + (i + 1) });
-        id.value = r.slot == 0xFF ? '' : r.vid.toString(16).padStart(4, '0') + ':' + r.pid.toString(16).padStart(4, '0');
-        const port = md_element('select', { class: 'form-select form-select-sm', 'aria-label': 'Port ' + (i + 1) });
-        for (let p = 0; p < 16; p++) {
-            port.appendChild(md_element('option', { value: String(p) }, p == 0 ? 'Any' : String(p)));
+        const what = md_element('select', { class: 'form-select form-select-sm', 'aria-label': 'Device for rule ' + (i + 1) });
+        what.appendChild(md_element('option', { value: '' }, 'Choose…'));
+        const current = r.slot == 0xFF ? '' : rule_key(r.vid, r.pid, r.port);
+        const list = choices.slice();
+        if (current && !list.some((c) => c.key == current)) {
+            list.unshift({ key: current, label: rule_label(r.vid, r.pid, r.port), group: 'Saved' });
         }
-        port.value = String(r.port || 0);
-        const slot = md_element('select', { class: 'form-select form-select-sm', 'aria-label': 'Profile ' + (i + 1) });
+        const groups = {};
+        for (const c of list) {
+            if (!groups[c.group]) {
+                groups[c.group] = md_element('optgroup', { label: c.group });
+                what.appendChild(groups[c.group]);
+            }
+            groups[c.group].appendChild(md_element('option', { value: c.key }, c.label));
+        }
+        what.value = current;
+        const slot = md_element('select', { class: 'form-select form-select-sm', 'aria-label': 'Profile for rule ' + (i + 1) });
         slot.appendChild(md_element('option', { value: '255' }, '—'));
         for (const p of saved) {
             slot.appendChild(md_element('option', { value: String(p.slot) }, (p.slot + 1) + ' · ' + (p.name || 'Profile ' + (p.slot + 1))));
         }
         slot.value = String(r.slot);
-        const apply = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, 'Save');
+        const apply = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, current ? 'Save' : 'Add');
         apply.addEventListener('click', () => profile_action(async () => {
-            const m = /^\s*([0-9a-f]{1,4}):([0-9a-f]{1,4})\s*$/i.exec(id.value);
             const s = parseInt(slot.value);
-            if (s != 255 && !m) {
-                throw new Error('Type the device as VID:PID, for example 0b33:0020.');
+            if (s != 255 && !what.value) {
+                throw new Error('Choose a device or a port first.');
             }
-            await save_board_rule({ index: i, vid: m ? parseInt(m[1], 16) : 0, pid: m ? parseInt(m[2], 16) : 0, port: parseInt(port.value), slot: s });
+            const [vid, pid, port] = what.value ? what.value.split(':').map((v) => parseInt(v, 16)) : [0, 0, 0];
+            await save_board_rule({ index: i, vid, pid, port, slot: what.value ? s : 255 });
             render_board_v21();
         }));
-        for (const el of [id, port, slot, apply]) {
+        const del = md_element('button', { type: 'button', class: 'btn btn-sm btn-link text-danger' }, 'Remove');
+        del.addEventListener('click', () => profile_action(async () => {
+            await save_board_rule({ index: i, vid: 0, pid: 0, port: 0, slot: 255 });
+            render_board_v21();
+        }));
+        for (const el of [what, slot]) {
             const td = md_element('td');
             td.appendChild(el);
             tr.appendChild(td);
         }
+        const td = md_element('td');
+        td.appendChild(apply);
+        if (current) {
+            td.appendChild(del);
+        }
+        tr.appendChild(td);
         table.appendChild(tr);
     });
     box.appendChild(table);
-    const dl = md_element('datalist', { id: 'known_devices' });
-    for (const [vp, n] of KNOWN_DEVICES) {
-        dl.appendChild(md_element('option', { value: vp }, n));
+    const refresh = md_element('button', { type: 'button', class: 'btn btn-sm btn-link px-0' }, 'Plugged something in? Refresh the list');
+    refresh.addEventListener('click', () => profile_action(async () => {
+        await load_plugged_devices();
+        render_board_v21();
+    }));
+    box.appendChild(refresh);
+    box.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'When it is plugged in, the board switches to that profile; when it is unplugged, it goes back to the profile it was in. "Anything on port N" works for whatever you plug into that port of the hub. Kept for the board, not per profile.'));
+}
+
+const rule_key = (vid, pid, port) => [vid, pid, port].map((v) => v.toString(16)).join(':');
+
+function device_name(vid, pid, port) {
+    const vp = vid.toString(16).padStart(4, '0') + ':' + pid.toString(16).padStart(4, '0');
+    const known = KNOWN_DEVICES.find(([k]) => k == vp);
+    if (known) {
+        return known[1];
     }
-    box.appendChild(dl);
-    box.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'When that device is plugged in, the board switches to the profile; when it is unplugged, it goes back to the profile it was in. Find a device\'s VID:PID in Windows Device Manager (Details → Hardware Ids). Saved for the board, not per profile.'));
+    const designated = port ? port_devices()[port] : null;
+    if (designated && designated in DEVICES) {
+        return DEVICES[designated].name;
+    }
+    return 'Device ' + vp;
+}
+
+function port_label(port) {
+    const designated = port_devices()[port];
+    return 'Port ' + port + (designated && designated in DEVICES ? ' (' + DEVICES[designated].name + ')' : '');
+}
+
+function rule_label(vid, pid, port) {
+    if (!vid && !pid) {
+        return 'Anything on ' + port_label(port).toLowerCase().replace(/^port/, 'port');
+    }
+    return device_name(vid, pid, port) + (port ? ' on port ' + port : '');
+}
+
+// what the user can pick: devices plugged in now, then "anything on port N"
+function rule_choices() {
+    const out = [];
+    const seen = new Set();
+    for (const d of board_info.devices || []) {
+        const key = rule_key(d.vid, d.pid, 0);
+        if (!seen.has(key)) {
+            seen.add(key);
+            out.push({ key, label: device_name(d.vid, d.pid, d.port) + (d.port ? ' (now on port ' + d.port + ')' : ''), group: 'Plugged in now' });
+        }
+    }
+    for (let p = 1; p < 16; p++) {
+        out.push({ key: rule_key(0, 0, p), label: 'Anything on ' + port_label(p), group: 'A hub port' });
+    }
+    return out;
+}
+
+async function load_plugged_devices() {
+    board_info.devices = [];
+    for (let i = 0; i < 16; i++) {
+        await board_cmd(GET_DEVICE, [[UINT8, i]]);
+        const [count, index, vid, pid, port] = await read_config_feature([UINT8, UINT8, UINT16, UINT16, UINT8]);
+        if (i >= count) {
+            break;
+        }
+        board_info.devices.push({ vid, pid, port });
+    }
 }
 
 // ---- Settings: Key features additions
