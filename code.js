@@ -370,12 +370,9 @@ function update_connection_pill() {
     }
     clear_children(pill);
     pill.appendChild(document.createTextNode(board_info.name || 'Connected'));
-    const parts = [];
     if (running_device_type != null && typeof board_type_label == 'function') {
-        parts.push(board_type_label(running_device_type));
+        pill.appendChild(md_element('span', { class: 'md-pill-sub' }, '· ' + board_type_label(running_device_type)));
     }
-    parts.push('v' + device_version + (board_info.version ? ' · ' + board_info.version.split(' ')[1] : ''));
-    pill.appendChild(md_element('span', { class: 'md-pill-sub' }, parts.join(' · ')));
 }
 
 // The PowerMic and foot pedal modes have no settings HID interface; the same 32-byte packets
