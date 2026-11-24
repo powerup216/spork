@@ -777,3 +777,7 @@ body:has(.mt-ghost) { cursor: grabbing; user-select: none; }
 #mappings .mt-row.mt-drop-before { box-shadow: 0 -3px 0 0 var(--lightbox); }
 #mappings .mt-row.mt-drop-after { box-shadow: 0 3px 0 0 var(--lightbox); }
 #mappings .mt-row.mt-moved { border-color: var(--lightbox); background: #1A170C; transition: none; }
+
+.md-mb-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding: 10px 12px; border-radius: 12px; border: 1px dashed #34343B; background: #0F0F11; }
+.md-mb-copy-l { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lightbox); font-weight: 600; margin-right: 4px; }
+.md-mb-clip { font-size: 12px; color: var(--muted); flex: 1 1 220px; }

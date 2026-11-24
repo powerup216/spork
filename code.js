@@ -4488,6 +4488,7 @@ function macro_builder_setup() {
         macro_entry_duration_onchange();
         mb_render();
     });
+    mb_clip_setup();
     document.getElementById('mb_clear').addEventListener('click', () => {
         if (confirm('Remove all steps from Macro ' + (mb_slot + 1) + '?')) {
             config['macros'][mb_slot] = [];
@@ -7086,4 +7087,146 @@ function macro_slot_for_single_key(usage) {
         }
     }
     return i;
+}
+
+
+// ---------------------------------------------------------------------------
+// TrueMap: copy macros between profiles. The copy is kept in this browser, so
+// it survives switching profiles (which reloads the page's settings).
+
+const MB_CLIP_KEY = 'truemap_macro_clipboard';
+
+function mb_clip_get() {
+    try {
+        const c = JSON.parse(localStorage.getItem(MB_CLIP_KEY) || 'null');
+        return c && Array.isArray(c.items) && c.items.length ? c : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function mb_clip_set(c) {
+    try {
+        localStorage.setItem(MB_CLIP_KEY, JSON.stringify(c));
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function mb_item(i) {
+    const x = config['extras'] || {};
+    return {
+        slot: i,
+        steps: JSON.parse(JSON.stringify(config['macros'][i] || [])),
+        name: (x.macro_names || {})[i] || '',
+        repeat: (x.macro_repeats || {})[i] || null,
+    };
+}
+
+function mb_is_empty(i) {
+    const m = config['macros'][i] || [];
+    return m.length == 0 || m.every((st) => st.length == 0);
+}
+
+function mb_put(i, item) {
+    config['macros'][i] = JSON.parse(JSON.stringify(item.steps));
+    const x = extras();
+    x.macro_names = x.macro_names || {};
+    if (item.name) {
+        x.macro_names[i] = item.name;
+    } else {
+        delete x.macro_names[i];
+    }
+    const x2 = x21();
+    x2.macro_repeats = x2.macro_repeats || {};
+    if (item.repeat) {
+        x2.macro_repeats[i] = Object.assign({}, item.repeat);
+    } else {
+        delete x2.macro_repeats[i];
+    }
+}
+
+function mb_clip_label(c) {
+    if (c.kind == 'one') {
+        const it = c.items[0];
+        return 'Macro ' + (it.slot + 1) + (it.name ? ' “' + it.name + '”' : '');
+    }
+    return c.items.length + ' macro' + (c.items.length == 1 ? '' : 's');
+}
+
+function mb_clip_render(msg) {
+    const c = mb_clip_get();
+    const paste = document.getElementById('mb_paste');
+    const clip = document.getElementById('mb_clip');
+    if (!paste) {
+        return;
+    }
+    paste.disabled = !c;
+    paste.innerText = !c ? 'Paste' : c.kind == 'one' ? 'Paste into Macro ' + (mb_slot + 1) : 'Paste all';
+    clip.innerText = msg || (c ? 'Copied: ' + mb_clip_label(c) + (c.from ? ' from ' + c.from : '') : '');
+}
+
+function mb_profile_name() {
+    try {
+        const t = document.querySelector('.md-prof.on .t');
+        return t ? t.innerText.trim() : '';
+    } catch (e) {
+        return '';
+    }
+}
+
+function mb_clip_setup() {
+    document.getElementById('mb_copy').addEventListener('click', () => {
+        if (mb_is_empty(mb_slot)) {
+            mb_clip_render('Macro ' + (mb_slot + 1) + ' is empty: nothing to copy.');
+            return;
+        }
+        const c = { kind: 'one', items: [mb_item(mb_slot)], from: mb_profile_name() };
+        mb_clip_render(mb_clip_set(c) ? 'Copied ' + mb_clip_label(c) + '. Switch profile, pick a macro, then Paste.' : 'This browser blocks storage, so copying can\'t work here.');
+    });
+    document.getElementById('mb_copy_all').addEventListener('click', () => {
+        const items = [];
+        for (let i = 0; i < config['macros'].length; i++) {
+            if (!mb_is_empty(i)) {
+                items.push(mb_item(i));
+            }
+        }
+        if (!items.length) {
+            mb_clip_render('No macros on this profile to copy.');
+            return;
+        }
+        const c = { kind: 'all', items, from: mb_profile_name() };
+        mb_clip_render(mb_clip_set(c) ? 'Copied ' + mb_clip_label(c) + '. Switch profile, then Paste all: they go into the same macro numbers, so mappings that use them keep working.' : 'This browser blocks storage, so copying can\'t work here.');
+    });
+    document.getElementById('mb_paste').addEventListener('click', () => {
+        const c = mb_clip_get();
+        if (!c) {
+            return;
+        }
+        if (c.kind == 'one') {
+            if (!mb_is_empty(mb_slot) && !confirm('Macro ' + (mb_slot + 1) + ' already has steps. Replace them with ' + mb_clip_label(c) + '?')) {
+                return;
+            }
+            mb_put(mb_slot, c.items[0]);
+            mb_changed();
+            mb_clip_render('Pasted into Macro ' + (mb_slot + 1) + '. Click Save to device to keep it.');
+            return;
+        }
+        const clash = c.items.filter((it) => it.slot < config['macros'].length && !mb_is_empty(it.slot)).map((it) => it.slot + 1);
+        if (clash.length && !confirm('Macros ' + clash.join(', ') + ' already have steps on this profile and will be replaced. Go ahead?')) {
+            return;
+        }
+        let n = 0;
+        for (const it of c.items) {
+            if (it.slot < config['macros'].length) {
+                mb_put(it.slot, it);
+                n++;
+            }
+        }
+        mb_changed();
+        mb_clip_render('Pasted ' + n + ' macro' + (n == 1 ? '' : 's') + '. Click Save to device to keep them.');
+    });
+    document.getElementById('mb_slot').addEventListener('change', () => setTimeout(() => mb_clip_render(), 0));
+    mb_clip_render();
 }
