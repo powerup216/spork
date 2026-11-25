@@ -113,8 +113,9 @@
                     <div class="mt-toolbar">
                         <div class="mt-titles">
                             <h2 id="mt_title" class="md-card-title">Mappings <span id="mt_count" class="mt-count"></span></h2>
-                            <span class="mt-hint">Drag a row by its number to reorder · click a row to edit it in the panel</span>
+                            <span class="mt-hint">Drag a row by its number to reorder · tick rows to move, copy or delete several at once</span>
                         </div>
+                        <label class="mt-selall" title="Tick every mapping shown"><input type="checkbox" id="mt_sel_all" class="mt-sel"><span>Select all</span></label>
                         <div class="mt-find">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="7" cy="7" r="5"></circle><path d="M11 11l3.5 3.5" stroke-linecap="round"></path></svg>
                             <label for="mt_search" class="visually-hidden">Find a mapping</label>
@@ -128,6 +129,23 @@
                             <option value="4">Layer 4</option><option value="5">Layer 5</option><option value="6">Layer 6</option><option value="7">Layer 7</option>
                         </select>
                         <button id="mt_add" type="button" class="btn btn-primary btn-sm">+ Add mapping</button>
+                    </div>
+                    <div id="mt_bulk" class="mt-bulk d-none" role="toolbar" aria-label="Selected mappings">
+                        <span id="mt_bulk_count" class="mt-bulk-count" aria-live="polite"></span>
+                        <button type="button" id="mt_bulk_all" class="mt-bulk-btn">Select all</button>
+                        <span class="mt-bulk-sep"></span>
+                        <label for="mt_bulk_move" class="visually-hidden">Move the selected mappings to a port</label>
+                        <select id="mt_bulk_move" class="form-select form-select-sm mt-bulk-sel"></select>
+                        <label for="mt_bulk_copy" class="visually-hidden">Copy the selected mappings to a port</label>
+                        <select id="mt_bulk_copy" class="form-select form-select-sm mt-bulk-sel"></select>
+                        <span class="mt-bulk-sep"></span>
+                        <button type="button" class="mt-bulk-btn" data-move="top" title="Move to the top">⤒ Top</button>
+                        <button type="button" class="mt-bulk-btn" data-move="up" title="Move up one">↑ Up</button>
+                        <button type="button" class="mt-bulk-btn" data-move="down" title="Move down one">↓ Down</button>
+                        <button type="button" class="mt-bulk-btn" data-move="bottom" title="Move to the bottom">⤓ Bottom</button>
+                        <span class="mt-bulk-sep"></span>
+                        <button type="button" id="mt_bulk_delete" class="mt-bulk-btn danger">Delete</button>
+                        <button type="button" id="mt_bulk_clear" class="mt-bulk-btn" aria-label="Clear the selection">✕</button>
                     </div>
                     <div class="mt-scroll">
                     <div class="mt-table">
@@ -625,7 +643,7 @@
 
     <template id="mapping_template">
         <div class="mapping_container mt-row">
-            <div class="mt-num" tabindex="0" role="button" aria-label="Drag to reorder (or Alt+arrow keys)" title="Drag to reorder"></div>
+            <div class="mt-num" tabindex="0" role="button" aria-label="Drag to reorder (or Alt+arrow keys)" title="Drag to reorder"><input type="checkbox" class="mt-sel" aria-label="Select this mapping" title="Select (Shift-click for a range)"></div>
             <button type="button" class="source_button mt-chip">
                 <span class="mt-ic"></span>
                 <span class="mt-t"><span class="button_label">source</span><small><span class="hub_port_badge">0</span><span class="mt-sub"></span></small></span>

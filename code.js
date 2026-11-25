@@ -208,6 +208,7 @@ document.addEventListener("DOMContentLoaded", function () {
     mt_setup();
     pk_setup();
     mt_drag_setup();
+    mt_bulk_setup();
     auto_open_setup();
     memory_poll_setup();
     document.getElementById("download_json").addEventListener("click", () => download_json(false));
@@ -3268,7 +3269,7 @@ function md_refresh() {
         if (!row.dataset.mdBound) {
             row.dataset.mdBound = '1';
             row.addEventListener('click', (event) => {
-                if (event.target.closest('.delete_button')) {
+                if (event.target.closest('.delete_button') || event.target.closest('.mt-sel')) {
                     return;
                 }
                 const index = Array.from(document.querySelectorAll('#mappings .mapping_container')).indexOf(row);
@@ -7189,9 +7190,289 @@ function mt_decorate(row, mapping) {
         e.stopPropagation();
         mt_menu(row, mapping, e.currentTarget);
     });
+    const sel = row.querySelector('.mt-num .mt-sel');
+    sel.checked = mt_selected.has(mapping);
+    row.classList.toggle('mt-picked', sel.checked);
+    sel.addEventListener('pointerdown', (e) => e.stopPropagation());
+    sel.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rows = Array.from(document.querySelectorAll('#mappings .mapping_container'));
+        const index = rows.indexOf(row);
+        if (e.shiftKey && mt_sel_anchor !== null && mt_sel_anchor < rows.length) {
+            // a range, like in a file list: only the rows shown
+            const [a, b] = [Math.min(mt_sel_anchor, index), Math.max(mt_sel_anchor, index)];
+            for (let i = a; i <= b; i++) {
+                if (!rows[i].classList.contains('d-none') && config['mappings'][i]) {
+                    if (sel.checked) {
+                        mt_selected.add(config['mappings'][i]);
+                    } else {
+                        mt_selected.delete(config['mappings'][i]);
+                    }
+                }
+            }
+        } else if (sel.checked) {
+            mt_selected.add(mapping);
+        } else {
+            mt_selected.delete(mapping);
+        }
+        mt_sel_anchor = index;
+        mt_sel_sync();
+    });
     mt_chip(row.querySelector('.source_button'));
     mt_chip(row.querySelector('.target_button'));
     mt_sync(row);
+}
+
+// ---- ticking several mappings: move, copy, reorder, delete them together
+
+let mt_selected = new Set();
+let mt_sel_anchor = null;
+
+function mt_shown_mappings() {
+    const rows = document.querySelectorAll('#mappings .mapping_container');
+    return config['mappings'].filter((m, i) => rows[i] && !rows[i].classList.contains('d-none'));
+}
+
+function mt_selected_in_order() {
+    return config['mappings'].filter((m) => mt_selected.has(m));
+}
+
+function mt_port_options(select, first) {
+    clear_children(select);
+    select.appendChild(md_element('option', { value: '' }, first));
+    const used = new Set(mt_ports_in_use());
+    for (let p = 0; p < 16; p++) {
+        const dev = p && DEVICES[port_devices()[p]] ? ' · ' + DEVICES[port_devices()[p]].name : '';
+        const label = p == 0 ? 'All ports (any port)' : 'Port ' + p + dev + (used.has(p) || dev ? '' : ' (nothing yet)');
+        select.appendChild(md_element('option', { value: String(p) }, label));
+    }
+    select.value = '';
+}
+
+function mt_sel_sync() {
+    for (const m of Array.from(mt_selected)) {
+        if (!config['mappings'].includes(m)) {
+            mt_selected.delete(m);
+        }
+    }
+    const rows = document.querySelectorAll('#mappings .mapping_container');
+    rows.forEach((row, i) => {
+        const on = mt_selected.has(config['mappings'][i]);
+        row.classList.toggle('mt-picked', on);
+        const box = row.querySelector('.mt-num .mt-sel');
+        if (box) {
+            box.checked = on;
+        }
+    });
+    const shown = mt_shown_mappings();
+    const picked_shown = shown.filter((m) => mt_selected.has(m)).length;
+    const all = document.getElementById('mt_sel_all');
+    if (all) {
+        all.checked = shown.length > 0 && picked_shown == shown.length;
+        all.indeterminate = picked_shown > 0 && picked_shown < shown.length;
+    }
+    const bar = document.getElementById('mt_bulk');
+    if (!bar) {
+        return;
+    }
+    const n = mt_selected.size;
+    bar.classList.toggle('d-none', n == 0);
+    if (n == 0) {
+        return;
+    }
+    const hidden = n - picked_shown;
+    document.getElementById('mt_bulk_count').innerText = n + ' selected' + (hidden > 0 ? ' (' + hidden + ' hidden by the filter)' : '');
+    const total = config['mappings'].length;
+    document.getElementById('mt_bulk_all').disabled = n == total;
+    document.getElementById('mt_bulk_all').innerText = 'Select all ' + total;
+    const idx = config['mappings'].map((m, i) => (mt_selected.has(m) ? i : -1)).filter((i) => i >= 0);
+    const at_top = idx.every((v, k) => v == k);
+    const at_bottom = idx.every((v, k) => v == total - idx.length + k);
+    bar.querySelector('[data-move="top"]').disabled = at_top;
+    bar.querySelector('[data-move="up"]').disabled = at_top;
+    bar.querySelector('[data-move="down"]').disabled = at_bottom;
+    bar.querySelector('[data-move="bottom"]').disabled = at_bottom;
+    for (const id of ['mt_bulk_move', 'mt_bulk_copy']) {
+        const sel = document.getElementById(id);
+        if (sel.options.length != 17 || sel.dataset.ports != JSON.stringify(port_devices()) + mt_ports_in_use()) {
+            mt_port_options(sel, id == 'mt_bulk_move' ? 'Move to port…' : 'Copy to port…');
+            sel.dataset.ports = JSON.stringify(port_devices()) + mt_ports_in_use();
+        }
+    }
+}
+
+// combos, tap-dances, cycles and wheel keys keep their port in their own settings
+function mt_port_is_own(m) {
+    return typeof m['source_usage'] == 'string' && /^0xffe[1238]/i.test(m['source_usage']);
+}
+
+function mt_after_change(note) {
+    set_mappings_ui_state();
+    if (note) {
+        display_info(note);
+    }
+}
+
+function mt_bulk_port(port, copy) {
+    const list = mt_selected_in_order();
+    const own = list.filter(mt_port_is_own);
+    const doable = list.filter((m) => !mt_port_is_own(m));
+    const where = port == 0 ? 'all ports' : 'port ' + port;
+    let done = 0;
+    let dup = 0;
+    if (copy) {
+        const added = [];
+        for (const m of doable) {
+            if ((m['source_port'] || 0) == port) {
+                dup++;
+                continue;
+            }
+            const same = (x) => x['source_usage'] == m['source_usage'] && (x['source_port'] || 0) == port && x['target_usage'] == m['target_usage'] &&
+                JSON.stringify(x['layers']) == JSON.stringify(m['layers']);
+            if (config['mappings'].some(same) || added.some(same)) {
+                dup++;
+                continue;
+            }
+            const c = JSON.parse(JSON.stringify(m));
+            c['source_port'] = port;
+            config['mappings'].splice(config['mappings'].indexOf(m) + 1, 0, c);
+            added.push(c);
+            done++;
+        }
+        mt_selected = new Set(added.length ? added : list);  // the copies stay ticked, ready to adjust
+    } else {
+        for (const m of doable) {
+            if ((m['source_port'] || 0) != port) {
+                m['source_port'] = port;
+                done++;
+            }
+        }
+    }
+    let note = (copy ? 'Copied ' : 'Moved ') + done + ' mapping' + (done == 1 ? '' : 's') + ' to ' + where + '.';
+    if (dup) {
+        note += ' ' + dup + ' already there' + (dup == 1 ? ' was' : ' were') + ' left out.';
+    }
+    if (own.length) {
+        note += ' ' + own.length + ' (combos, tap-dances, cycles or wheel keys) set their port in their own settings, so ' + (own.length == 1 ? 'it was' : 'they were') + ' left as ' + (own.length == 1 ? 'it was' : 'they were') + '.';
+    }
+    if (mt_filter.port !== null && mt_filter.port != port && !copy) {
+        mt_filter.port = null;  // otherwise the moved rows would vanish from view
+    }
+    mt_after_change(note);
+}
+
+// move the ticked mappings, in their order, so they start at position "to" (an index in the full list)
+function mt_move_block(to) {
+    const all = config['mappings'];
+    const block = all.filter((m) => mt_selected.has(m));
+    const before = all.slice(0, to).filter((m) => !mt_selected.has(m));
+    const after = all.slice(to).filter((m) => !mt_selected.has(m));
+    config['mappings'] = before.concat(block, after);
+    mt_after_change();
+}
+
+function mt_bulk_move(how) {
+    const all = config['mappings'];
+    if (how == 'top') {
+        mt_move_block(0);
+        return;
+    }
+    if (how == 'bottom') {
+        mt_move_block(all.length);
+        return;
+    }
+    // one step, each ticked row hops over the unticked row next to it
+    const a = all.slice();
+    if (how == 'up') {
+        for (let i = 1; i < a.length; i++) {
+            if (mt_selected.has(a[i]) && !mt_selected.has(a[i - 1])) {
+                [a[i - 1], a[i]] = [a[i], a[i - 1]];
+            }
+        }
+    } else {
+        for (let i = a.length - 2; i >= 0; i--) {
+            if (mt_selected.has(a[i]) && !mt_selected.has(a[i + 1])) {
+                [a[i], a[i + 1]] = [a[i + 1], a[i]];
+            }
+        }
+    }
+    config['mappings'] = a;
+    mt_after_change();
+}
+
+function mt_bulk_delete() {
+    const list = mt_selected_in_order();
+    if (!list.length) {
+        return;
+    }
+    if (list.length > 1 && !confirm('Delete ' + list.length + ' mappings?')) {
+        return;
+    }
+    config['mappings'] = config['mappings'].filter((m) => !mt_selected.has(m));
+    if (list.includes(selected_mapping)) {
+        selected_mapping = null;
+    }
+    mt_selected.clear();
+    mt_after_change('Deleted ' + list.length + ' mapping' + (list.length == 1 ? '' : 's') + '. Not on the board until you click Save to device.');
+    // the last mapping of a blocking combo went: offer to put its two buttons back (as one delete does)
+    const combos = new Set(list.map((m) => (m['source_usage'] || '').toLowerCase()).filter((u) => u.startsWith('0xfff3')));
+    for (const usage of combos) {
+        if (config['mappings'].some((m) => (m['source_usage'] || '').toLowerCase() == usage)) {
+            continue;
+        }
+        const x = xcombos().find((c) => c.index == (parseInt(usage, 16) & 0xFFFF) - 1);
+        if (x && confirm('Also put ' + readable_usage_name(x.a) + ' and ' + readable_usage_name(x.b) + ' back the way they were before the combo?')) {
+            xcombo_undo(x);
+        }
+    }
+}
+
+// the ticked-rows bar sticks just under the header, whose height changes with the width
+function mt_header_height() {
+    const h = document.querySelector('.md-header');
+    if (h) {
+        document.documentElement.style.setProperty('--md-header-h', h.offsetHeight + 'px');
+    }
+}
+
+function mt_bulk_setup() {
+    mt_header_height();
+    window.addEventListener('resize', mt_header_height);
+    document.getElementById('mt_sel_all').addEventListener('change', (e) => {
+        for (const m of mt_shown_mappings()) {
+            if (e.target.checked) {
+                mt_selected.add(m);
+            } else {
+                mt_selected.delete(m);
+            }
+        }
+        mt_sel_sync();
+    });
+    document.getElementById('mt_bulk_all').addEventListener('click', () => {
+        mt_selected = new Set(config['mappings']);
+        mt_sel_sync();
+    });
+    document.getElementById('mt_bulk_clear').addEventListener('click', () => {
+        mt_selected.clear();
+        mt_sel_sync();
+    });
+    document.getElementById('mt_bulk_delete').addEventListener('click', mt_bulk_delete);
+    document.querySelectorAll('#mt_bulk [data-move]').forEach((b) => b.addEventListener('click', () => mt_bulk_move(b.dataset.move)));
+    for (const [id, copy] of [['mt_bulk_move', false], ['mt_bulk_copy', true]]) {
+        document.getElementById(id).addEventListener('change', (e) => {
+            const v = e.target.value;
+            e.target.value = '';
+            if (v !== '') {
+                mt_bulk_port(parseInt(v), copy);
+            }
+        });
+    }
+    document.addEventListener('keydown', (e) => {
+        if (e.key == 'Escape' && mt_selected.size && document.activeElement && document.activeElement.closest('#mappings, #mt_bulk, .mt-head')) {
+            mt_selected.clear();
+            mt_sel_sync();
+        }
+    });
 }
 
 function mt_close_menu() {
@@ -7315,6 +7596,7 @@ function mt_apply_filter() {
             shown++;
         }
     });
+    mt_sel_sync();
     const n = config['mappings'].length;
     const count = document.getElementById('mt_count');
     if (count) {
@@ -7409,7 +7691,7 @@ function mt_drag_setup() {
     const list = document.getElementById('mappings');
     list.addEventListener('pointerdown', (e) => {
         const handle = e.target.closest('.mt-num');
-        if (!handle || e.button !== 0) {
+        if (!handle || e.button !== 0 || e.target.closest('.mt-sel')) {
             return;
         }
         const row = handle.closest('.mapping_container');
@@ -7474,6 +7756,11 @@ function mt_drag_setup() {
         row.classList.remove('mt-dragging');
         list.querySelectorAll('.mt-drop-before, .mt-drop-after').forEach((x) => x.classList.remove('mt-drop-before', 'mt-drop-after'));
         mt_drag = null;
+        const dragged = config['mappings'][from];
+        if (mt_selected.has(dragged) && mt_selected.size > 1) {
+            mt_move_block(to);  // dragging one of several ticked rows moves all of them
+            return;
+        }
         if (to > from) {
             to--;
         }

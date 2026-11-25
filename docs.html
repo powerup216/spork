@@ -250,6 +250,20 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
   <p><strong>Light up keys as I press them</strong> (on by default) lights each key in the picture while you press it on the real device, so you can see which key is which. Switch it off above the picture; the page remembers that on this computer.</p>
   <h3>The mapping table</h3>
   <p>Under the picture. Click a row to edit it in the panel on the right, drag a row by its number to change the order, type in <span class="path">Find a mapping…</span> to filter, and pick a layer to show only that layer's mappings.</p>
+  <h3>Working on several mappings at once</h3>
+  <ul>
+    <li>Tick the box next to a row's number. <b>Shift-click</b> another box to tick everything in between. <span class="path">Select all</span> (in the toolbar) ticks every mapping shown, so filter by port or layer first to tick just those; <span class="path">Select all N</span> in the bar ticks every mapping.</li>
+    <li>A gold bar appears with what you can do to the ticked mappings:
+      <ul>
+        <li><b>Move to port…</b>: they now listen to that port only, or to <b>All ports (any port)</b>.</li>
+        <li><b>Copy to port…</b>: a copy of each, listening to that port, goes right under the original (the copies stay ticked). Copies that would be exact duplicates are left out.</li>
+        <li><b>Top / Up / Down / Bottom</b> reorder them together, keeping their order. Dragging one ticked row by its number moves all the ticked rows there.</li>
+        <li><b>Delete</b> (asks first when it's more than one). <b>✕</b> or <kbd>Esc</kbd> clears the ticks.</li>
+      </ul>
+    </li>
+    <li>Combos, tap-dances, cycles and wheel keys keep their port in their own settings, so moving or copying them to a port leaves them as they are (the page says so).</li>
+    <li>Nothing goes to the board until you click <span class="path">Save to device</span>.</li>
+  </ul>
   <div class="tbl"><table>
     <tr><th>Column</th><th>What it means</th></tr>
     <tr><td>Input</td><td>The button, key or axis that triggers it, and which port it must come from (or any port).</td></tr>
