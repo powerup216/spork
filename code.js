@@ -7879,7 +7879,15 @@ function open_prompt_show() {
     });
     row.append(open, later);
     card.appendChild(row);
-    document.body.appendChild(card);
+    // under the header's Open / Load / Save buttons
+    (document.querySelector('.md-header-inner') || document.body).appendChild(card);
+    const btn = document.getElementById('open_serial_device');
+    if (btn) {
+        // point the little arrow at the header's Open device button
+        const c = card.getBoundingClientRect(), b = btn.getBoundingClientRect();
+        const x = Math.min(c.width - 24, Math.max(12, b.left + b.width / 2 - c.left - 6));
+        card.style.setProperty('--arrow-x', x + 'px');
+    }
     open.focus();
 }
 
