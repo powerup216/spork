@@ -2416,7 +2416,7 @@ const F_KEYS = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => ['F
 // fills in an expression for it (see dir_expressions) and maps that expression.
 //   sign: the input is a signed movement or position (tilt, shuttle ring)
 //   wrap: the input is a 0-255 position that wraps around (ShuttleXpress jog)
-const DIR = (axis, kind, sign, far = false) => ({ axis, kind, sign, far });
+const DIR = (axis, kind, sign, far = false, any = false) => ({ axis, kind, sign, far, any });
 
 function mouse_keys(extra = [], wheel_x = 2.6) {
     return [
@@ -2678,10 +2678,12 @@ const DEVICES = {
             ['ring ▶', null, 3.73, 2.25, 0.95, 0.55, false, 'dirk', DIR(0x00010038, 'sign', 1)],
             ['◀◀ far', null, 0.12, 2.85, 0.95, 0.55, false, 'dirk', DIR(0x00010038, 'sign', -1, true)],
             ['far ▶▶', null, 3.73, 2.85, 0.95, 0.55, false, 'dirk', DIR(0x00010038, 'sign', 1, true)],
+            ['↺ ring', null, 0.12, 3.45, 0.95, 0.55, false, 'dirk', DIR(0x00010038, 'sign', -1, false, true)],
+            ['ring ↻', null, 3.73, 3.45, 0.95, 0.55, false, 'dirk', DIR(0x00010038, 'sign', 1, false, true)],
             ['↺ jog', null, 1.3, 3.95, 1.0, 0.55, false, 'dirk', DIR(0x00010037, 'wrap', -1)],
             ['jog ↻', null, 2.5, 3.95, 1.0, 0.55, false, 'dirk', DIR(0x00010037, 'wrap', 1)],
         ],
-        note: '◀ ring / ring ▶ fire on a small turn, ◀◀ far / far ▶▶ on a bigger one (set where "far" starts in the panel). ↺ jog / jog ↻ fire once per click. Needs a board that handles low-speed USB: the Feather works, the Waveshare RP2350 doesn\'t.',
+        note: '◀ ring / ring ▶ fire on a small turn, ◀◀ far / far ▶▶ on a bigger one (set where "far" starts in the panel), ↺ ring / ring ↻ on any turn counter-clockwise / clockwise. ↺ jog / jog ↻ fire once per click. Needs a board that handles low-speed USB: the Feather works, the Waveshare RP2350 doesn\'t.',
     },
 };
 const DEVICE_ORDER = ['full', 'z15', 'k75', 'k68', 'km16', 'mouse', 'g502', 'g303', 'em06', 'magscroll', 'shuttle'];
@@ -2848,6 +2850,7 @@ function render_device_picture() {
                 key.dataset.kind = dir.kind;
                 key.dataset.sign = String(dir.sign);
                 key.dataset.far = dir.far ? '1' : '';
+                key.dataset.any = dir.any ? '1' : '';
                 key.setAttribute('aria-label', readable_usage_name(key_usage(dir.axis)) + ' ' + label);
                 key.addEventListener('click', () => dir_key_clicked(dir));
             } else if (fixed) {
@@ -2915,7 +2918,7 @@ function dir_key_usage(dir, port) {
         const w = config['extras']['wheel_keys'].findIndex((k) => parseInt(k.usage, 16) == dir.axis && (k.port || 0) == port);
         if (w >= 0) {
             const kind2 = config['extras']['wheel_keys'][w].kind == 2;
-            const tries = dir.far ? [dir.sign > 0 ? 3 : 4] : (kind2 ? [dir.sign > 0 ? 5 : 6, dir.sign > 0 ? 1 : 2] : [dir.sign > 0 ? 1 : 2]);
+            const tries = dir.far ? [dir.sign > 0 ? 3 : 4] : (kind2 && !dir.any ? [dir.sign > 0 ? 5 : 6] : [dir.sign > 0 ? 1 : 2]);
             for (const a of tries) {
                 const usage = x_wheel_usage(w, a);
                 if (config['mappings'].some((m) => x_same_key(m['source_usage'], usage))) {
@@ -2942,7 +2945,7 @@ function dir_key_clicked(dir) {
         const kind = dir.kind == 'wrap' ? 1 : (dir.axis == 0x00010038 ? 2 : 0);
         const existing = dir_key_usage(dir, port);
         const a = existing && /^0xffe8/i.test(existing) ? (parseInt(existing, 16) & 0xF)
-            : dir.far ? (dir.sign > 0 ? 3 : 4) : kind == 2 ? (dir.sign > 0 ? 5 : 6) : (dir.sign > 0 ? 1 : 2);
+            : dir.far ? (dir.sign > 0 ? 3 : 4) : (kind == 2 && !dir.any) ? (dir.sign > 0 ? 5 : 6) : (dir.sign > 0 ? 1 : 2);
         const m = wheel_keys_mapping(xu(dir.axis), port, kind, a);
         if (m) {
             set_mappings_ui_state();
@@ -3117,7 +3120,7 @@ function md_refresh() {
         }
     });
     document.querySelectorAll('#kb_picture .md-key[data-axis]').forEach((key) => {
-        const dir = { axis: parseInt(key.dataset.axis, 16), kind: key.dataset.kind, sign: parseInt(key.dataset.sign), far: key.dataset.far == '1' };
+        const dir = { axis: parseInt(key.dataset.axis, 16), kind: key.dataset.kind, sign: parseInt(key.dataset.sign), far: key.dataset.far == '1', any: key.dataset.any == '1' };
         const usage = dir_key_usage(dir, port);
         if (usage) {
             key.dataset.usage = usage;
