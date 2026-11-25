@@ -209,6 +209,15 @@ document.addEventListener("DOMContentLoaded", function () {
     pk_setup();
     mt_drag_setup();
     mt_bulk_setup();
+    document.getElementById('profiles_start_last').addEventListener('change', (e) => profile_action(async () => {
+        const mode = e.target.checked ? 0 : 1;
+        try {
+            await board_op(BOARD_SET_START, [[UINT8, mode]]);
+            profiles_start.mode = mode;
+        } finally {
+            render_profiles_start();  // shows what the board has, also if that failed
+        }
+    }));
     auto_open_setup();
     memory_poll_setup();
     document.getElementById("download_json").addEventListener("click", () => download_json(false));
@@ -2316,10 +2325,38 @@ async function refresh_profiles() {
             name: new TextDecoder().decode(new Uint8Array(name_bytes)),
         });
     }
+    profiles_start = null;
+    if (device_v21()) {
+        await send_feature_command(BOARD_GET_START);
+        const [mode, last] = await read_config_feature([UINT8, UINT8]);
+        // older firmware doesn't know this and answers with whatever came before
+        if ((mode <= 1) && ((last < nprofiles) || (last == 0xFF))) {
+            profiles_start = { mode, last };
+        }
+    }
     render_profiles();
 }
 
+let profiles_start = null;  // { mode: 0 last used / 1 the default profile, last: slot or 0xFF }
+
+function render_profiles_start() {
+    const row = document.getElementById('profiles_start_row');
+    row.classList.toggle('d-none', profiles_start == null);
+    if (profiles_start == null) {
+        return;
+    }
+    const box = document.getElementById('profiles_start_last');
+    box.checked = profiles_start.mode == 0;
+    const def = profiles.find((p) => p.is_default);
+    const def_name = def ? (def.slot + 1) + (def.name ? ' "' + def.name + '"' : '') : '1';
+    const last = profiles[profiles_start.last];
+    document.getElementById('profiles_start_hint').innerText = box.checked
+        ? 'Next time it starts in ' + (last && last.saved ? 'profile ' + (last.slot + 1) + (last.name ? ' "' + last.name + '"' : '') : 'the Default profile (' + def_name + ')') + '.'
+        : 'It always starts in the Default profile (' + def_name + ').';
+}
+
 function render_profiles() {
+    render_profiles_start();
     const tbody = document.getElementById('profiles_tbody');
     clear_children(tbody);
     const save_slot = document.getElementById('profile_save_slot');
@@ -2365,6 +2402,9 @@ async function profile_action(action) {
     }
     if ((device == null) || busy) {
         render_board_v21();  // nothing done: put switches back as they are
+        if (profiles_start) {
+            render_profiles_start();
+        }
         return;
     }
     busy = true;
@@ -5711,6 +5751,7 @@ function key_features_setup() {
 const BOARD_GET_NAME = 109, BOARD_SET_NAME = 110, BOARD_GET_RULE = 111, BOARD_SET_RULE = 112;
 const FIRMWARE_INFO = 113, RESTART_BOARD = 114, DRY_RUN = 115, GET_STATE = 116;
 const PROFILE_RAW_READ = 117, PROFILE_RAW_BEGIN = 118, PROFILE_RAW_APPEND = 119, PROFILE_RAW_COMMIT = 120, GET_DEVICE = 121;
+const BOARD_SET_START = 126, BOARD_GET_START = 127;
 const BOARD_GET_PART_RULE = 122, BOARD_SET_PART_RULE = 123, GET_PART = 124, GET_MEMORY = 125, NPART_RULES = 16;
 const PART_SKIP = 0x01, PART_KEEP_VENDOR = 0x02;
 const PART_STATE_SKIPPED = 0x01, PART_STATE_VENDOR_LEFT_OUT = 0x02, PART_STATE_VENDOR_KEPT = 0x04;
