@@ -210,7 +210,8 @@ document.addEventListener("DOMContentLoaded", function () {
     mt_drag_setup();
     auto_open_setup();
     memory_poll_setup();
-    document.getElementById("download_json").addEventListener("click", download_json);
+    document.getElementById("download_json").addEventListener("click", () => download_json(false));
+    document.getElementById("download_json_all").addEventListener("click", () => download_json(true));
     document.getElementById("upload_json").addEventListener("click", upload_json);
     document.getElementById("flash_firmware").addEventListener("click", flash_firmware);
     document.getElementById("flash_b_side").addEventListener("click", flash_b_side);
@@ -1105,9 +1106,9 @@ function add_mapping(mapping) {
     }
 }
 
-// Export JSON: the settings on the page, plus (with a board open) every profile saved on
-// the board, so one file brings back all of them. Import JSON reads both parts.
-async function download_json() {
+// Export this profile: the settings on the page. Export all profiles: the same, plus every
+// profile saved on the board, so one file brings back all of them. Import JSON reads both.
+async function download_json(all = false) {
     clear_error();
     extras();
     extras_prune();
@@ -1115,7 +1116,14 @@ async function download_json() {
     delete out.truemap_backup;
     delete out.profiles;
     let name = 'hid-remapper-config.json';
-    const saved = (device != null && device_v21()) ? profiles.filter((p) => p.saved) : [];
+    if (all && (device == null || !device_v21())) {
+        display_error('Open the board first: "Export all profiles" reads them from the board. "Export this profile" works without it.');
+        return;
+    }
+    const saved = all ? profiles.filter((p) => p.saved) : [];
+    if (all && !saved.length) {
+        display_info('No profiles are saved on the board yet, so this file has just the page\'s settings.');
+    }
     if (saved.length) {
         let ok = false;
         await profile_action(async () => {
@@ -1176,7 +1184,7 @@ function file_uploaded() {
                 return;
             }
             check_json_version(new_config['version']);
-            const board_profiles = (new_config.truemap_backup && Array.isArray(new_config.profiles)) ? new_config : null;
+            const board_profiles = (new_config.truemap_backup && Array.isArray(new_config.profiles)) ? { truemap_backup: 1, profiles: new_config.profiles } : null;
             delete new_config.truemap_backup;
             delete new_config.profiles;
             delete new_config.saved;
@@ -1185,10 +1193,10 @@ function file_uploaded() {
             page_from_file = true;
             set_ui_state();
             validate_ui_expressions();
-            switch_to_mappings_tab();
             if (board_profiles && board_profiles.profiles.length) {
                 setTimeout(() => import_board_profiles(board_profiles), 50);
             }
+            switch_to_mappings_tab();
         } catch (e) {
             display_error(e);
         }

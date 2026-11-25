@@ -452,7 +452,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>Custom usages</td><td>Add codes not in the lists (for unusual devices).</td></tr>
   </table></div>
   <h3>Actions</h3>
-  <p><span class="path">Settings → Actions</span> has Export JSON / Import JSON and firmware flashing. With the board open, <b>Export JSON saves every profile on the board</b> in one file, together with the settings on the page. Import JSON puts the page's settings back and offers to write the other profiles to the board (the profile in use gets the page's settings when you click Save to device). Without a board open, it exports just the page.</p>
+  <p><span class="path">Settings → Actions</span> has the JSON exports, Import JSON and firmware flashing. There are two exports: <b>Export this profile</b> saves the settings on the page, and <b>Export all profiles</b> (board open) saves every profile on the board in one file, together with the page's settings. Import JSON takes either: it puts the page's settings back and, from an "all profiles" file, offers to write the other profiles to the board (the profile in use gets the page's settings when you click Save to device).</p>
 </section>
 
 <!-- ============================================================ -->
@@ -481,8 +481,8 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <li><strong>Save as:</strong> on the Profiles tab, save the page into any slot with a name (e.g. “GE PACS reading”).</li>
     <li><strong>Switch with a button:</strong> map a key to Profile 1–8, Next profile or Previous profile.</li>
     <li><strong>Switch automatically:</strong> in Settings, under <span class="path">Switch profile when a device is plugged in</span>, pick a device from the list of what's plugged in now (no typing IDs) or a port, and the profile to use. Up to 8 rules. Choosing “any device on port N” matches whatever is on that port.</li>
-    <li><strong>Back up all profiles</strong> to one file, and <strong>Restore from a backup</strong> on another board or after a reset. <span class="path">Settings → Actions → Export JSON</span> does the same while the board is open, and also keeps the page's settings readable in the file; Import JSON offers to write the profiles back.</li>
-    <li>The profile in use can't be overwritten by a restore; switch to another profile first, or (from an Export JSON file) click Save to device to put the page's settings into it.</li>
+    <li><strong>Back up all profiles</strong> to one file, and <strong>Restore from a backup</strong> on another board or after a reset. <span class="path">Settings → Actions → Export all profiles</span> does the same, and also keeps the page's settings readable in the file; Import JSON offers to write the profiles back.</li>
+    <li>The profile in use can't be overwritten by a restore; switch to another profile first, or (from an Export all profiles file) click Save to device to put the page's settings into it.</li>
     <li>The side bar lists the profiles on the board, so you can see which one is in use.</li>
   </ul>
 </section>

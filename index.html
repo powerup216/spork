@@ -567,12 +567,18 @@
 
             <div class="tab-pane" id="nav-actions" role="tabpanel" tabindex="0">
 
-                <div class="row mt-4">
-                    <div class="col-4">
-                        <button id="download_json" type="button" class="btn btn-primary w-100">Export JSON</button>
+                <div class="row mt-4 g-2">
+                    <div class="col-12 col-md-4">
+                        <button id="download_json" type="button" class="btn btn-primary w-100">Export this profile (JSON)</button>
+                        <div class="form-text">The settings on this page.</div>
                     </div>
-                    <div class="col-4">
+                    <div class="col-12 col-md-4">
+                        <button id="download_json_all" type="button" class="btn btn-primary w-100">Export all profiles (JSON)</button>
+                        <div class="form-text">This page plus every profile saved on the board. Needs the board open.</div>
+                    </div>
+                    <div class="col-12 col-md-4">
                         <button id="upload_json" type="button" class="btn btn-primary w-100">Import JSON</button>
+                        <div class="form-text">Either kind. From an "all profiles" file it also offers to write the profiles to the board.</div>
                     </div>
                 </div>
 
