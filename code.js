@@ -303,6 +303,9 @@ async function open_device() {
     }
 
     busy = false;
+    if (success) {
+        await autoload_after_open();
+    }
 }
 
 async function open_serial_device() {
@@ -341,6 +344,9 @@ async function open_serial_device() {
     }
 
     busy = false;
+    if (success) {
+        await autoload_after_open();
+    }
 }
 
 let running_device_type = null;
@@ -627,6 +633,7 @@ async function load_from_device() {
 
         await load_extras_from_device();
 
+        page_from_file = false;
         set_ui_state();
         validate_ui_expressions();
     } catch (e) {
@@ -785,6 +792,7 @@ async function save_to_device() {
 
         switch (persist_config_return_code) {
             case PERSIST_CONFIG_SUCCESS:
+                page_from_file = false;
                 if ((running_device_type !== null) && (config['our_descriptor_number'] != running_device_type)) {
                     display_info('Saved. The board is restarting as the new device type. Wait a few seconds, then click Open device again (with older firmware, unplug and replug the board first).');
                     running_device_type = null;
@@ -1130,6 +1138,7 @@ function file_uploaded() {
             const new_config = JSON.parse(e.target.result);
             check_json_version(new_config['version']);
             config = new_config;
+            page_from_file = true;
             set_ui_state();
             validate_ui_expressions();
             switch_to_mappings_tab();
@@ -1749,6 +1758,7 @@ function input_labels_onchange(element_id) {
 
 function load_example(n) {
     config = structuredClone(examples[n]['config']);
+    page_from_file = true;
     set_ui_state();
     validate_ui_expressions();
     switch_to_mappings_tab();
@@ -6026,6 +6036,10 @@ function render_board_v21() {
     }
     clear_children(box);
     const ok = device != null && device_v21();
+    if (device != null) {
+        box.appendChild(autoload_switch());
+        box.appendChild(md_element('p', { class: 'md-board-p' }, 'Saved in this browser for this board. If the page has settings from a file you haven\'t saved yet, they are kept instead.'));
+    }
     if (!ok) {
         box.appendChild(md_element('p', { class: 'md-board-p mb-0' }, device == null
             ? 'Open the board to name it, restart it and set profiles that switch by themselves.'
@@ -7356,4 +7370,54 @@ function mb_clip_setup() {
     });
     document.getElementById('mb_slot').addEventListener('change', () => setTimeout(() => mb_clip_render(), 0));
     mb_clip_render();
+}
+
+
+// ---------------------------------------------------------------------------
+// TrueMap: load the board's settings as soon as it is opened. On by default;
+// switched off per board (by its name) in this browser, from Settings.
+
+let page_from_file = false;  // the page holds settings from a file or an example that aren't on the board yet
+
+function autoload_key() {
+    return 'truemap_autoload:' + ((board_info && board_info.name) || '');
+}
+
+function autoload_on() {
+    try {
+        const v = localStorage.getItem(autoload_key());
+        return v === null ? true : v == '1';
+    } catch (e) {
+        return true;
+    }
+}
+
+function autoload_set(on) {
+    try {
+        localStorage.setItem(autoload_key(), on ? '1' : '0');
+    } catch (e) {
+        // no storage: the switch only lasts until the page is closed
+    }
+}
+
+async function autoload_after_open() {
+    if (device == null || !autoload_on()) {
+        return;
+    }
+    if (page_from_file) {
+        display_info('Kept the settings on this page (from a file or an example) instead of loading the board\'s. Click Save to device to put them on the board, or Load from device to replace them.');
+        return;
+    }
+    await load_from_device();
+}
+
+function autoload_switch() {
+    const row = md_element('div', { class: 'form-check form-switch md-autoload' });
+    const input = md_element('input', { class: 'form-check-input', type: 'checkbox', id: 'autoload_switch', role: 'switch' });
+    input.checked = autoload_on();
+    input.addEventListener('change', () => autoload_set(input.checked));
+    row.appendChild(input);
+    row.appendChild(md_element('label', { class: 'form-check-label', for: 'autoload_switch' },
+        'Load ' + (board_info && board_info.name ? '“' + board_info.name + '”' : 'this board') + '’s settings as soon as it’s opened'));
+    return row;
 }
