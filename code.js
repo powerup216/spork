@@ -794,8 +794,10 @@ async function save_to_device() {
             case PERSIST_CONFIG_SUCCESS:
                 page_from_file = false;
                 if ((running_device_type !== null) && (config['our_descriptor_number'] != running_device_type)) {
-                    display_info('Saved. The board is restarting as the new device type. Wait a few seconds, then click Open device again (with older firmware, unplug and replug the board first).');
                     running_device_type = null;
+                    restart_after_save = 'Saved. The board is restarting as the new device type.';
+                } else if (device_v21() && await board_restarting()) {
+                    restart_after_save = 'Saved. The board is restarting to load the new settings.';
                 } else if (device_has_profiles()) {
                     await refresh_profiles();
                 }
@@ -820,6 +822,11 @@ async function save_to_device() {
     }
 
     busy = false;
+    if (restart_after_save) {
+        const msg = restart_after_save;
+        restart_after_save = null;
+        await reconnect_after_restart(msg);
+    }
 }
 
 async function do_get_usages_from_device(command, rle_count) {
@@ -2317,8 +2324,8 @@ async function profile_action(action) {
 }
 
 function profile_restart_message(slot) {
-    display_info('Switched to profile ' + (slot + 1) + '. It uses a different device type, so the board is restarting. Wait a few seconds, then click Open device again.');
     running_device_type = null;
+    reconnect_after_restart('Switched to profile ' + (slot + 1) + '. The board is restarting to load it.');
 }
 
 function profile_switch(slot) {
@@ -2348,8 +2355,8 @@ function profile_save_as() {
         const r = await profile_command(PROFILE_SAVE_AS, slot, name);
         await send_feature_command(RESUME);
         if (r.restarting) {
-            display_info('Saved as profile ' + (slot + 1) + '. It uses a different device type, so the board is restarting. Wait a few seconds, then click Open device again.');
             running_device_type = null;
+            reconnect_after_restart('Saved as profile ' + (slot + 1) + '. The board is restarting to load it.');
             return;
         }
         document.getElementById('profile_save_name').value = '';
@@ -7437,4 +7444,76 @@ function autoload_switch() {
     row.appendChild(md_element('label', { class: 'form-check-label', for: 'autoload_switch' },
         'Load ' + (board_info && board_info.name ? '“' + board_info.name + '”' : 'this board') + '’s settings as soon as it’s opened'));
     return row;
+}
+
+
+// ---------------------------------------------------------------------------
+// TrueMap: the board restarts to apply settings (a new device type, or when it
+// hasn't enough memory to swap settings in place). Reconnect by itself.
+
+let restart_after_save = null;
+
+async function board_restarting() {
+    try {
+        const st = await read_board_state();
+        return (st.flags & 0x0200) != 0;
+    } catch (e) {
+        return false;
+    }
+}
+
+const sleep_ms = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function reconnect_after_restart(msg) {
+    display_info(msg + ' Reconnecting…');
+    const was_serial = (typeof SerialLink != 'undefined') && (device instanceof SerialLink);
+    try {
+        await device.close();
+    } catch (e) {
+        // already gone
+    }
+    device = null;
+    device_buttons_set_disabled_state(true);
+    await sleep_ms(1500);
+    for (let attempt = 0; attempt < 16; attempt++) {
+        await sleep_ms(500);
+        try {
+            if (was_serial) {
+                for (const port of await navigator.serial.getPorts()) {
+                    const link = new SerialLink(port);
+                    try {
+                        await link.open();
+                    } catch (e) {
+                        continue;
+                    }
+                    device = link;
+                    if (await device_opened()) {
+                        break;
+                    }
+                    await link.close();
+                    device = null;
+                }
+            } else if (navigator.hid) {
+                const found = (await navigator.hid.getDevices()).find((d) => d.collections.some((c) => c.usagePage == 0xff00));
+                if (found) {
+                    device = found;
+                    if (!device.opened) {
+                        await device.open();
+                    }
+                    if (!(await device_opened())) {
+                        device = null;
+                    }
+                }
+            }
+        } catch (e) {
+            device = null;
+        }
+        if (device != null) {
+            device_buttons_set_disabled_state(false);
+            display_info(msg + ' Reconnected.');
+            await autoload_after_open();
+            return;
+        }
+    }
+    display_info(msg + ' Click Open device when it is back (a new device type needs to be picked again).');
 }
