@@ -3286,7 +3286,15 @@ function md_setup() {
     board_setup();
     key_features_setup();
     v21_setup();
-    document.getElementById('kb_live').addEventListener('change', kb_live_onchange);
+    // "Light up keys" is on unless it was switched off on this computer
+    const kb_live = document.getElementById('kb_live');
+    try {
+        kb_live.checked = localStorage.getItem('truemap_light_up') != '0';
+    } catch (e) {
+        kb_live.checked = true;
+    }
+    monitor_enabled = kb_live.checked;
+    kb_live.addEventListener('change', kb_live_onchange);
     document.getElementById('side_manage_profiles').addEventListener('click', () => {
         const tab = document.getElementById('nav-profiles-tab');
         if (window.bootstrap && bootstrap.Tab && bootstrap.Tab.getOrCreateInstance) {
@@ -3328,6 +3336,11 @@ function md_setup() {
 
 async function kb_live_onchange() {
     const on = document.getElementById('kb_live').checked;
+    try {
+        localStorage.setItem('truemap_light_up', on ? '1' : '0');
+    } catch (e) {
+        // no storage: lasts until the page is closed
+    }
     try {
         await set_monitor_enabled(on);  // remembered if no board is open yet
     } catch (e) {
