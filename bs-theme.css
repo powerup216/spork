@@ -784,3 +784,13 @@ body:has(.mt-ghost) { cursor: grabbing; user-select: none; }
 
 .md-recovered { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid #4A3F1C; background: #1A170C; color: #F5DC94; font-size: 13px; }
 .md-recovered span { color: var(--muted); }
+
+/* Settings: parts of each plugged-in device */
+.md-parts { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.md-parts-dev { border: 1px solid var(--line, #2A2F3A); border-radius: 10px; padding: 8px 12px; }
+.md-parts-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+.md-parts-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 3px 0; font-size: 0.875rem; }
+.md-parts-row + .md-parts-row { border-top: 1px dashed var(--line, #2A2F3A); }
+.md-parts-meta { color: var(--muted); font-size: 0.8rem; }
+.md-parts-vendor { font-size: 0.8rem; }
+.md-parts-pending { font-size: 0.75rem; padding: 1px 8px; border-radius: 999px; border: 1px solid #4A3F1C; background: #1A170C; color: #F5DC94; }

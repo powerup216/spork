@@ -5645,6 +5645,9 @@ function key_features_setup() {
 const BOARD_GET_NAME = 109, BOARD_SET_NAME = 110, BOARD_GET_RULE = 111, BOARD_SET_RULE = 112;
 const FIRMWARE_INFO = 113, RESTART_BOARD = 114, DRY_RUN = 115, GET_STATE = 116;
 const PROFILE_RAW_READ = 117, PROFILE_RAW_BEGIN = 118, PROFILE_RAW_APPEND = 119, PROFILE_RAW_COMMIT = 120, GET_DEVICE = 121;
+const BOARD_GET_PART_RULE = 122, BOARD_SET_PART_RULE = 123, GET_PART = 124, NPART_RULES = 16;
+const PART_SKIP = 0x01, PART_KEEP_VENDOR = 0x02;
+const PART_STATE_SKIPPED = 0x01, PART_STATE_VENDOR_LEFT_OUT = 0x02, PART_STATE_VENDOR_KEPT = 0x04;
 const X_SCROLL_LOCK = 9, X_DEVICE = 10, X_POINTER_MODES = 11, X_IDLE = 12, X_MACRO_REPEAT = 13, X_WHEEL_KEYS = 14;
 const BOARD_NAME_LEN = 24, NBOARD_RULES = 8;
 const WHEEL_KINDS = { 0: 'turns (wheel, tilt)', 1: 'jog (wraps 0-255)', 2: 'dial that holds its position' };
@@ -5653,7 +5656,8 @@ const KNOWN_DEVICES = [
     ['046d:c07e', 'Logitech G402'], ['05f3:00ff', 'Foot pedal (3Key)'],
 ];
 
-let board_info = { name: '', version: '', rules: [], devices: [] };
+let board_info = { name: '', version: '', rules: [], devices: [], parts: [], part_rules: [] };
+let parts_changed = false;
 let board_state = null;
 let state_timer = null;
 let dry_run_timer = null;
@@ -5816,7 +5820,7 @@ async function board_cmd(command, fields = []) {
 }
 
 async function load_board_info() {
-    board_info = { name: '', version: '', rules: [], devices: [] };
+    board_info = { name: '', version: '', rules: [], devices: [], parts: [], part_rules: [] };
     if (device == null || !device_v21()) {
         return;
     }
@@ -5832,6 +5836,7 @@ async function load_board_info() {
         board_info.rules.push({ index: i, vid, pid, port, slot });
     }
     await load_plugged_devices();
+    await load_parts();
     try {
         board_info.recovered = (await read_board_state()).recovered;
     } catch (e) {
@@ -6170,10 +6175,149 @@ function render_board_v21() {
     const refresh = md_element('button', { type: 'button', class: 'btn btn-sm btn-link px-0' }, 'Plugged something in? Refresh the list');
     refresh.addEventListener('click', () => profile_action(async () => {
         await load_plugged_devices();
+        await load_parts();
         render_board_v21();
     }));
     box.appendChild(refresh);
     box.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'When it is plugged in, the board switches to that profile; when it is unplugged, it goes back to the profile it was in. "Anything on port N" works for whatever you plug into that port of the hub. Kept for the board, not per profile.'));
+    render_parts(box);
+}
+
+// ---- parts of each plugged-in device (keyboard, mouse, media keys...)
+
+function part_kind_label(k) {
+    const names = {
+        0x00010006: 'Keyboard', 0x00010007: 'Keypad', 0x00010002: 'Mouse', 0x00010001: 'Pointer',
+        0x00010004: 'Joystick', 0x00010005: 'Gamepad', 0x00010008: 'Multi-axis controller', 0x00010080: 'Power and sleep keys',
+        0x000c0001: 'Media keys', 0x000d0001: 'Pen', 0x000d0002: 'Pen', 0x000d0004: 'Touch screen', 0x000d0005: 'Touchpad',
+        0x000b0005: 'Phone keys', 0x000b0001: 'Phone keys', 0x00010000: 'Other',
+    };
+    if (k in names) {
+        return names[k];
+    }
+    if ((k >>> 16) >= 0xff00) {
+        return 'Vendor channel';
+    }
+    return 'Other (' + (k >>> 16).toString(16).padStart(4, '0') + ':' + (k & 0xffff).toString(16).padStart(4, '0') + ')';
+}
+
+function part_label(p) {
+    const kinds = p.kinds.filter((k) => k);
+    if (!kinds.length) {
+        return 'Part ' + p.itf;
+    }
+    return [...new Set(kinds.map(part_kind_label))].join(' + ');
+}
+
+async function load_parts() {
+    board_info.parts = [];
+    board_info.part_rules = [];
+    for (let i = 0; i < 32; i++) {
+        await board_cmd(GET_PART, [[UINT8, i]]);
+        const [count, index, vid, pid, itf, port, state, inputs, k0, k1, k2] =
+            await read_config_feature([UINT8, UINT8, UINT16, UINT16, UINT8, UINT8, UINT8, UINT16, UINT32, UINT32, UINT32]);
+        if (i >= count || index != i) {
+            break;
+        }
+        board_info.parts.push({ vid, pid, itf, port, state, inputs, kinds: [k0 >>> 0, k1 >>> 0, k2 >>> 0] });
+    }
+    for (let i = 0; i < NPART_RULES; i++) {
+        await board_cmd(BOARD_GET_PART_RULE, [[UINT8, i]]);
+        const [index, vid, pid, itf, flags] = await read_config_feature([UINT8, UINT16, UINT16, UINT8, UINT8]);
+        board_info.part_rules.push({ index: i, vid, pid, itf, flags: index == i ? flags : 0 });
+    }
+}
+
+function part_rule_for(p) {
+    return board_info.part_rules.find((r) => r.flags && r.vid == p.vid && r.pid == p.pid && r.itf == p.itf);
+}
+
+async function save_part_flags(p, flags) {
+    let rule = part_rule_for(p) || board_info.part_rules.find((r) => !r.flags);
+    if (!rule) {
+        throw new Error('The board keeps ' + NPART_RULES + ' part switches. Turn one back to normal first.');
+    }
+    const next = flags ? { index: rule.index, vid: p.vid, pid: p.pid, itf: p.itf, flags } : { index: rule.index, vid: 0, pid: 0, itf: 0, flags: 0 };
+    await board_op(BOARD_SET_PART_RULE, [[UINT8, next.index], [UINT16, next.vid], [UINT16, next.pid], [UINT8, next.itf], [UINT8, next.flags]]);
+    board_info.part_rules[rule.index] = next;
+    parts_changed = true;
+}
+
+function render_parts(box) {
+    box.appendChild(md_element('h3', { class: 'md-board-lbl mt-3' }, 'Parts of each device'));
+    box.appendChild(md_element('p', { class: 'md-board-p' }, 'Many devices are several parts in one: a wireless receiver can be a keyboard, a mouse and media keys at once. Every part the board reads takes memory. If a part isn\'t needed, switch it off here. Vendor channels (the maker\'s own settings or lighting channel) are left out by themselves, except on dictation devices; switch one on if you need it.'));
+    if (!board_info.parts.length) {
+        box.appendChild(md_element('p', { class: 'md-board-p' }, 'Nothing plugged in right now (or the firmware is older than this page).'));
+        return;
+    }
+    const list = md_element('div', { class: 'md-parts' });
+    const groups = new Map();
+    for (const p of board_info.parts) {
+        const key = p.vid + ':' + p.pid + ':' + p.port;
+        if (!groups.has(key)) {
+            groups.set(key, []);
+        }
+        groups.get(key).push(p);
+    }
+    let n = 0;
+    for (const parts of groups.values()) {
+        const first = parts[0];
+        const dev = md_element('div', { class: 'md-parts-dev' });
+        dev.appendChild(md_element('div', { class: 'md-parts-name' }, device_name(first.vid, first.pid, first.port) + (first.port ? ' · port ' + first.port : '')));
+        for (const p of parts.sort((a, b) => a.itf - b.itf)) {
+            const rule = part_rule_for(p);
+            const flags = rule ? rule.flags : 0;
+            const row = md_element('div', { class: 'md-parts-row' });
+            const id = 'part_sw_' + (n++);
+            const sw = md_element('div', { class: 'form-check form-switch mb-0' });
+            const on = md_element('input', { class: 'form-check-input', type: 'checkbox', role: 'switch', id });
+            on.checked = !(flags & PART_SKIP);
+            on.addEventListener('change', () => profile_action(async () => {
+                await save_part_flags(p, (flags & ~PART_SKIP) | (on.checked ? 0 : PART_SKIP));
+                on.blur();  // the list is only redrawn when nothing in it has the focus
+                render_board_v21();
+            }));
+            sw.appendChild(on);
+            const what = part_label(p);
+            const lbl = md_element('label', { class: 'form-check-label', for: id }, what);
+            sw.appendChild(lbl);
+            row.appendChild(sw);
+            const now = (p.state & PART_STATE_SKIPPED) ? 'off now' : (p.inputs + (p.inputs == 1 ? ' input' : ' inputs'));
+            row.appendChild(md_element('span', { class: 'md-parts-meta' }, now));
+            if (!(flags & PART_SKIP) && ((p.state & (PART_STATE_VENDOR_LEFT_OUT | PART_STATE_VENDOR_KEPT)) || (flags & PART_KEEP_VENDOR))) {
+                const vid_ = id + '_v';
+                const vs = md_element('div', { class: 'form-check form-switch mb-0 md-parts-vendor' });
+                const v = md_element('input', { class: 'form-check-input', type: 'checkbox', role: 'switch', id: vid_ });
+                v.checked = (flags & PART_KEEP_VENDOR) != 0;
+                v.addEventListener('change', () => profile_action(async () => {
+                    await save_part_flags(p, (flags & ~PART_KEEP_VENDOR) | (v.checked ? PART_KEEP_VENDOR : 0));
+                    v.blur();
+                    render_board_v21();
+                }));
+                vs.appendChild(v);
+                vs.appendChild(md_element('label', { class: 'form-check-label', for: vid_ }, 'its vendor channel'));
+                row.appendChild(vs);
+            }
+            const pending = ((flags & PART_SKIP) != 0) != ((p.state & PART_STATE_SKIPPED) != 0) ||
+                (!(flags & PART_SKIP) && (((flags & PART_KEEP_VENDOR) != 0) != ((p.state & PART_STATE_VENDOR_KEPT) != 0)) && (p.state & (PART_STATE_VENDOR_LEFT_OUT | PART_STATE_VENDOR_KEPT)));
+            if (pending) {
+                row.appendChild(md_element('span', { class: 'md-parts-pending' }, 'after a restart'));
+            }
+            dev.appendChild(row);
+        }
+        list.appendChild(dev);
+    }
+    box.appendChild(list);
+    if (parts_changed) {
+        const apply = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary mt-1' }, 'Restart the board to apply');
+        apply.addEventListener('click', () => profile_action(async () => {
+            parts_changed = false;
+            await board_cmd(RESTART_BOARD);
+            reconnect_after_restart('The board is restarting with the new part switches.');
+        }));
+        box.appendChild(apply);
+    }
+    box.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'A part that is off is ignored completely: its keys and buttons don\'t reach the computer either, not even unmapped. Changes apply when the device is next plugged in or the board restarts. Kept for the board (by device and part), not per profile.'));
 }
 
 const rule_key = (vid, pid, port) => [vid, pid, port].map((v) => v.toString(16)).join(':');

@@ -402,8 +402,18 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>Name</td><td>The board's name (per board).</td></tr>
     <tr><td>Restart</td><td>Restarts the board.</td></tr>
     <tr><td>Switch profile when a device is plugged in</td><td>Automatic profiles. See <a href="#profiles">Profiles</a>.</td></tr>
+    <tr><td>Parts of each device</td><td>Switch off parts of a device you don't use, and switch vendor channels back on. See below.</td></tr>
     <tr><td>Firmware update / Delete all other profiles</td><td>Update mode, and clean up profiles you don't use.</td></tr>
   </table></div>
+  <h3>Parts of each device</h3>
+  <p>Many devices are several parts in one. A wireless receiver can be a keyboard, a mouse and media keys at once, and often has a hidden <b>vendor channel</b> for the maker's own software (lighting, battery, pairing). The board has to keep track of every input of every part, and that takes memory.</p>
+  <ul>
+    <li><b>Vendor channels are left out by themselves</b>, on every device, so they don't use memory. Dictation devices (PowerMic, SpeechMike, Olympus, foot pedals) keep theirs, because their buttons are on it.</li>
+    <li><span class="path">Settings → Board → Parts of each device</span> lists every part of what is plugged in now, for example <i>Receiver · port 2: Keyboard ✓ · Mouse ✓ · Media keys ☐</i>. Switch a part off if you don't use it, or switch a vendor channel on if one of its buttons is missing.</li>
+    <li>A part that is off is <b>ignored completely</b>: its keys and buttons don't reach the computer, not even unmapped.</li>
+    <li>Changes apply when the device is next plugged in, or after <b>Restart the board to apply</b>. They are kept for the board (by device and part), not per profile; 16 switches per board.</li>
+  </ul>
+  <p>Keyboards that report every key at once (NKRO, most gaming keyboards) are stored compactly, as one entry for the whole key block, so they use a fraction of the memory they used to.</p>
   <h3>All settings</h3>
   <div class="tbl"><table>
     <tr><th>Setting</th><th>What it does</th></tr>
@@ -529,6 +539,8 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>A button double-clicks on its own</td><td>Key features → Pointer and scrolling → add a debounce (10–30 ms) for that port.</td></tr>
     <tr><td>Stuck on a layer or in scroll lock</td><td>Press any key (scroll lock), or set Back to the base layer. Live test shows the current state.</td></tr>
     <tr><td>Locked out completely</td><td><a href="#firmware">Safe start</a>: hold Esc for 2 s just after plugging in.</td></tr>
+    <tr><td>The board stops responding after Save or a profile switch, with a wireless receiver plugged in</td><td>It ran out of memory. Update the firmware (receivers use much less now), then switch off parts of the receiver you don't use in <a href="#settings">Parts of each device</a>.</td></tr>
+    <tr><td>A device's button is missing from the Input list</td><td>It may be on the vendor channel. Switch that on in <a href="#settings">Parts of each device</a> and restart the board.</td></tr>
     <tr><td>"Needs the latest firmware"</td><td>Update the board (section 17). The settings stay on the page and in saved files meanwhile.</td></tr>
   </table></div>
 </section>
@@ -542,6 +554,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>Profiles</td><td>8 per board</td></tr>
     <tr><td>Layers</td><td>8 (0–7)</td></tr>
     <tr><td>Automatic profile rules</td><td>8 per board</td></tr>
+    <tr><td>Part switches (Parts of each device)</td><td>16 per board</td></tr>
     <tr><td>Board name</td><td>24 characters</td></tr>
     <tr><td>Profile name</td><td>20 characters</td></tr>
     <tr><td>Scroll lock speeds</td><td>5</td></tr>
