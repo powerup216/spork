@@ -1105,20 +1105,41 @@ function add_mapping(mapping) {
     }
 }
 
-function download_json() {
+// Export JSON: the settings on the page, plus (with a board open) every profile saved on
+// the board, so one file brings back all of them. Import JSON reads both parts.
+async function download_json() {
     clear_error();
     extras();
     extras_prune();
-    let element = document.createElement('a');
-    element.setAttribute('href', 'data:application/json,' + encodeURIComponent(JSON.stringify(config, null, 4)));
-    element.setAttribute('download', 'hid-remapper-config.json');
-
+    const out = JSON.parse(JSON.stringify(config));
+    delete out.truemap_backup;
+    delete out.profiles;
+    let name = 'hid-remapper-config.json';
+    const saved = (device != null && device_v21()) ? profiles.filter((p) => p.saved) : [];
+    if (saved.length) {
+        let ok = false;
+        await profile_action(async () => {
+            out.truemap_backup = 1;
+            out.saved = new Date().toISOString();
+            out.board_name = board_info.name;
+            out.profiles = await read_all_profiles(saved);
+            ok = true;
+        });
+        if (!ok) {
+            return;  // couldn't read the board: the error is shown
+        }
+        name = 'truemap-' + (board_info.name || 'board').replace(/[^A-Za-z0-9-]+/g, '-') + '-all-profiles.json';
+        display_info('Exported the page\'s settings and all ' + saved.length + ' profile(s) saved on the board.');
+    }
+    const blob = new Blob([JSON.stringify(out, null, 4)], { type: 'application/json' });
+    const element = document.createElement('a');
+    element.href = URL.createObjectURL(blob);
+    element.download = name;
     element.style.display = 'none';
     document.body.appendChild(element);
-
     element.click();
-
     document.body.removeChild(element);
+    setTimeout(() => URL.revokeObjectURL(element.href), 1000);
 }
 
 function upload_json() {
@@ -1149,12 +1170,25 @@ function file_uploaded() {
     reader.onload = function (e) {
         try {
             const new_config = JSON.parse(e.target.result);
+            if (new_config.truemap_backup && Array.isArray(new_config.profiles) && new_config.version === undefined) {
+                // a "Back up all" file from the Profiles tab: profiles only
+                import_board_profiles(new_config);
+                return;
+            }
             check_json_version(new_config['version']);
+            const board_profiles = (new_config.truemap_backup && Array.isArray(new_config.profiles)) ? new_config : null;
+            delete new_config.truemap_backup;
+            delete new_config.profiles;
+            delete new_config.saved;
+            delete new_config.board_name;
             config = new_config;
             page_from_file = true;
             set_ui_state();
             validate_ui_expressions();
             switch_to_mappings_tab();
+            if (board_profiles && board_profiles.profiles.length) {
+                setTimeout(() => import_board_profiles(board_profiles), 50);
+            }
         } catch (e) {
             display_error(e);
         }
@@ -5915,7 +5949,21 @@ async function set_dry_run(on) {
 
 async function backup_all_profiles() {
     const out = { truemap_backup: 1, saved: new Date().toISOString(), board_name: board_info.name, profiles: [] };
-    for (const p of profiles.filter((p) => p.saved)) {
+    out.profiles = await read_all_profiles(profiles.filter((p) => p.saved));
+    const blob = new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'truemap-backup-' + (board_info.name || 'board').replace(/[^A-Za-z0-9-]+/g, '-') + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+async function read_all_profiles(list) {
+    const result = [];
+    let n = 0;
+    for (const p of list) {
+        n++;
+        display_info('Reading profile ' + n + ' of ' + list.length + ' from the board…');
         const bytes = [];
         for (let off = 0; off < 4096; off += 24) {
             await board_cmd(PROFILE_RAW_READ, [[UINT8, p.slot], [UINT16, off]]);
@@ -5926,25 +5974,41 @@ async function backup_all_profiles() {
         for (const b of bytes) {
             bin += String.fromCharCode(b);
         }
-        out.profiles.push({ slot: p.slot, name: p.name, data: btoa(bin) });
+        result.push({ slot: p.slot, name: p.name, data: btoa(bin) });
     }
-    const blob = new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'truemap-backup-' + (board_info.name || 'board').replace(/[^A-Za-z0-9-]+/g, '-') + '.json';
-    a.click();
-    URL.revokeObjectURL(a.href);
+    clear_error();
+    return result;
+}
+
+// Profiles that came in a JSON file: offer to write them to the board.
+function import_board_profiles(data) {
+    const n = data.profiles.length;
+    if (device == null || !device_v21()) {
+        display_info('The settings are on the page. The file also has ' + n + ' profile(s) from a board: open the board and import the file again to put them on it.');
+        return;
+    }
+    profile_action(() => restore_profiles_data(data, true));
 }
 
 async function restore_profiles(file) {
-    const data = JSON.parse(await file.text());
+    await restore_profiles_data(JSON.parse(await file.text()));
+}
+
+async function restore_profiles_data(data, page_has_settings = false) {
     if (!data.truemap_backup || !Array.isArray(data.profiles)) {
         throw new Error('That file is not a TrueMap backup.');
     }
     const active = profiles.find((p) => p.active);
     const list = data.profiles.filter((p) => !active || p.slot != active.slot);
     const skipped = data.profiles.length - list.length;
-    if (!confirm('Write ' + list.length + ' profile(s) from the backup to the board, replacing what is in those slots?' + (skipped ? ' The profile in use (' + (active.slot + 1) + ') is skipped: switch to another profile first to restore it.' : ''))) {
+    const in_use = skipped ? (page_has_settings
+        ? ' The profile in use (' + (active.slot + 1) + ') is left as it is: its settings from the file are on the page, so click Save to device to put them there.'
+        : ' The profile in use (' + (active.slot + 1) + ') is skipped: switch to another profile first to restore it.') : '';
+    if (!list.length) {
+        display_info('Nothing else to write.' + in_use);
+        return;
+    }
+    if (!confirm('The file has ' + data.profiles.length + ' profile(s) from a board. Write ' + list.length + ' of them to this board, replacing what is in those slots?' + in_use)) {
         return;
     }
     for (const p of list) {
@@ -5957,7 +6021,7 @@ async function restore_profiles(file) {
         await profile_command(PROFILE_RAW_COMMIT, p.slot, p.name || '');
     }
     await refresh_profiles();
-    display_info('Restored ' + list.length + ' profile(s).');
+    display_info('Restored ' + list.length + ' profile(s).' + in_use);
 }
 
 // ---- Live test: board state lights and "test without sending"

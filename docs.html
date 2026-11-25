@@ -236,7 +236,20 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <li>Optional: pick a layer, tap/hold, or one of the per-key features (tap dance, cycle, hold time).</li>
     <li>Gold keys are mapped. Click one again to change or remove it.</li>
   </ol>
+  <h3>Device pictures</h3>
+  <p>Pick a picture for each port under <span class="path">Your devices</span>. It only changes what you click on; any device works with any picture (or none).</p>
+  <div class="tbl"><table>
+    <tr><th>Picture</th><th>Notes</th></tr>
+    <tr><td>Full-size, 75% and 68-key (65%) keyboards</td><td>The 68-key picture has an F1–F12 row above the number row, and <kbd>~</kbd> above Del.</td></tr>
+    <tr><td>EVGA Z15</td><td>Media keys (previous, play/pause, next, mute) and the volume wheel, which turns into two keys (↺ volume down, ↻ volume up), one press per notch. The Z15's own Fn key never leaves the keyboard, so Fn combinations can't be mapped.</td></tr>
+    <tr><td>MMD KM16 Pro, ProtoArc EM06</td><td>Macro pads and receivers. If a receiver makes the board run low on memory, see <a href="#settings">Parts of each device</a>.</td></tr>
+    <tr><td>Logitech G502, G303</td><td>The G502 extra buttons need setting up once in Logitech's tool, see <a href="#recipes">Recipes</a>.</td></tr>
+    <tr><td>Contour ShuttleXpress</td><td>Five buttons, the inner jog dial and the outer shuttle ring, see <a href="#wheels">Wheels and knobs</a>.</td></tr>
+    <tr><td>MagScroll</td><td>The MagScroll wheel and its buttons.</td></tr>
+  </table></div>
+  <p><strong>Light up keys as I press them</strong> (on by default) lights each key in the picture while you press it on the real device, so you can see which key is which. Switch it off above the picture; the page remembers that on this computer.</p>
   <h3>The mapping table</h3>
+  <p>Under the picture. Click a row to edit it in the panel on the right, drag a row by its number to change the order, type in <span class="path">Find a mapping…</span> to filter, and pick a layer to show only that layer's mappings.</p>
   <div class="tbl"><table>
     <tr><th>Column</th><th>What it means</th></tr>
     <tr><td>Input</td><td>The button, key or axis that triggers it, and which port it must come from (or any port).</td></tr>
@@ -293,6 +306,15 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>Wraps 0–255</td><td>Jog dials like the ShuttleXpress inner ring</td><td>A key per step clockwise and anticlockwise.</td></tr>
     <tr><td>Holds a position</td><td>Spring-loaded shuttle rings</td><td>Near and far keys each way, held while the ring is turned.</td></tr>
   </table></div>
+  <h3>ShuttleXpress shuttle ring</h3>
+  <p>The outer ring springs back to the middle. Used as keys ("Holds a position"), each side gives three keys that are held while the ring stays there:</p>
+  <div class="tbl"><table>
+    <tr><th>Key</th><th>Held while the ring is</th></tr>
+    <tr><td>turned right / left (any amount)</td><td>off the middle at all</td></tr>
+    <tr><td>turned a little right / left</td><td>off the middle, but not as far as "far" (a short turn)</td></tr>
+    <tr><td>turned far right / left</td><td>turned at least the far step (notch 4 of 7 by default; change it with <b>Far starts at notch</b> in the panel)</td></tr>
+  </table></div>
+  <p>Example: <em>a little right</em> → scroll down, <em>a little left</em> → scroll up, <em>far right</em> → <kbd>=</kbd>, <em>far left</em> → <kbd>-</kbd>. A held key repeats like a held keyboard key; to get <strong>one press per turn</strong>, put the key in a macro (<b>Send it once per turn</b> in the panel does this for you), since a macro runs once per press. The inner jog dial ("Wraps 0–255") gives one key press per step each way. The ring and dial also stay mappable as ordinary inputs (clockwise / anticlockwise) if you don't use them as keys.</p>
   <p>Then map those keys like any other. The wheel stops scrolling by itself on that port while it's used as keys. On the G502 picture the wheel tilts are already keys (F17/F18 once set up in Logitech's software, see <a href="#recipes">Recipes</a>).</p>
 </section>
 
@@ -430,7 +452,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>Custom usages</td><td>Add codes not in the lists (for unusual devices).</td></tr>
   </table></div>
   <h3>Actions</h3>
-  <p><span class="path">Settings → Actions</span> has Export JSON / Import JSON (your whole setup as a file), and firmware flashing.</p>
+  <p><span class="path">Settings → Actions</span> has Export JSON / Import JSON and firmware flashing. With the board open, <b>Export JSON saves every profile on the board</b> in one file, together with the settings on the page. Import JSON puts the page's settings back and offers to write the other profiles to the board (the profile in use gets the page's settings when you click Save to device). Without a board open, it exports just the page.</p>
 </section>
 
 <!-- ============================================================ -->
@@ -459,7 +481,8 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <li><strong>Save as:</strong> on the Profiles tab, save the page into any slot with a name (e.g. “GE PACS reading”).</li>
     <li><strong>Switch with a button:</strong> map a key to Profile 1–8, Next profile or Previous profile.</li>
     <li><strong>Switch automatically:</strong> in Settings, under <span class="path">Switch profile when a device is plugged in</span>, pick a device from the list of what's plugged in now (no typing IDs) or a port, and the profile to use. Up to 8 rules. Choosing “any device on port N” matches whatever is on that port.</li>
-    <li><strong>Back up all profiles</strong> to one file, and <strong>Restore from a backup</strong> on another board or after a reset.</li>
+    <li><strong>Back up all profiles</strong> to one file, and <strong>Restore from a backup</strong> on another board or after a reset. <span class="path">Settings → Actions → Export JSON</span> does the same while the board is open, and also keeps the page's settings readable in the file; Import JSON offers to write the profiles back.</li>
+    <li>The profile in use can't be overwritten by a restore; switch to another profile first, or (from an Export JSON file) click Save to device to put the page's settings into it.</li>
     <li>The side bar lists the profiles on the board, so you can see which one is in use.</li>
   </ul>
 </section>
@@ -489,6 +512,20 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <li>A drive called <code>RPI-RP2</code> appears. Copy the <code>.uf2</code> file onto it. The board restarts by itself.</li>
   </ol>
   <p>Your profiles survive updates. The configurator works with boards on older firmware, and tells you when a feature needs a newer one.</p>
+  <h3>Which file for which board</h3>
+  <div class="tbl"><table>
+    <tr><th>Board</th><th>Firmware file</th><th>Memory for settings and devices</th></tr>
+    <tr><td>Adafruit Feather RP2040 USB Host</td><td><code>…feather….uf2</code></td><td>about 125 KB</td></tr>
+    <tr><td>MeisterConverter</td><td><code>…meisterconverter….uf2</code></td><td>about 123 KB</td></tr>
+    <tr><td>Two-chip boards (remapper, v7/v8)</td><td>the <code>dual</code> file</td><td>about 210 KB</td></tr>
+  </table></div>
+  <p>Flash the file made for your board; the wrong one won't see your devices.</p>
+  <h3>When the board restarts by itself</h3>
+  <ul>
+    <li><strong>It recovers from freezes.</strong> If the board stops responding for 4 seconds, it restarts itself, and if it crashes it restarts too. Your saved settings are kept.</li>
+    <li>The next time you open it, <span class="path">Settings → Board</span> shows a gold box: <i>The board crashed while … and restarted itself</i>, with codes (kind, step, at, from). If it keeps happening, send those codes; they say exactly where it went wrong.</li>
+    <li><strong>Low on memory:</strong> normally Save and profile switches apply at once. When the board has less than 20 KB left it restarts into the new settings instead (a second or two; the page reconnects by itself). <span class="path">Settings → Memory</span> shows how close it is.</li>
+  </ul>
   <h3>Safe start</h3>
   <p>If a mapping ever locks you out (say, every key is remapped), <strong>hold <kbd>Esc</kbd> for 2 seconds within 8 seconds of plugging the board in</strong>. It starts with every mapping off until the next restart. Your saved settings aren't touched, so open the configurator and fix the setup.</p>
 </section>
@@ -506,6 +543,15 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
 
   <h3>Hands-free cine</h3>
   <p>Map <kbd>←</kbd> to <em>Auto-scroll up, press again for fast/slow</em> and <kbd>→</kbd> to the down version. ← starts scrolling up fast, ← again goes slow, → turns round at the same speed. Any other key or a click stops it. Set the two speeds in Settings → Key features.</p>
+
+  <h3>Three-speed auto-scroll</h3>
+  <p>Map <kbd>←</kbd> to <em>Auto-scroll up, 3 speeds (starts fast)</em> and <kbd>→</kbd> to the down one. Each press of the same key goes fast → medium → slow → fast; the other key turns round at the same speed. Stop it with any other key or a click; the next start picks up the speed you last used. Use the "starts slow" pair if you'd rather begin slow.</p>
+
+  <h3>ShuttleXpress for scrolling and zoom</h3>
+  <p>Set the ring to <em>Use as keys → Holds a position</em>. Map <em>a little right</em> to wheel down and <em>a little left</em> to wheel up (a short turn scrolls), and <em>far right</em> / <em>far left</em> to <kbd>=</kbd> / <kbd>-</kbd> with <b>Send it once per turn</b> so a bigger turn zooms one step.</p>
+
+  <h3>Type a password or phrase with one key</h3>
+  <p>In the macro builder, add a <strong>Type text</strong> step with the text (and an <strong>Enter</strong> step if you want it submitted), click <span class="path">Use this macro</span>, then pick the key. Note the text is stored on the board as plain key presses, so anyone with the board can use it; don't use it for anything that must stay secret.</p>
 
   <h3>Copy, paste, undo on mouse buttons</h3>
   <p>Make three named macros (Copy = <kbd>Ctrl</kbd>+<kbd>C</kbd>, Paste = <kbd>Ctrl</kbd>+<kbd>V</kbd>, Undo = <kbd>Ctrl</kbd>+<kbd>Z</kbd>) with the Shortcut button, then put them on buttons.</p>
@@ -543,6 +589,9 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>Locked out completely</td><td><a href="#firmware">Safe start</a>: hold Esc for 2 s just after plugging in.</td></tr>
     <tr><td>The board stops responding after Save or a profile switch, with a wireless receiver plugged in</td><td>It ran out of memory. Update the firmware (receivers use much less now), then switch off parts of the receiver you don't use in <a href="#settings">Parts of each device</a>.</td></tr>
     <tr><td>A device's button is missing from the Input list</td><td>It may be on the vendor channel. Switch that on in <a href="#settings">Parts of each device</a> and restart the board.</td></tr>
+    <tr><td>A gold box says the board restarted itself</td><td>It froze or crashed and recovered. If it happens again, send the codes in the box. Check <a href="#settings">Memory</a>: if it's nearly full, switch off parts you don't use.</td></tr>
+    <tr><td>The page doesn't open the board by itself</td><td>The browser needs your OK once: click Open device (or the Connect your board card) and pick the board. After that it opens by itself. Check <span class="path">Settings → Open the board by itself</span> is on.</td></tr>
+    <tr><td>The page loaded the board's settings over mine</td><td>Settings load as soon as the board opens. Turn that off for the board in Settings → Board. Settings from an imported file or an example are never replaced.</td></tr>
     <tr><td>"Needs the latest firmware"</td><td>Update the board (section 17). The settings stay on the page and in saved files meanwhile.</td></tr>
   </table></div>
 </section>
@@ -558,6 +607,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>Automatic profile rules</td><td>8 per board</td></tr>
     <tr><td>Part switches (Parts of each device)</td><td>16 per board</td></tr>
     <tr><td>Board name</td><td>24 characters</td></tr>
+    <tr><td>Memory (Feather / MeisterConverter)</td><td>about 125 / 123 KB; Save restarts the board when under 20 KB is left</td></tr>
     <tr><td>Profile name</td><td>20 characters</td></tr>
     <tr><td>Scroll lock speeds</td><td>5</td></tr>
     <tr><td>Test without sending</td><td>Turns off after 2 minutes without the page</td></tr>
