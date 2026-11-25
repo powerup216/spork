@@ -781,3 +781,6 @@ body:has(.mt-ghost) { cursor: grabbing; user-select: none; }
 .md-mb-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding: 10px 12px; border-radius: 12px; border: 1px dashed #34343B; background: #0F0F11; }
 .md-mb-copy-l { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lightbox); font-weight: 600; margin-right: 4px; }
 .md-mb-clip { font-size: 12px; color: var(--muted); flex: 1 1 220px; }
+
+.md-recovered { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid #4A3F1C; background: #1A170C; color: #F5DC94; font-size: 13px; }
+.md-recovered span { color: var(--muted); }

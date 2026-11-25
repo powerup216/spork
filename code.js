@@ -5824,6 +5824,11 @@ async function load_board_info() {
         board_info.rules.push({ index: i, vid, pid, port, slot });
     }
     await load_plugged_devices();
+    try {
+        board_info.recovered = (await read_board_state()).recovered;
+    } catch (e) {
+        board_info.recovered = null;
+    }
 }
 
 async function board_op(command, fields) {
@@ -5850,9 +5855,10 @@ async function save_board_rule(rule) {
 
 async function read_board_state() {
     await board_cmd(GET_STATE);
-    const [layers, profile, flags, as_mode, as_dir, as_level, sl_speed, os_mods, os_layer, layer_to] =
-        await read_config_feature([UINT8, UINT8, UINT16, UINT8, UINT8, UINT8, UINT8, UINT8, UINT8, UINT8]);
-    return { layers, profile, flags, as_mode, as_dir: (as_dir << 24) >> 24, as_level, sl_speed, os_mods, os_layer, layer_to };
+    const [layers, profile, flags, as_mode, as_dir, as_level, sl_speed, os_mods, os_layer, layer_to, rec_kind, rec_stage, rec_pc, rec_lr] =
+        await read_config_feature([UINT8, UINT8, UINT16, UINT8, UINT8, UINT8, UINT8, UINT8, UINT8, UINT8, UINT8, UINT8, UINT32, UINT32]);
+    return { layers, profile, flags, as_mode, as_dir: (as_dir << 24) >> 24, as_level, sl_speed, os_mods, os_layer, layer_to,
+        recovered: rec_kind ? { kind: rec_kind, stage: rec_stage, pc: rec_pc >>> 0, lr: rec_lr >>> 0 } : null };
 }
 
 async function set_dry_run(on) {
@@ -6036,6 +6042,17 @@ function render_board_v21() {
     }
     clear_children(box);
     const ok = device != null && device_v21();
+    if (device != null && board_info.recovered) {
+        const r = board_info.recovered;
+        const hex = (v) => '0x' + v.toString(16).padStart(8, '0');
+        const stages = ['', 'reading devices', 'a device was plugged in', 'working out the mappings', 'talking to the computer', 'loading settings', 'between jobs', 'saving', 'profiles'];
+        const what = r.kind == 1 ? 'crashed' : 'got stuck';
+        const where = stages[r.stage] ? ' while ' + stages[r.stage] : '';
+        const msg = md_element('div', { class: 'md-recovered', role: 'status' });
+        msg.appendChild(md_element('b', {}, 'The board ' + what + where + ' and restarted itself.'));
+        msg.appendChild(md_element('span', {}, ' If that keeps happening, send these codes: ' + 'kind ' + r.kind + ', step ' + r.stage + (r.kind == 1 ? ', at ' + hex(r.pc) + ', from ' + hex(r.lr) : '') + '.'));
+        box.appendChild(msg);
+    }
     if (device != null) {
         box.appendChild(autoload_switch());
         box.appendChild(md_element('p', { class: 'md-board-p' }, 'Saved in this browser for this board. If the page has settings from a file you haven\'t saved yet, they are kept instead.'));
