@@ -208,6 +208,7 @@ document.addEventListener("DOMContentLoaded", function () {
     mt_setup();
     pk_setup();
     mt_drag_setup();
+    auto_open_setup();
     document.getElementById("download_json").addEventListener("click", download_json);
     document.getElementById("upload_json").addEventListener("click", upload_json);
     document.getElementById("flash_firmware").addEventListener("click", flash_firmware);
@@ -6061,8 +6062,9 @@ function render_board_v21() {
         box.appendChild(msg);
     }
     if (device != null) {
+        box.appendChild(auto_open_switch());
         box.appendChild(autoload_switch());
-        box.appendChild(md_element('p', { class: 'md-board-p' }, 'Saved in this browser for this board. If the page has settings from a file you haven\'t saved yet, they are kept instead.'));
+        box.appendChild(md_element('p', { class: 'md-board-p' }, 'Both are saved in this browser (the second one for this board). The board opens by itself only once you have opened it here with Open device. If the page has settings from a file you haven\'t saved yet, they are kept instead of loading the board\'s.'));
     }
     if (!ok) {
         box.appendChild(md_element('p', { class: 'md-board-p mb-0' }, device == null
@@ -7464,7 +7466,18 @@ async function board_restarting() {
 
 const sleep_ms = (ms) => new Promise((r) => setTimeout(r, ms));
 
+let reconnecting = false;
+
 async function reconnect_after_restart(msg) {
+    reconnecting = true;
+    try {
+        await reconnect_inner(msg);
+    } finally {
+        reconnecting = false;
+    }
+}
+
+async function reconnect_inner(msg) {
     display_info(msg + ' Reconnecting…');
     const was_serial = (typeof SerialLink != 'undefined') && (device instanceof SerialLink);
     try {
@@ -7477,37 +7490,7 @@ async function reconnect_after_restart(msg) {
     await sleep_ms(1500);
     for (let attempt = 0; attempt < 16; attempt++) {
         await sleep_ms(500);
-        try {
-            if (was_serial) {
-                for (const port of await navigator.serial.getPorts()) {
-                    const link = new SerialLink(port);
-                    try {
-                        await link.open();
-                    } catch (e) {
-                        continue;
-                    }
-                    device = link;
-                    if (await device_opened()) {
-                        break;
-                    }
-                    await link.close();
-                    device = null;
-                }
-            } else if (navigator.hid) {
-                const found = (await navigator.hid.getDevices()).find((d) => d.collections.some((c) => c.usagePage == 0xff00));
-                if (found) {
-                    device = found;
-                    if (!device.opened) {
-                        await device.open();
-                    }
-                    if (!(await device_opened())) {
-                        device = null;
-                    }
-                }
-            }
-        } catch (e) {
-            device = null;
-        }
+        await open_known_device(was_serial);
         if (device != null) {
             device_buttons_set_disabled_state(false);
             display_info(msg + ' Reconnected.');
@@ -7516,4 +7499,127 @@ async function reconnect_after_restart(msg) {
         }
     }
     display_info(msg + ' Click Open device when it is back (a new device type needs to be picked again).');
+}
+
+
+// ---------------------------------------------------------------------------
+// TrueMap: open a board this browser has already been allowed to use, without
+// the picker: when the page loads and when the board is plugged in.
+
+// Tries the boards the browser already knows; leaves `device` set if one opened.
+async function open_known_device(serial_first = false) {
+    const try_hid = async () => {
+        if (!navigator.hid) {
+            return false;
+        }
+        for (const d of await navigator.hid.getDevices()) {
+            if (!d.collections.some((c) => c.usagePage == 0xff00)) {
+                continue;
+            }
+            try {
+                device = d;
+                if (!device.opened) {
+                    await device.open();
+                }
+                if (await device_opened()) {
+                    return true;
+                }
+            } catch (e) {
+                // in use elsewhere, or gone again
+            }
+            device = null;
+        }
+        return false;
+    };
+    const try_serial = async () => {
+        if (!navigator.serial) {
+            return false;
+        }
+        for (const port of await navigator.serial.getPorts()) {
+            const link = new SerialLink(port);
+            try {
+                await link.open();
+            } catch (e) {
+                continue;  // another tab has it, or it's gone
+            }
+            device = link;
+            try {
+                if (await device_opened()) {
+                    return true;
+                }
+            } catch (e) {
+                // not one of ours
+            }
+            try {
+                await link.close();
+            } catch (e) {
+                // ignore
+            }
+            device = null;
+        }
+        return false;
+    };
+    try {
+        return serial_first ? ((await try_serial()) || (await try_hid())) : ((await try_hid()) || (await try_serial()));
+    } catch (e) {
+        device = null;
+        return false;
+    }
+}
+
+const AUTO_OPEN_KEY = 'truemap_auto_open';
+
+function auto_open_on() {
+    try {
+        return localStorage.getItem(AUTO_OPEN_KEY) != '0';
+    } catch (e) {
+        return true;
+    }
+}
+
+async function auto_open() {
+    if (!auto_open_on() || device != null || busy || reconnecting) {
+        return;
+    }
+    busy = true;
+    let ok = false;
+    try {
+        ok = await open_known_device();
+    } finally {
+        busy = false;
+    }
+    if (ok) {
+        device_buttons_set_disabled_state(false);
+        await autoload_after_open();
+    }
+}
+
+function auto_open_setup() {
+    // after the page has drawn everything; again a little later in case the board was still starting
+    for (const ms of [300, 1500, 4000]) {
+        setTimeout(auto_open, ms);
+    }
+    const later = () => setTimeout(auto_open, 1200);  // let a freshly plugged board finish starting
+    if (navigator.hid) {
+        navigator.hid.addEventListener('connect', later);
+    }
+    if (navigator.serial) {
+        navigator.serial.addEventListener('connect', later);
+    }
+}
+
+function auto_open_switch() {
+    const row = md_element('div', { class: 'form-check form-switch md-autoload' });
+    const input = md_element('input', { class: 'form-check-input', type: 'checkbox', id: 'auto_open_switch', role: 'switch' });
+    input.checked = auto_open_on();
+    input.addEventListener('change', () => {
+        try {
+            localStorage.setItem(AUTO_OPEN_KEY, input.checked ? '1' : '0');
+        } catch (e) {
+            // no storage: lasts until the page is closed
+        }
+    });
+    row.appendChild(input);
+    row.appendChild(md_element('label', { class: 'form-check-label', for: 'auto_open_switch' }, 'Open the board by itself when this page loads or it is plugged in'));
+    return row;
 }
