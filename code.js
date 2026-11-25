@@ -209,6 +209,7 @@ document.addEventListener("DOMContentLoaded", function () {
     pk_setup();
     mt_drag_setup();
     auto_open_setup();
+    memory_poll_setup();
     document.getElementById("download_json").addEventListener("click", download_json);
     document.getElementById("upload_json").addEventListener("click", upload_json);
     document.getElementById("flash_firmware").addEventListener("click", flash_firmware);
@@ -272,6 +273,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 async function open_device() {
+    await wait_for_poll();
     if (busy) {
         return;
     }
@@ -310,6 +312,7 @@ async function open_device() {
 }
 
 async function open_serial_device() {
+    await wait_for_poll();
     if (busy) {
         return;
     }
@@ -499,6 +502,7 @@ async function load_from_device() {
         return;
     }
 
+    await wait_for_poll();
     if (busy) {
         return;
     }
@@ -769,6 +773,7 @@ async function save_to_device() {
         return;
     }
 
+    await wait_for_poll();
     if (busy) {
         return;
     }
@@ -2311,7 +2316,12 @@ function render_profiles() {
 }
 
 async function profile_action(action) {
+    // a click while something else talks to the board waits for it instead of being lost
+    for (let i = 0; i < 1500 && busy; i++) {
+        await new Promise((r) => setTimeout(r, 10));
+    }
     if ((device == null) || busy) {
+        render_board_v21();  // nothing done: put switches back as they are
         return;
     }
     busy = true;
@@ -5645,7 +5655,7 @@ function key_features_setup() {
 const BOARD_GET_NAME = 109, BOARD_SET_NAME = 110, BOARD_GET_RULE = 111, BOARD_SET_RULE = 112;
 const FIRMWARE_INFO = 113, RESTART_BOARD = 114, DRY_RUN = 115, GET_STATE = 116;
 const PROFILE_RAW_READ = 117, PROFILE_RAW_BEGIN = 118, PROFILE_RAW_APPEND = 119, PROFILE_RAW_COMMIT = 120, GET_DEVICE = 121;
-const BOARD_GET_PART_RULE = 122, BOARD_SET_PART_RULE = 123, GET_PART = 124, NPART_RULES = 16;
+const BOARD_GET_PART_RULE = 122, BOARD_SET_PART_RULE = 123, GET_PART = 124, GET_MEMORY = 125, NPART_RULES = 16;
 const PART_SKIP = 0x01, PART_KEEP_VENDOR = 0x02;
 const PART_STATE_SKIPPED = 0x01, PART_STATE_VENDOR_LEFT_OUT = 0x02, PART_STATE_VENDOR_KEPT = 0x04;
 const X_SCROLL_LOCK = 9, X_DEVICE = 10, X_POINTER_MODES = 11, X_IDLE = 12, X_MACRO_REPEAT = 13, X_WHEEL_KEYS = 14;
@@ -5658,6 +5668,15 @@ const KNOWN_DEVICES = [
 
 let board_info = { name: '', version: '', rules: [], devices: [], parts: [], part_rules: [] };
 let parts_changed = false;
+let board_memory = null;
+let polling = false;  // a background read (live state, memory) holds "busy" for a moment
+
+async function wait_for_poll() {
+    for (let i = 0; i < 200 && busy && polling; i++) {
+        await new Promise((r) => setTimeout(r, 10));
+    }
+}
+let memory_timer = null;
 let board_state = null;
 let state_timer = null;
 let dry_run_timer = null;
@@ -5837,6 +5856,7 @@ async function load_board_info() {
     }
     await load_plugged_devices();
     await load_parts();
+    board_memory = await read_board_memory();
     try {
         board_info.recovered = (await read_board_state()).recovered;
     } catch (e) {
@@ -5985,12 +6005,14 @@ async function poll_board_state() {
     }
     try {
         busy = true;
+        polling = true;
         board_state = await read_board_state();
     } catch (e) {
         console.warn('board state:', e);
         board_state = null;
     } finally {
         busy = false;
+        polling = false;
     }
     render_board_state();
 }
@@ -6176,11 +6198,102 @@ function render_board_v21() {
     refresh.addEventListener('click', () => profile_action(async () => {
         await load_plugged_devices();
         await load_parts();
+        board_memory = await read_board_memory();
         render_board_v21();
     }));
     box.appendChild(refresh);
     box.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'When it is plugged in, the board switches to that profile; when it is unplugged, it goes back to the profile it was in. "Anything on port N" works for whatever you plug into that port of the hub. Kept for the board, not per profile.'));
     render_parts(box);
+    box.appendChild(md_element('div', { id: 'md_memory', class: 'md-mem' }));
+    render_memory();
+}
+
+// ---- memory in use on the board, shown under "Parts of each device"
+
+async function read_board_memory() {
+    try {
+        await board_cmd(GET_MEMORY);
+        const [total, in_use, peak, tight] = await read_config_feature([UINT32, UINT32, UINT32, UINT32]);
+        // older firmware doesn't know this command and answers with whatever came before
+        if (total < 16384 || total > 524288 || in_use > total || peak > total || in_use > peak || tight == 0 || tight >= total) {
+            return null;
+        }
+        return { total, in_use, peak, tight };
+    } catch (e) {
+        return null;
+    }
+}
+
+function render_memory() {
+    const el = document.getElementById('md_memory');
+    if (el == null) {
+        return;
+    }
+    el.replaceChildren();
+    const m = board_memory;
+    el.appendChild(md_element('h3', { class: 'md-board-lbl mt-3' }, 'Memory'));
+    if (m == null) {
+        el.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'Needs the latest firmware to show memory use.'));
+        return;
+    }
+    const kb = (b) => (b / 1024).toFixed(b < 10240 ? 1 : 0) + ' KB';
+    const pct = (b) => Math.min(100, (100 * b) / m.total);
+    const left = m.total - m.peak;
+    const level = left < m.tight ? 'bad' : (left < 2 * m.tight ? 'warn' : 'ok');
+    const head = md_element('div', { class: 'md-mem-head' });
+    head.appendChild(md_element('span', { class: 'md-mem-big' }, kb(m.in_use)));
+    head.appendChild(md_element('span', { class: 'md-mem-of' }, 'in use now, of ' + kb(m.total) + ' (' + Math.round(pct(m.in_use)) + '%)'));
+    el.appendChild(head);
+    const bar = md_element('div', { class: 'md-mem-bar ' + level, role: 'img', 'aria-label': kb(m.in_use) + ' in use, ' + kb(m.peak) + ' at most, of ' + kb(m.total) });
+    const peak = md_element('div', { class: 'md-mem-peak' });
+    peak.style.width = pct(m.peak) + '%';
+    const now = md_element('div', { class: 'md-mem-now' });
+    now.style.width = pct(m.in_use) + '%';
+    const tight = md_element('div', { class: 'md-mem-tight' });
+    tight.style.left = (100 - pct(m.tight)) + '%';
+    bar.append(peak, now, tight);
+    el.appendChild(bar);
+    const legend = md_element('div', { class: 'md-mem-legend' });
+    legend.appendChild(md_element('span', { class: 'k now' }, 'In use now ' + kb(m.in_use)));
+    legend.appendChild(md_element('span', { class: 'k peak' }, 'Most needed since it started ' + kb(m.peak)));
+    legend.appendChild(md_element('span', { class: 'k free' }, 'Never touched ' + kb(left)));
+    el.appendChild(legend);
+    const say = {
+        ok: 'Plenty of room.',
+        warn: 'Getting full. Switching off parts you don\'t use (above) frees memory.',
+        bad: 'Nearly full: Save and profile switches restart the board instead of applying in place. Switch off parts you don\'t use (above) and restart the board.',
+    };
+    el.appendChild(md_element('p', { class: 'md-board-p mb-0 md-mem-say ' + level }, say[level] + ' Updates every few seconds while Settings is open; the line marks where restarts begin (' + kb(m.tight) + ' left).'));
+}
+
+async function poll_board_memory() {
+    if (device == null || !device_v21() || busy || document.getElementById('md_memory') == null) {
+        return;
+    }
+    try {
+        busy = true;
+        polling = true;
+        board_memory = await read_board_memory();
+    } catch (e) {
+        board_memory = null;
+    } finally {
+        busy = false;
+        polling = false;
+    }
+    render_memory();
+}
+
+function memory_poll_setup() {
+    const tab = document.getElementById('nav-settings-tab');
+    tab.addEventListener('shown.bs.tab', () => {
+        clearInterval(memory_timer);
+        poll_board_memory();
+        memory_timer = setInterval(poll_board_memory, 3000);
+    });
+    tab.addEventListener('hide.bs.tab', () => {
+        clearInterval(memory_timer);
+        memory_timer = null;
+    });
 }
 
 // ---- parts of each plugged-in device (keyboard, mouse, media keys...)
@@ -7738,10 +7851,59 @@ async function auto_open() {
     }
 }
 
+// When the board can't be opened by itself (the browser hasn't been allowed to use it yet,
+// or it isn't plugged in), a card asks for it. Browsers only show their device list after a
+// click, so the card's button does that.
+let open_prompt_dismissed = false;
+
+function open_prompt_show() {
+    if (!auto_open_on() || open_prompt_dismissed || device != null || reconnecting || !navigator.serial) {
+        return;
+    }
+    if (document.getElementById('md_open_prompt') != null) {
+        return;
+    }
+    const card = md_element('div', { id: 'md_open_prompt', class: 'md-open-prompt', role: 'dialog', 'aria-labelledby': 'md_open_prompt_t' });
+    card.appendChild(md_element('div', { id: 'md_open_prompt_t', class: 'md-open-prompt-t' }, 'Connect your board'));
+    card.appendChild(md_element('div', { class: 'md-open-prompt-p' }, 'Plug the TrueMap board in, click Open, then pick it in the list your browser shows (it is called "… settings"). After that it opens by itself.'));
+    const row = md_element('div', { class: 'md-open-prompt-b' });
+    const open = md_element('button', { type: 'button', class: 'btn btn-primary btn-sm' }, 'Open device');
+    open.addEventListener('click', async () => {
+        open_prompt_hide();
+        await open_serial_device();  // cancelled: the header's Open device button is still there
+    });
+    const later = md_element('button', { type: 'button', class: 'btn btn-outline-secondary btn-sm' }, 'Not now');
+    later.addEventListener('click', () => {
+        open_prompt_dismissed = true;
+        open_prompt_hide();
+    });
+    row.append(open, later);
+    card.appendChild(row);
+    document.body.appendChild(card);
+    open.focus();
+}
+
+function open_prompt_hide() {
+    document.getElementById('md_open_prompt')?.remove();
+}
+
 function auto_open_setup() {
     // after the page has drawn everything; again a little later in case the board was still starting
     for (const ms of [300, 1500, 4000]) {
         setTimeout(auto_open, ms);
+    }
+    setTimeout(open_prompt_show, 5000);  // still nothing open: ask
+    setInterval(() => {
+        if (device != null) {
+            open_prompt_hide();
+        }
+    }, 500);
+    if (navigator.serial) {
+        navigator.serial.addEventListener('disconnect', () => setTimeout(() => {
+            if (device == null) {
+                open_prompt_show();
+            }
+        }, 4000));
     }
     const later = () => setTimeout(auto_open, 1200);  // let a freshly plugged board finish starting
     if (navigator.hid) {
@@ -7764,6 +7926,6 @@ function auto_open_switch() {
         }
     });
     row.appendChild(input);
-    row.appendChild(md_element('label', { class: 'form-check-label', for: 'auto_open_switch' }, 'Open the board by itself when this page loads or it is plugged in'));
+    row.appendChild(md_element('label', { class: 'form-check-label', for: 'auto_open_switch' }, 'Open the board by itself when this page loads or it is plugged in, and ask for it when it can\'t'));
     return row;
 }

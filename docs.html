@@ -195,7 +195,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
   <p class="lead">From box to working mapping.</p>
   <ol class="steps">
     <li><strong>Plug your devices into the board</strong>, and the board into the computer. A USB hub on the board's input lets you use several devices; each hub socket is a <em>port</em> (1, 2, 3…).</li>
-    <li><strong>Open the <a href="index.html">configurator</a></strong> in Chrome or Edge (they can talk to USB serial devices). Click <span class="path">Open device</span> and pick the board in the list. Its settings load straight away (switch that off per board in Settings → Board settings). After the first time, the page opens the board by itself when you load it or plug the board in.</li>
+    <li><strong>Open the <a href="index.html">configurator</a></strong> in Chrome or Edge (they can talk to USB serial devices). Click <span class="path">Open device</span> (or the <b>Connect your board</b> card that pops up when the page can't open it by itself) and pick the board in the list. Its settings load straight away (switch that off per board in Settings → Board settings). After the first time, the page opens the board by itself when you load it or plug the board in.</li>
     <li><strong>Tell it what's plugged in.</strong> On <span class="path">Mappings → Your devices</span>, pick a picture for each port (68-key keyboard, G502, EM06, foot pedal…). It only changes the picture; it makes clicking keys easy.</li>
     <li><strong>Click a key in the picture</strong>, then pick what it should send from the output list. That's a mapping.</li>
     <li><strong>Click <span class="path">Save to device</span>.</strong> The board uses the new setup straight away.</li>
@@ -413,6 +413,8 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <li>A part that is off is <b>ignored completely</b>: its keys and buttons don't reach the computer, not even unmapped.</li>
     <li>Changes apply when the device is next plugged in, or after <b>Restart the board to apply</b>. They are kept for the board (by device and part), not per profile; 16 switches per board.</li>
   </ul>
+  <h3>Memory</h3>
+  <p>Under the parts list, <span class="path">Memory</span> shows how much of the board's memory is in use right now, the most it has needed since it started, and how much has never been touched. It updates every few seconds while Settings is open. The red line marks where the board starts restarting on Save and profile switches instead of applying them in place (20 KB left). If it says <i>Getting full</i> or <i>Nearly full</i>, switch off parts you don't use and restart the board.</p>
   <p>Keyboards that report every key at once (NKRO, most gaming keyboards) are stored compactly, as one entry for the whole key block, so they use a fraction of the memory they used to.</p>
   <h3>All settings</h3>
   <div class="tbl"><table>

@@ -794,3 +794,30 @@ body:has(.mt-ghost) { cursor: grabbing; user-select: none; }
 .md-parts-meta { color: var(--muted); font-size: 0.8rem; }
 .md-parts-vendor { font-size: 0.8rem; }
 .md-parts-pending { font-size: 0.75rem; padding: 1px 8px; border-radius: 999px; border: 1px solid #4A3F1C; background: #1A170C; color: #F5DC94; }
+
+/* Settings: memory meter */
+.md-mem-head { display: flex; align-items: baseline; gap: 8px; margin: 4px 0 6px; }
+.md-mem-big { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 1.35rem; font-weight: 600; color: var(--lightbox); }
+.md-mem-of { color: var(--muted); font-size: 0.85rem; }
+.md-mem-bar { position: relative; height: 12px; border-radius: 999px; background: #1C1E24; overflow: hidden; border: 1px solid var(--line, #2A2F3A); }
+.md-mem-peak { position: absolute; inset: 0 auto 0 0; background: rgba(212, 175, 55, 0.28); }
+.md-mem-now { position: absolute; inset: 0 auto 0 0; background: var(--lightbox); border-radius: 999px; transition: width 0.4s ease; }
+.md-mem-bar.warn .md-mem-now { background: #E0A33A; }
+.md-mem-bar.bad .md-mem-now { background: #E5644E; }
+.md-mem-tight { position: absolute; top: -1px; bottom: -1px; width: 2px; background: #E5644E; opacity: 0.8; }
+.md-mem-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 6px 0 4px; font-size: 0.8rem; color: var(--muted); }
+.md-mem-legend .k::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.md-mem-legend .now::before { background: var(--lightbox); }
+.md-mem-legend .peak::before { background: rgba(212, 175, 55, 0.35); }
+.md-mem-legend .free::before { background: #1C1E24; border: 1px solid var(--line, #2A2F3A); }
+.md-mem-say.warn { color: #F0C36A; }
+.md-mem-say.bad { color: #F29A88; }
+
+/* "Connect your board" prompt */
+.md-open-prompt { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 1080; width: min(440px, calc(100vw - 32px));
+  background: var(--panel); border: 1px solid var(--lightbox); border-radius: 14px; padding: 14px 16px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); animation: md-prompt-in 0.25s ease-out; }
+.md-open-prompt-t { font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 600; font-size: 1rem; color: var(--lightbox); margin-bottom: 4px; }
+.md-open-prompt-p { font-size: 0.875rem; color: var(--muted); margin-bottom: 10px; }
+.md-open-prompt-b { display: flex; gap: 8px; }
+@keyframes md-prompt-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .md-open-prompt { animation: none; } .md-mem-now { transition: none; } }
