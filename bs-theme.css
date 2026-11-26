@@ -813,18 +813,7 @@ body:has(.mt-ghost) { cursor: grabbing; user-select: none; }
 .md-mem-say.warn { color: #F0C36A; }
 .md-mem-say.bad { color: #F29A88; }
 
-/* "Connect your board" prompt: hangs under the header's Open / Load / Save buttons */
-.md-header-inner { position: relative; }
-.md-open-prompt { position: absolute; top: calc(100% + 10px); right: 20px; z-index: 1080; width: min(400px, calc(100vw - 32px));
-  background: var(--panel); border: 1px solid var(--lightbox); border-radius: 14px; padding: 14px 16px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); animation: md-prompt-in 0.25s ease-out; }
-.md-open-prompt::before { content: ''; position: absolute; top: -7px; left: var(--arrow-x, 24px); width: 12px; height: 12px; background: var(--panel);
-  border-left: 1px solid var(--lightbox); border-top: 1px solid var(--lightbox); transform: rotate(45deg); }
-.md-open-prompt-t { font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 600; font-size: 1rem; color: var(--lightbox); margin-bottom: 4px; }
-.md-open-prompt-p { font-size: 0.875rem; color: var(--muted); margin-bottom: 10px; }
-.md-open-prompt-b { display: flex; gap: 8px; }
-@keyframes md-prompt-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-@media (max-width: 640px) { .md-open-prompt { right: 16px; left: 16px; width: auto; } .md-open-prompt::before { display: none; } }
-@media (prefers-reduced-motion: reduce) { .md-open-prompt { animation: none; } .md-mem-now { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .md-mem-now { transition: none; } }
 
 /* selecting several mappings */
 .mt-num { display: flex; align-items: center; justify-content: center; gap: 5px; }

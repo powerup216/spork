@@ -6385,8 +6385,9 @@ function render_board_v21() {
     }
     if (device != null) {
         box.appendChild(auto_open_switch());
+        box.appendChild(click_open_switch());
         box.appendChild(autoload_switch());
-        box.appendChild(md_element('p', { class: 'md-board-p' }, 'Both are saved in this browser (the second one for this board). The board opens by itself only once you have opened it here with Open device. If the page has settings from a file you haven\'t saved yet, they are kept instead of loading the board\'s.'));
+        box.appendChild(md_element('p', { class: 'md-board-p' }, 'These are saved in this browser (the last one for this board). The board opens by itself only once you have opened it here with Open device. If the page has settings from a file you haven\'t saved yet, they are kept instead of loading the board\'s.'));
     }
     if (!ok) {
         box.appendChild(md_element('p', { class: 'md-board-p mb-0' }, device == null
@@ -8671,51 +8672,80 @@ async function auto_open() {
     if (ok) {
         device_buttons_set_disabled_state(false);
         await autoload_after_open();
+    } else {
+        click_open_arm();
     }
 }
 
-// When the board can't be opened by itself (the browser hasn't been allowed to use it yet,
-// or it isn't plugged in), a card asks for it. Browsers only show their device list after a
-// click, so the card's button does that.
-let open_prompt_dismissed = false;
+// Browsers only show their device list straight after a click or key press. So while the
+// board isn't open, the first click or key press anywhere on the page shows the list. Once
+// only: cancelled, it waits until a device is unplugged or plugged in, so it doesn't pop up
+// on every click.
+const CLICK_OPEN_KEY = 'truemap_click_open';
+let click_open_armed = false;
+let click_open_cancelled = false;  // the list was cancelled: wait for a device to come or go
 
+function click_open_on() {
+    try {
+        return localStorage.getItem(CLICK_OPEN_KEY) != '0';
+    } catch (e) {
+        return true;
+    }
+}
+
+function click_open_arm() {
+    if (click_open_on() && !click_open_cancelled && device == null && navigator.serial) {
+        click_open_armed = true;
+    }
+}
+
+function click_open_handler(e) {
+    if (!click_open_armed || device != null || busy || reconnecting) {
+        return;
+    }
+    if (e.type == 'keydown' && (e.repeat || ['Escape', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab'].includes(e.key))) {
+        return;  // Esc doesn't count as a click for the browser; Tab is just moving around
+    }
+    // the Open device button shows the list itself
+    if (e.target instanceof Element && e.target.closest('#open_serial_device')) {
+        return;
+    }
+    click_open_armed = false;
+    // the clicked button still does its own job underneath
+    open_serial_device().then(() => {
+        if (device == null) {
+            click_open_cancelled = true;
+        }
+    });
+}
+
+function click_open_switch() {
+    const row = md_element('div', { class: 'form-check form-switch md-autoload' });
+    const input = md_element('input', { class: 'form-check-input', type: 'checkbox', id: 'click_open_switch', role: 'switch' });
+    input.checked = click_open_on();
+    input.addEventListener('change', () => {
+        try {
+            localStorage.setItem(CLICK_OPEN_KEY, input.checked ? '1' : '0');
+        } catch (e) {
+            // no storage: lasts until the page is closed
+        }
+        if (!input.checked) {
+            click_open_armed = false;
+        }
+    });
+    row.appendChild(input);
+    row.appendChild(md_element('label', { class: 'form-check-label', for: 'click_open_switch' }, 'When the board isn\'t open, show the board list on the first click or key press anywhere on the page'));
+    return row;
+}
+
+// Nothing could be opened by itself (the browser hasn't been allowed to use the board yet,
+// or it isn't plugged in): wait for a click or key press to show the browser's list.
 function open_prompt_show() {
-    if (!auto_open_on() || open_prompt_dismissed || device != null || reconnecting || !navigator.serial) {
-        return;
-    }
-    if (document.getElementById('md_open_prompt') != null) {
-        return;
-    }
-    const card = md_element('div', { id: 'md_open_prompt', class: 'md-open-prompt', role: 'dialog', 'aria-labelledby': 'md_open_prompt_t' });
-    card.appendChild(md_element('div', { id: 'md_open_prompt_t', class: 'md-open-prompt-t' }, 'Connect your board'));
-    card.appendChild(md_element('div', { class: 'md-open-prompt-p' }, 'Plug the TrueMap board in, click Open, then pick it in the list your browser shows (it is called "… settings"). After that it opens by itself.'));
-    const row = md_element('div', { class: 'md-open-prompt-b' });
-    const open = md_element('button', { type: 'button', class: 'btn btn-primary btn-sm' }, 'Open device');
-    open.addEventListener('click', async () => {
-        open_prompt_hide();
-        await open_serial_device();  // cancelled: the header's Open device button is still there
-    });
-    const later = md_element('button', { type: 'button', class: 'btn btn-outline-secondary btn-sm' }, 'Not now');
-    later.addEventListener('click', () => {
-        open_prompt_dismissed = true;
-        open_prompt_hide();
-    });
-    row.append(open, later);
-    card.appendChild(row);
-    // under the header's Open / Load / Save buttons
-    (document.querySelector('.md-header-inner') || document.body).appendChild(card);
-    const btn = document.getElementById('open_serial_device');
-    if (btn) {
-        // point the little arrow at the header's Open device button
-        const c = card.getBoundingClientRect(), b = btn.getBoundingClientRect();
-        const x = Math.min(c.width - 24, Math.max(12, b.left + b.width / 2 - c.left - 6));
-        card.style.setProperty('--arrow-x', x + 'px');
-    }
-    open.focus();
+    click_open_arm();
 }
 
 function open_prompt_hide() {
-    document.getElementById('md_open_prompt')?.remove();
+    // there used to be a "Connect your board" card here
 }
 
 function auto_open_setup() {
@@ -8723,20 +8753,21 @@ function auto_open_setup() {
     for (const ms of [300, 1500, 4000]) {
         setTimeout(auto_open, ms);
     }
-    setTimeout(open_prompt_show, 5000);  // still nothing open: ask
-    setInterval(() => {
-        if (device != null) {
-            open_prompt_hide();
-        }
-    }, 500);
+    setTimeout(open_prompt_show, 1600);  // still nothing open: the next click shows the list
+    document.addEventListener('pointerup', click_open_handler, true);
+    document.addEventListener('keydown', click_open_handler, true);
     if (navigator.serial) {
         navigator.serial.addEventListener('disconnect', () => setTimeout(() => {
+            click_open_cancelled = false;
             if (device == null) {
                 open_prompt_show();
             }
         }, 4000));
     }
-    const later = () => setTimeout(auto_open, 1200);  // let a freshly plugged board finish starting
+    const later = () => {
+        click_open_cancelled = false;
+        setTimeout(auto_open, 1200);  // let a freshly plugged board finish starting
+    };
     if (navigator.hid) {
         navigator.hid.addEventListener('connect', later);
     }
