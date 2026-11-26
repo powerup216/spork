@@ -195,7 +195,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
   <p class="lead">From box to working mapping.</p>
   <ol class="steps">
     <li><strong>Plug your devices into the board</strong>, and the board into the computer. A USB hub on the board's input lets you use several devices; each hub socket is a <em>port</em> (1, 2, 3…).</li>
-    <li><strong>Open the <a href="index.html">configurator</a></strong> in Chrome or Edge (they can talk to USB serial devices). Click <span class="path">Open device</span> (or the <b>Connect your board</b> card that pops up when the page can't open it by itself) and pick the board in the list. Its settings load straight away (switch that off per board in Settings → Board settings). After the first time, the page opens the board by itself when you load it or plug the board in.</li>
+    <li><strong>Open the <a href="index.html">configurator</a></strong> in Chrome or Edge (they can talk to USB serial devices; Firefox 151 or later works too). Click <span class="path">Open device</span> (or the <b>Connect your board</b> card that pops up when the page can't open it by itself) and pick the board in the list. Its settings load straight away (switch that off per board in Settings → Board settings). After the first time, the page opens the board by itself when you load it or plug the board in.</li>
     <li><strong>Tell it what's plugged in.</strong> On <span class="path">Mappings → Your devices</span>, pick a picture for each port (68-key keyboard, G502, EM06, foot pedal…). It only changes the picture; it makes clicking keys easy.</li>
     <li><strong>Click a key in the picture</strong>, then pick what it should send from the output list. That's a mapping.</li>
     <li><strong>Click <span class="path">Save to device</span>.</strong> The board uses the new setup straight away.</li>
@@ -624,7 +624,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
   <p class="lead">Quick checks, most likely first.</p>
   <div class="tbl"><table>
     <tr><th>Problem</th><th>Try</th></tr>
-    <tr><td>The board isn't in the Open device list</td><td>Use Chrome or Edge. Replug it. A board on very old firmware needs current TrueMap firmware first.</td></tr>
+    <tr><td>The board isn't in the Open device list</td><td>Use Chrome, Edge or Firefox 151+. Replug it. A board on very old firmware needs current TrueMap firmware first.</td></tr>
     <tr><td>A mapping does nothing</td><td>Did you Save to device? Is it on the right port and layer? Press the key in Live test and check the "Sent as" column.</td></tr>
     <tr><td>A key stopped typing</td><td>It's mapped; mapped keys are taken over. Change or remove the mapping.</td></tr>
     <tr><td>PowerScribe ignores the board</td><td>Check the board type, unplug other dictation devices, and enable the PowerMic/pedal in PowerScribe.</td></tr>
@@ -635,6 +635,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>A device's button is missing from the Input list</td><td>It may be on the vendor channel. Switch that on in <a href="#settings">Parts of each device</a> and restart the board.</td></tr>
     <tr><td>A gold box says the board restarted itself</td><td>It froze or crashed and recovered. If it happens again, send the codes in the box. Check <a href="#settings">Memory</a>: if it's nearly full, switch off parts you don't use.</td></tr>
     <tr><td>The page doesn't open the board by itself</td><td>The browser needs your OK once: click Open device (or the Connect your board card) and pick the board. After that it opens by itself. Check <span class="path">Settings → Open the board by itself</span> is on.</td></tr>
+    <tr><td>Firefox asks for the board every time</td><td>Firefox may not remember the board between visits yet. When it asks, tick <b>Remember this decision</b> if it offers it, or allow serial ports under the padlock → Permissions. Otherwise it stays one click on the Connect your board card (Enter works). Chrome or Edge, optionally installed as an app from the address bar, open it by themselves.</td></tr>
     <tr><td>The page loaded the board's settings over mine</td><td>Settings load as soon as the board opens. Turn that off for the board in Settings → Board. Settings from an imported file or an example are never replaced.</td></tr>
     <tr><td>A key keeps going as if held down</td><td>The wireless receiver lost the key's release. The board lets go of it after 30 s by itself; set a shorter time in Settings → Key features → Safety nets.</td></tr>
     <tr><td>The page asks "Leave site?" when closing</td><td>The page has changes the board doesn't have yet. Click Save to device first, or leave to throw them away.</td></tr>
