@@ -144,6 +144,7 @@
                         <button type="button" class="mt-bulk-btn" data-move="down" title="Move down one">↓ Down</button>
                         <button type="button" class="mt-bulk-btn" data-move="bottom" title="Move to the bottom">⤓ Bottom</button>
                         <span class="mt-bulk-sep"></span>
+                        <button type="button" id="mt_bulk_profiles" class="mt-bulk-btn" title="Adds these mappings to every other profile saved on the board">+ All profiles</button>
                         <button type="button" id="mt_bulk_delete" class="mt-bulk-btn danger">Delete</button>
                         <button type="button" id="mt_bulk_clear" class="mt-bulk-btn" aria-label="Clear the selection">✕</button>
                     </div>
@@ -202,6 +203,10 @@
                     <input class="form-check-input" type="checkbox" role="switch" id="profiles_start_last">
                     <label class="form-check-label" for="profiles_start_last">When the board is plugged in, start in the profile it was last in</label>
                     <div class="form-text" id="profiles_start_hint"></div>
+                </div>
+                <div id="profiles_undo_row" class="md-board-btns mt-3 d-none">
+                    <button id="profiles_undo" type="button" class="btn btn-outline-secondary">Undo the last save</button>
+                    <span id="profiles_undo_hint" class="form-text"></span>
                 </div>
                 <div id="profiles_backup_row" class="md-board-btns mt-3">
                     <button id="profiles_backup" type="button" class="btn btn-outline-secondary">Back up all profiles</button>
@@ -512,6 +517,11 @@
                             <input id="mb_repeat_rate" type="number" min="20" max="5000" class="form-control form-control-sm md-kf-num">
                             <span class="small">ms</span>
                         </span>
+                        <span class="md-kf-row ms-2" title="How long each step lasts. Slower helps programs that drop keys typed too fast.">
+                            <label for="mb_speed" class="small">Speed</label>
+                            <input id="mb_speed" type="number" min="1" max="255" placeholder="board" class="form-control form-control-sm md-kf-num">
+                            <span class="small">ms a step</span>
+                        </span>
                     </div>
                     <p class="md-mb-p">A macro plays a list of steps when its button is pressed. Each step is the keys held at that moment. Build one here, then use <b>Use this macro</b> to put it on a button.</p>
 
@@ -721,7 +731,7 @@
     <template id="profile_row_template">
         <tr>
             <td class="profile_number"></td>
-            <td><span class="profile_name"></span> <span class="badge bg-success profile_in_use">In use</span> <span class="badge bg-secondary profile_default">Default</span></td>
+            <td><input type="color" class="profile_color d-none" title="The board's light shows this colour when it switches to this profile" aria-label="Profile light colour"> <span class="profile_name"></span> <span class="badge bg-success profile_in_use">In use</span> <span class="badge bg-secondary profile_default">Default</span></td>
             <td class="profile_type"></td>
             <td class="profile_mappings"></td>
             <td class="text-end text-nowrap">

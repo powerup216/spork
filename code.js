@@ -209,6 +209,20 @@ document.addEventListener("DOMContentLoaded", function () {
     pk_setup();
     mt_drag_setup();
     mt_bulk_setup();
+    document.getElementById('profiles_undo').addEventListener('click', () => profile_action(async () => {
+        const p = profiles[profiles_undo.slot];
+        if (!confirm('Put profile ' + (profiles_undo.slot + 1) + ' back the way it was before the last save?' + (p && p.active ? ' The board restarts with it.' : ''))) {
+            return;
+        }
+        const r = await profile_command(PROFILE_UNDO_SAVE, 0);
+        if (r.restarting) {
+            running_device_type = null;
+            reconnect_after_restart('Put back. The board is restarting with those settings.');
+            return;
+        }
+        await refresh_profiles();
+        display_info('Put back. Click Undo again to redo.');
+    }));
     document.getElementById('profiles_start_last').addEventListener('change', (e) => profile_action(async () => {
         const mode = e.target.checked ? 0 : 1;
         try {
@@ -652,6 +666,7 @@ async function load_from_device() {
         page_from_file = false;
         set_ui_state();
         validate_ui_expressions();
+        mark_page_saved();
     } catch (e) {
         display_error(e);
     }
@@ -818,6 +833,7 @@ async function save_to_device() {
                 } else if (device_has_profiles()) {
                     await refresh_profiles();
                 }
+                mark_page_saved();
                 document.getElementById('save_to_device_checkmark').classList.remove('d-none');
                 save_to_device_checkmark_timeout_id = setTimeout(() => {
                     document.getElementById('save_to_device_checkmark').classList.add('d-none');
@@ -2325,6 +2341,24 @@ async function refresh_profiles() {
             name: new TextDecoder().decode(new Uint8Array(name_bytes)),
         });
     }
+    profiles_colors = null;
+    profiles_undo = null;
+    if (device_v21()) {
+        // newer firmware only: colours and undo (older boards answer with leftovers, checked below)
+        await send_feature_command(BOARD_GET_UNDO);
+        const [uvalid, uslot] = await read_config_feature([UINT8, UINT8]);
+        if ((uvalid <= 1) && ((uvalid == 0 && uslot == 0xFF) || (uvalid == 1 && uslot < nprofiles))) {
+            profiles_undo = { valid: uvalid == 1, slot: uslot };
+        }
+        await send_feature_command(BOARD_GET_COLORS);
+        const rgb = await read_config_feature(Array(24).fill(UINT8));
+        if (profiles_undo != null) {
+            profiles_colors = [];
+            for (let i = 0; i < 8; i++) {
+                profiles_colors.push('#' + rgb.slice(i * 3, i * 3 + 3).map((v) => v.toString(16).padStart(2, '0')).join(''));
+            }
+        }
+    }
     profiles_start = null;
     if (device_v21()) {
         await send_feature_command(BOARD_GET_START);
@@ -2337,7 +2371,46 @@ async function refresh_profiles() {
     render_profiles();
 }
 
+// ---- leaving the page with changes the board doesn't have yet
+
+let saved_snapshot = null;
+
+function page_snapshot() {
+    try {
+        return JSON.stringify(config);
+    } catch (e) {
+        return null;
+    }
+}
+
+function mark_page_saved() {
+    saved_snapshot = page_snapshot();
+}
+
+function page_has_unsaved_changes() {
+    return (saved_snapshot != null || page_from_file) && page_snapshot() != saved_snapshot;
+}
+
+window.addEventListener('beforeunload', (e) => {
+    if (page_has_unsaved_changes()) {
+        e.preventDefault();
+        e.returnValue = '';  // the browser asks "Leave site? Changes you made may not be saved."
+    }
+});
+
 let profiles_start = null;  // { mode: 0 last used / 1 the default profile, last: slot or 0xFF }
+let profiles_colors = null; // '#rrggbb' per profile (the board's light)
+let profiles_undo = null;   // { valid, slot }: what "Undo the last save" would put back
+
+function render_profiles_undo() {
+    const row = document.getElementById('profiles_undo_row');
+    row.classList.toggle('d-none', !(profiles_undo && profiles_undo.valid));
+    if (profiles_undo && profiles_undo.valid) {
+        const p = profiles[profiles_undo.slot];
+        const nm = p ? 'profile ' + (p.slot + 1) + (p.name ? ' "' + p.name + '"' : '') : 'profile ' + (profiles_undo.slot + 1);
+        document.getElementById('profiles_undo_hint').innerText = 'Puts ' + nm + ' back the way it was before the last save. Click again to redo.' + (p && p.active ? ' The board restarts.' : '');
+    }
+}
 
 function render_profiles_start() {
     const row = document.getElementById('profiles_start_row');
@@ -2357,6 +2430,7 @@ function render_profiles_start() {
 
 function render_profiles() {
     render_profiles_start();
+    render_profiles_undo();
     const tbody = document.getElementById('profiles_tbody');
     clear_children(tbody);
     const save_slot = document.getElementById('profile_save_slot');
@@ -2370,6 +2444,16 @@ function render_profiles() {
         row.querySelector('.profile_in_use').classList.toggle('d-none', !p.active);
         row.querySelector('.profile_default').classList.toggle('d-none', !p.is_default);
         row.querySelector('.profile_type').innerText = p.saved ? device_type_name(p.type) : '';
+        const color = row.querySelector('.profile_color');
+        if (profiles_colors) {
+            color.classList.remove('d-none');
+            color.value = profiles_colors[p.slot];
+            color.addEventListener('change', () => profile_action(async () => {
+                const v = color.value;
+                await board_op(BOARD_SET_COLOR, [[UINT8, p.slot], [UINT8, parseInt(v.slice(1, 3), 16)], [UINT8, parseInt(v.slice(3, 5), 16)], [UINT8, parseInt(v.slice(5, 7), 16)]]);
+                profiles_colors[p.slot] = v;
+            }));
+        }
         row.querySelector('.profile_mappings').innerText = p.saved ? p.mappings : '';
         const switch_button = row.querySelector('.profile_switch');
         switch_button.disabled = !p.saved || p.active;
@@ -4508,6 +4592,11 @@ function mb_render() {
         document.getElementById('mb_repeat_rate').value = r ? r.rate_ms : 100;
         document.getElementById('mb_repeat_opts').classList.toggle('d-none', !r);
     }
+    const speed_in = document.getElementById('mb_speed');
+    if (speed_in && document.activeElement !== speed_in) {
+        const sp = (x21().macro_speeds || {})[mb_slot];
+        speed_in.value = sp ? String(sp) : '';
+    }
     clear_children(box);
     const macro = mb_steps();
     const groups = mb_groups(macro);
@@ -4652,6 +4741,17 @@ function macro_builder_setup() {
         mb_render();
     };
     ['mb_repeat', 'mb_repeat_delay', 'mb_repeat_rate'].forEach((id) => document.getElementById(id).addEventListener('change', repeat_changed));
+    document.getElementById('mb_speed').addEventListener('change', (e) => {
+        const x = x21();
+        x.macro_speeds = x.macro_speeds || {};
+        const v = parseInt(e.target.value);
+        if (v > 0) {
+            x.macro_speeds[mb_slot] = Math.min(255, v);
+        } else {
+            delete x.macro_speeds[mb_slot];
+        }
+        mb_render();
+    });
     document.getElementById('mb_name').addEventListener('change', (e) => {
         const name = e.target.value.trim().slice(0, 40);
         if (name) {
@@ -5178,7 +5278,8 @@ function extras_in_use(x = extras()) {
         JSON.stringify(x.oneshot) != JSON.stringify(d.oneshot) ||
         JSON.stringify(x.text) != JSON.stringify(d.text) ||
         config['mappings'].some((m) => /^0xffe[4-7]/i.test(m['target_usage'] || '')) ||
-        (x.wheel_keys || []).length || (x.devices || []).length || x.idle_seconds || Object.keys(x.macro_repeats || {}).length;
+        (x.wheel_keys || []).length || (x.devices || []).length || x.idle_seconds || Object.keys(x.macro_repeats || {}).length ||
+        (x.safety && JSON.stringify(x.safety) != JSON.stringify(SAFETY_DEFAULTS)) || Object.keys(x.macro_speeds || {}).length || (x.key_guards || []).length;
 }
 
 // Combos, tap dances and cycles that no mapping uses any more are dropped, and
@@ -5576,7 +5677,42 @@ function render_key_features(m, body) {
         wrap.appendChild(other);
         wrap.appendChild(md_element('label', { class: 'form-check-label', for: other_id }, 'Count it as held as soon as another key is pressed'));
         set.appendChild(wrap);
-        set.appendChild(md_element('p', { class: 'md-insp-note mb-0' }, 'Hold time matters for "Only on tap" / "Only on hold" mappings of this key.'));
+        set.appendChild(md_element('p', { class: 'md-insp-note' }, 'Hold time matters for "Only on tap" / "Only on hold" mappings of this key.'));
+        // guards against accidental presses
+        const x2 = x21();
+        const guard_of = () => (x2.key_guards || []).find((g) => x_same_key(g.usage, u) && (g.port || 0) == (port || 0));
+        const g0 = guard_of();
+        const guard_row = (label, field, after, title) => {
+            const r = md_element('div', { class: 'md-kf-row' });
+            r.appendChild(md_element('span', {}, label));
+            const inp = md_element('input', { type: 'number', class: 'form-control form-control-sm md-kf-num', min: '0', max: '5000', placeholder: 'off', title, 'aria-label': title });
+            inp.value = g0 && g0[field] ? String(g0[field]) : '';
+            inp.addEventListener('change', () => {
+                let g = guard_of();
+                const v = Math.max(0, Math.min(5000, parseInt(inp.value) || 0));
+                if (!g) {
+                    if (!v) {
+                        return;
+                    }
+                    if ((x2.key_guards || []).length >= 16) {
+                        alert('A board can hold 16 keys with these guards.');
+                        return;
+                    }
+                    g = { usage: u, port, hold_ms: 0, double_ms: 0 };
+                    x2.key_guards.push(g);
+                }
+                g[field] = v;
+                if (!g.hold_ms && !g.double_ms) {
+                    x2.key_guards = x2.key_guards.filter((k) => k !== g);
+                }
+            });
+            r.appendChild(inp);
+            r.appendChild(md_element('span', {}, after));
+            set.appendChild(r);
+        };
+        guard_row('Hold to confirm: only fires once held for', 'hold_ms', 'ms', 'Hold to confirm, ms (empty = off)');
+        guard_row('Ignore a second press within', 'double_ms', 'ms of the last one', 'Ignore double-taps, ms (empty = off)');
+        set.appendChild(md_element('p', { class: 'md-insp-note mb-0' }, 'For keys that do something you can\'t take back (sign the report) or that toggle (a second tap undoes the first). They apply to every mapping of this key.'));
     } else {
         return;
     }
@@ -5752,6 +5888,10 @@ const BOARD_GET_NAME = 109, BOARD_SET_NAME = 110, BOARD_GET_RULE = 111, BOARD_SE
 const FIRMWARE_INFO = 113, RESTART_BOARD = 114, DRY_RUN = 115, GET_STATE = 116;
 const PROFILE_RAW_READ = 117, PROFILE_RAW_BEGIN = 118, PROFILE_RAW_APPEND = 119, PROFILE_RAW_COMMIT = 120, GET_DEVICE = 121;
 const BOARD_SET_START = 126, BOARD_GET_START = 127;
+const PROFILE_UNDO_SAVE = 90, BOARD_GET_UNDO = 91, BOARD_SET_COLOR = 92, BOARD_GET_COLORS = 93;
+const GET_HEALTH = 94, GET_CHATTER = 95, CLEAR_HEALTH = 96, GET_CRASHES = 97, CLEAR_CRASHES = 98;
+const X_SAFETY = 15, X_MACRO_SPEED = 16, X_KEY_GUARD = 17;
+const SAFETY_DEFAULTS = { stuck_s: 30, autoscroll_stop_s: 120, esc_stops_macros: true };
 const BOARD_GET_PART_RULE = 122, BOARD_SET_PART_RULE = 123, GET_PART = 124, GET_MEMORY = 125, NPART_RULES = 16;
 const PART_SKIP = 0x01, PART_KEEP_VENDOR = 0x02;
 const PART_STATE_SKIPPED = 0x01, PART_STATE_VENDOR_LEFT_OUT = 0x02, PART_STATE_VENDOR_KEPT = 0x04;
@@ -5790,6 +5930,9 @@ function default_v21() {
         idle_seconds: 0,
         macro_repeats: {},    // macro index -> { delay_ms, rate_ms }
         wheel_keys: [],       // { usage, port, kind, step }
+        safety: { ...SAFETY_DEFAULTS },  // stuck keys, auto-scroll stop, Esc stops macros
+        macro_speeds: {},     // macro index -> ms per step
+        key_guards: [],       // { usage, port, hold_ms, double_ms }
     };
 }
 
@@ -5825,6 +5968,21 @@ function extras_encode_v21(x) {
     for (const w of x.wheel_keys) {
         rec(X_WHEEL_KEYS, [...x_le32(parseInt(w.usage, 16)), w.port || 0, w.kind, w.step || 0]);
     }
+    // settings v22 (older boards skip these records)
+    const sf = x.safety || SAFETY_DEFAULTS;
+    if (JSON.stringify(sf) != JSON.stringify(SAFETY_DEFAULTS)) {
+        rec(X_SAFETY, [...x_le16(sf.stuck_s), ...x_le16(sf.autoscroll_stop_s), sf.esc_stops_macros ? 1 : 0]);
+    }
+    for (const [m, ms] of Object.entries(x.macro_speeds || {})) {
+        if (ms > 0) {
+            rec(X_MACRO_SPEED, [parseInt(m), Math.min(255, ms)]);
+        }
+    }
+    for (const g of x.key_guards || []) {
+        if (g.hold_ms || g.double_ms) {
+            rec(X_KEY_GUARD, [...x_le32(parseInt(g.usage, 16)), g.port || 0, ...x_le16(g.hold_ms || 0), ...x_le16(g.double_ms || 0)]);
+        }
+    }
     return out;
 }
 
@@ -5857,6 +6015,15 @@ function extras_decode_v21(bytes, x) {
                 break;
             case X_WHEEL_KEYS:
                 x.wheel_keys.push({ usage: xu(u32(p)), port: bytes[p + 4], kind: bytes[p + 5], step: bytes[p + 6] });
+                break;
+            case X_SAFETY:
+                x.safety = { stuck_s: u16(p), autoscroll_stop_s: u16(p + 2), esc_stops_macros: !!(bytes[p + 4] & 1) };
+                break;
+            case X_MACRO_SPEED:
+                x.macro_speeds[bytes[p]] = bytes[p + 1];
+                break;
+            case X_KEY_GUARD:
+                x.key_guards.push({ usage: xu(u32(p)), port: bytes[p + 4], hold_ms: u16(p + 5), double_ms: u16(p + 7) });
                 break;
         }
     }
@@ -5954,6 +6121,7 @@ async function load_board_info() {
     await load_plugged_devices();
     await load_parts();
     board_memory = await read_board_memory();
+    await load_health();
     try {
         board_info.recovered = (await read_board_state()).recovered;
     } catch (e) {
@@ -6078,7 +6246,7 @@ async function restore_profiles_data(data, page_has_settings = false) {
 
 const STATE_FLAGS = [
     [0x0001, 'Caps Word'], [0x0002, 'Scroll lock'], [0x0004, 'Auto-scroll'], [0x0008, 'Click-lock'],
-    [0x0010, 'Precision pointer'], [0x0020, 'Fast scroll'], [0x0100, 'IntelliComplete'],
+    [0x0010, 'Precision pointer'], [0x0020, 'Fast scroll'], [0x0100, 'IntelliComplete'], [0x0400, 'Remapping paused'],
 ];
 
 function render_board_state() {
@@ -6333,6 +6501,119 @@ function render_board_v21() {
     render_parts(box);
     box.appendChild(md_element('div', { id: 'md_memory', class: 'md-mem' }));
     render_memory();
+    render_health(box);
+}
+
+// ---- device health, key chatter and restarts after a freeze or crash
+
+let board_health = null;  // { devices: [], chatter: [], crashes: [], damaged }
+
+async function load_health() {
+    board_health = null;
+    try {
+        const h = { devices: [], chatter: [], crashes: [], damaged: 0xFF };
+        for (let i = 0; i < 16; i++) {
+            await board_cmd(GET_HEALTH, [[UINT8, i]]);
+            const [count, index, vid, pid, connects, chatter, reports, unknown, connected] =
+                await read_config_feature([UINT8, UINT8, UINT16, UINT16, UINT16, UINT16, UINT32, UINT32, UINT8]);
+            if (count > 16 || index != i || connected > 1) {
+                return;  // older firmware: doesn't know this
+            }
+            if (i >= count) {
+                break;
+            }
+            h.devices.push({ vid, pid, connects, chatter, reports, unknown, connected: connected == 1 });
+        }
+        for (let i = 0; i < 32; i++) {
+            await board_cmd(GET_CHATTER, [[UINT8, i]]);
+            const [count, index, vid, pid, port, usage, drops] = await read_config_feature([UINT8, UINT8, UINT16, UINT16, UINT8, UINT32, UINT16]);
+            if (count > 32 || index != i || i >= count) {
+                break;
+            }
+            h.chatter.push({ vid, pid, port, usage: '0x' + (usage >>> 0).toString(16).padStart(8, '0'), drops });
+        }
+        for (let i = 0; i < 5; i++) {
+            await board_cmd(GET_CRASHES, [[UINT8, i]]);
+            const [count, index, damaged, seq, kind, stage, pc, lr] = await read_config_feature([UINT8, UINT8, UINT8, UINT16, UINT8, UINT8, UINT32, UINT32]);
+            if (count > 5 || index != i) {
+                break;
+            }
+            h.damaged = damaged;
+            if (i >= count) {
+                break;
+            }
+            h.crashes.push({ seq, kind, stage, pc: pc >>> 0, lr: lr >>> 0 });
+        }
+        h.chatter.sort((a, b) => b.drops - a.drops);
+        board_health = h;
+    } catch (e) {
+        board_health = null;
+    }
+}
+
+function render_health(box) {
+    if (board_health == null) {
+        return;
+    }
+    const h = board_health;
+    const hex = (v) => '0x' + v.toString(16).padStart(8, '0');
+    if (h.damaged != 0xFF && h.damaged < 8) {
+        box.appendChild(md_element('div', { class: 'md-recovered mt-3' }, 'Profile ' + (h.damaged + 1) + ' was damaged when the board started, so it started in another one. Open that profile\'s settings from a backup, or save it again.'));
+    }
+    box.appendChild(md_element('h3', { class: 'md-board-lbl mt-3' }, 'Device health'));
+    box.appendChild(md_element('p', { class: 'md-board-p' }, 'Since the board started. A device that keeps reconnecting, or sends reports it never declared, points at a loose cable, a weak wireless receiver or a hub that can\'t keep up.'));
+    if (!h.devices.length) {
+        box.appendChild(md_element('p', { class: 'md-board-p' }, 'Nothing has been plugged in since the board started.'));
+    } else {
+        const t = md_element('table', { class: 'md-kf-table md-health' });
+        const head = md_element('tr');
+        for (const c of ['Device', 'Plugged in', 'Reports', 'Odd reports', 'Bounces']) {
+            head.appendChild(md_element('th', { scope: 'col' }, c));
+        }
+        t.appendChild(head);
+        for (const d of h.devices) {
+            const tr = md_element('tr');
+            tr.appendChild(md_element('td', {}, device_name(d.vid, d.pid, 0) + (d.connected ? '' : ' (unplugged)')));
+            const warn = (v, bad) => md_element('td', { class: v >= bad ? 'md-health-warn' : '' }, String(v));
+            tr.appendChild(warn(d.connects, 3));
+            tr.appendChild(md_element('td', {}, d.reports.toLocaleString()));
+            tr.appendChild(warn(d.unknown, 1));
+            tr.appendChild(warn(d.chatter, 5));
+            t.appendChild(tr);
+        }
+        box.appendChild(t);
+    }
+    if (h.chatter.length) {
+        box.appendChild(md_element('p', { class: 'md-board-p mt-2 mb-1' }, 'Presses debounce dropped (a switch that bounces is starting to wear out):'));
+        const ul = md_element('ul', { class: 'md-health-list' });
+        for (const c of h.chatter.slice(0, 10)) {
+            ul.appendChild(md_element('li', {}, readable_usage_name(c.usage) + ' on ' + device_name(c.vid, c.pid, c.port) + (c.port ? ' (port ' + c.port + ')' : '') + ': ' + c.drops + (c.drops == 1 ? ' time' : ' times')));
+        }
+        box.appendChild(ul);
+    }
+    if (h.crashes.length) {
+        box.appendChild(md_element('h3', { class: 'md-board-lbl mt-3' }, 'Restarts after a freeze or crash'));
+        const ul = md_element('ul', { class: 'md-health-list' });
+        for (const c of h.crashes) {
+            ul.appendChild(md_element('li', {}, '#' + c.seq + ' ' + (c.kind == 2 ? 'froze' : 'crashed') + ': kind ' + c.kind + ', step ' + c.stage + ', at ' + hex(c.pc) + ', from ' + hex(c.lr)));
+        }
+        box.appendChild(ul);
+        box.appendChild(md_element('p', { class: 'md-board-p' }, 'Newest first. If these keep coming, send the codes.'));
+    }
+    const btns = md_element('div', { class: 'md-board-btns' });
+    const again = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, 'Refresh');
+    again.addEventListener('click', () => profile_action(async () => { await load_health(); render_board_v21(); }));
+    const reset = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, 'Start the counts again');
+    reset.addEventListener('click', () => profile_action(async () => {
+        await board_cmd(CLEAR_HEALTH);
+        if (h.crashes.length || h.damaged != 0xFF) {
+            await board_op(CLEAR_CRASHES, []);
+        }
+        await load_health();
+        render_board_v21();
+    }));
+    btns.append(again, reset);
+    box.appendChild(btns);
 }
 
 // ---- memory in use on the board, shown under "Parts of each device"
@@ -6701,6 +6982,22 @@ function render_key_features_v21(box, sec, check, num) {
     ir.appendChild(num(x.idle_seconds, 0, 3600, (n) => { x.idle_seconds = n; }, 'Idle seconds'));
     ir.appendChild(md_element('span', {}, 'seconds without input (0 = never), layers that were switched or latched on go back to layer 0.'));
     idle.appendChild(ir);
+
+    // safety nets
+    const sf = x.safety;
+    const safe = sec('Safety nets');
+    const s1 = md_element('div', { class: 'md-kf-row' });
+    s1.appendChild(md_element('span', {}, 'Let go of a keyboard key held longer than'));
+    s1.appendChild(num(sf.stuck_s, 0, 3600, (n) => { sf.stuck_s = n; }, 'Stuck key seconds'));
+    s1.appendChild(md_element('span', {}, 'seconds (0 = never). For wireless keyboards that lose a key release; modifiers, mouse buttons and dictation buttons are never let go.'));
+    safe.appendChild(s1);
+    const s2 = md_element('div', { class: 'md-kf-row' });
+    s2.appendChild(md_element('span', {}, 'Stop auto-scroll after'));
+    s2.appendChild(num(sf.autoscroll_stop_s, 0, 3600, (n) => { sf.autoscroll_stop_s = n; }, 'Auto-scroll stop seconds'));
+    s2.appendChild(md_element('span', {}, 'seconds without any input (0 = never).'));
+    safe.appendChild(s2);
+    check(safe, 'kf_esc_macro', 'Esc stops a macro that is running', sf.esc_stops_macros, (v) => { sf.esc_stops_macros = v; });
+    safe.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'At power-up: hold 1–8 for a second to start in that profile, Esc for 2 s for safe start (everything passes through), Backspace for 3 s to undo the last save.'));
 }
 
 function v21_setup() {
@@ -6778,6 +7075,9 @@ const PK_HELP = {
     '0xffe7000c': 'Turns the slow, precise pointer on or off',
     '0xffe7000d': 'Multiplies the wheel while held, to jump through long series',
     '0xffe7000e': 'One press, two clicks',
+    '0xffe7000f': 'Everything passes through as it is (no mappings, macros or features) until you press it again. For when someone else uses the computer',
+    '0xffe70010': 'Stops a macro that is typing (Esc does too, unless switched off in Settings → Key features)',
+    '0xffe70011': 'Types "Profile 2 Night reading" (the profile in use) into wherever the cursor is',
     '0x00000000': 'Sends nothing: the key is switched off',
 };
 function pk_help(usage, name) {
@@ -7476,8 +7776,111 @@ function mt_header_height() {
     }
 }
 
+// Add the ticked mappings to every other saved profile, straight into each profile's
+// saved data on the board (mappings sit right after a 19-byte header, 15 bytes each).
+const PERSIST_HEADER = 19, PERSIST_MAPPING = 15;
+
+function mt_portable(m) {
+    // macros, expressions, combos, tap-dances, cycles and wheel keys are numbered per
+    // profile, so a copy would point at something else there
+    const own = /^0x(fff[1-4]|ffe[1238])/i;
+    return !own.test(m['source_usage'] || '') && !own.test(m['target_usage'] || '');
+}
+
+function mt_mapping_bytes(m) {
+    const b = new DataView(new ArrayBuffer(PERSIST_MAPPING));
+    b.setUint32(0, parseInt(m['target_usage'], 16) >>> 0, true);
+    b.setUint32(4, parseInt(m['source_usage'], 16) >>> 0, true);
+    b.setInt32(8, m['scaling'], true);
+    b.setUint8(12, layer_list_to_mask(m['layers']));
+    b.setUint8(13, (m['sticky'] ? STICKY_FLAG : 0) | (m['tap'] ? TAP_FLAG : 0) | (m['hold'] ? HOLD_FLAG : 0));
+    b.setUint8(14, ((m['target_port'] & 0x0F) << 4) | (m['source_port'] & 0x0F));
+    return new Uint8Array(b.buffer);
+}
+
+async function mt_bulk_to_profiles() {
+    const list = mt_selected_in_order();
+    const portable = list.filter(mt_portable);
+    const left_out = list.length - portable.length;
+    if (device == null || !device_v21()) {
+        display_error('Open the board first: this writes into the other profiles saved on it.');
+        return;
+    }
+    await profile_action(async () => {
+        if (!profiles.length) {
+            await refresh_profiles();
+        }
+        const others = profiles.filter((p) => p.saved && !p.active);
+        if (!portable.length) {
+            display_error('None of these can go to other profiles: macros, combos, tap-dances, cycles and wheel keys are kept per profile.');
+            return;
+        }
+        if (!others.length) {
+            display_info('There are no other saved profiles on the board.');
+            return;
+        }
+        if (!confirm('Add ' + portable.length + ' mapping(s) to ' + others.length + ' other profile(s) (' + others.map((p) => p.slot + 1).join(', ') + ')?' +
+            (left_out ? ' ' + left_out + ' that use macros, combos or other per-profile features are left out.' : '') +
+            ' Mappings already there are skipped. The profile in use gets them when you click Save to device.')) {
+            return;
+        }
+        const raws = await read_all_profiles(others);
+        let done = 0, added_total = 0;
+        const problems = [];
+        for (const r of raws) {
+            const bin = atob(r.data);
+            const bytes = new Uint8Array(4096);
+            for (let i = 0; i < bin.length && i < 4096; i++) {
+                bytes[i] = bin.charCodeAt(i);
+            }
+            const dv = new DataView(bytes.buffer);
+            if (dv.getUint32(4092, true) != crc32(dv, 4092) || bytes[0] < 12) {
+                problems.push(r.slot + 1 + ' (couldn\'t read it)');
+                continue;
+            }
+            const count = dv.getUint16(7, true);
+            const end = PERSIST_HEADER + count * PERSIST_MAPPING;
+            const existing = new Set();
+            for (let i = 0; i < count; i++) {
+                existing.add(Array.from(bytes.slice(PERSIST_HEADER + i * PERSIST_MAPPING, PERSIST_HEADER + (i + 1) * PERSIST_MAPPING)).join(','));
+            }
+            const add = portable.map(mt_mapping_bytes).filter((b) => !existing.has(Array.from(b).join(',')));
+            if (!add.length) {
+                done++;
+                continue;
+            }
+            const grow = add.length * PERSIST_MAPPING;
+            // the end of the data must be free (zeros) to make room
+            if (bytes.slice(4092 - grow, 4092).some((v) => v != 0)) {
+                problems.push(r.slot + 1 + ' (full)');
+                continue;
+            }
+            const out = new Uint8Array(4096);
+            out.set(bytes.slice(0, end), 0);
+            add.forEach((b, k) => out.set(b, end + k * PERSIST_MAPPING));
+            out.set(bytes.slice(end, 4092 - grow), end + grow);
+            const odv = new DataView(out.buffer);
+            odv.setUint16(7, count + add.length, true);
+            odv.setUint32(4092, crc32(odv, 4092), true);
+            await board_cmd(PROFILE_RAW_BEGIN);
+            for (let off = 0; off < 4096; off += 24) {
+                const chunk = Array.from(out.slice(off, off + 24));
+                await board_cmd(PROFILE_RAW_APPEND, [[UINT8, chunk.length], ...chunk.map((v) => [UINT8, v])]);
+            }
+            await profile_command(PROFILE_RAW_COMMIT, r.slot, r.name || '');
+            done++;
+            added_total += add.length;
+        }
+        await refresh_profiles();
+        display_info('Added to ' + done + ' profile(s) (' + added_total + ' mapping(s) in all).' +
+            (problems.length ? ' Not added to profile ' + problems.join(', ') + '.' : '') +
+            ' The profile in use gets them when you click Save to device.');
+    });
+}
+
 function mt_bulk_setup() {
     mt_header_height();
+    document.getElementById('mt_bulk_profiles').addEventListener('click', mt_bulk_to_profiles);
     window.addEventListener('resize', mt_header_height);
     document.getElementById('mt_sel_all').addEventListener('change', (e) => {
         for (const m of mt_shown_mappings()) {
@@ -7958,6 +8361,7 @@ function mb_item(i) {
         steps: JSON.parse(JSON.stringify(config['macros'][i] || [])),
         name: (x.macro_names || {})[i] || '',
         repeat: (x.macro_repeats || {})[i] || null,
+        speed: (x.macro_speeds || {})[i] || 0,
     };
 }
 
@@ -7981,6 +8385,12 @@ function mb_put(i, item) {
         x2.macro_repeats[i] = Object.assign({}, item.repeat);
     } else {
         delete x2.macro_repeats[i];
+    }
+    x2.macro_speeds = x2.macro_speeds || {};
+    if (item.speed) {
+        x2.macro_speeds[i] = item.speed;
+    } else {
+        delete x2.macro_speeds[i];
     }
 }
 

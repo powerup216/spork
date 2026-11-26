@@ -850,3 +850,8 @@ body:has(.mt-ghost) { cursor: grabbing; user-select: none; }
     .mt-row { grid-template-areas: "n s a t t m" ". l l l l ." ". g g g c ."; }
     .mt-row > .mt-seg { max-width: none; }
 }
+
+/* Settings: device health */
+.md-health td.md-health-warn { color: #F0C36A; font-weight: 600; }
+.md-health-list { margin: 0 0 6px; padding-left: 18px; font-size: 0.85rem; color: var(--muted); }
+.md-health-list li { margin: 2px 0; }

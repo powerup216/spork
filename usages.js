@@ -708,6 +708,9 @@ const micdrop_target_usages = {
     "0xffe7000d": { 'name': 'Fast scroll while held', 'class': 'micdrop' },
     "0xffe7000e": { 'name': 'Double-click', 'class': 'micdrop' },
     "0xffe70006": { 'name': 'Click-lock (hold left button)', 'class': 'micdrop' },
+    "0xffe7000f": { 'name': 'Pause remapping (on/off)', 'class': 'micdrop' },
+    "0xffe70010": { 'name': 'Stop the running macro', 'class': 'micdrop' },
+    "0xffe70011": { 'name': 'Type the profile name', 'class': 'micdrop' },
 };
 Object.assign(common_target_usages, micdrop_target_usages);
 
