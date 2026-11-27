@@ -860,3 +860,10 @@ body:has(.mt-ghost) { cursor: grabbing; user-select: none; }
 .md-health td.md-health-warn { color: #F0C36A; font-weight: 600; }
 .md-health-list { margin: 0 0 6px; padding-left: 18px; font-size: 0.85rem; color: var(--muted); }
 .md-health-list li { margin: 2px 0; }
+
+/* picker: shortcuts */
+.pk-shortcut-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 8px; }
+.pk-own { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--muted); font-size: 0.85rem; }
+.pk-own .form-check-label { color: var(--bone); }
+.pk-own-use { white-space: nowrap; }
+

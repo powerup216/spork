@@ -1617,6 +1617,9 @@ function setup_usage_modal(source_or_target) {
     let template = document.getElementById('usage_button_template');
     const add_usage_buttons = (relevant_usages) => {
         for (const [usage, usage_def] of Object.entries(relevant_usages)) {
+            if (usage_def['class'] == 'shortcut') {
+                continue;  // from the Windows and Mac lists below
+            }
             let clone = template.content.cloneNode(true).firstElementChild;
             clone.title = usage;
             clone.setAttribute('data-hid-usage', usage);
@@ -1634,6 +1637,17 @@ function setup_usage_modal(source_or_target) {
     } else {
         add_usage_buttons(usages[config['our_descriptor_number']]);
         known_usages = usages[config['our_descriptor_number']];
+        if (Object.keys(known_usages).some((u) => u.startsWith('0xffea'))) {
+            for (const [list, where] of [['shortcut_win', 'shortcut'], ['shortcut_mac', 'shortcut_mac']]) {
+                for (const [usage, usage_def] of Object.entries(usages[list])) {
+                    let clone = template.content.cloneNode(true).firstElementChild;
+                    clone.title = usage;
+                    clone.setAttribute('data-hid-usage', usage);
+                    pk_place(usage_classes, clone, usage, usage_def['name'], where);
+                }
+            }
+            setup_shortcut_tools(modal_element);
+        }
     }
 
     for (const usage_ of extra_usages[source_or_target]) {
@@ -1971,6 +1985,9 @@ function readable_target_usage_name(usage) {
             const preview = mb_groups(m).map((g) => g.type == 'text' ? g.text.replace(/\n/g, '⏎') : g.type == 'pause' ? '⏸' : mb_step_label(g.steps[0])).join(' ');
             return 'Macro ' + (i + 1) + ' (' + (preview.length > 24 ? preview.slice(0, 23) + '…' : preview) + ')';
         }
+    }
+    if (typeof usage == 'string' && /^0xffea[0-9a-f]{4}$/i.test(usage)) {
+        return shortcut_name(usage.toLowerCase());
     }
     if (typeof usage == 'string' && /^0xffe7002[0-7]$/i.test(usage) && typeof config != 'undefined') {
         return light_name(parseInt(usage, 16) - LIGHT_USAGE);
@@ -7831,7 +7848,7 @@ function v21_setup() {
 // ---------------------------------------------------------------------------
 // TrueMap: output/input picker (the usage modals).
 
-const PK_CONTAINERS = ['nothing', 'recent', 'keyboard', 'nav', 'fkey', 'mouse', 'gamepad', 'media', 'powermic', 'micdrop', 'layer', 'macro', 'more', 'other', 'extra'];
+const PK_CONTAINERS = ['nothing', 'recent', 'keyboard', 'nav', 'fkey', 'mouse', 'gamepad', 'media', 'shortcut', 'shortcut_mac', 'function', 'powermic', 'micdrop', 'layer', 'macro', 'more', 'other', 'extra'];
 
 // keyboard page codes: [code, short label, width in keys]; null = gap
 const PK_KEYBOARD = [
@@ -8048,6 +8065,134 @@ function pk_place(containers, button, usage, name, cls) {
     containers[where].appendChild(button);
 }
 
+// ---- shortcuts: a key combination as one output (0xFFEAmmkk), named for Windows or a Mac
+
+const SHORTCUT_OS_KEY = 'truemap_shortcut_os';
+const SHORTCUT_MODS = [[0x01, 'Ctrl', '⌃'], [0x02, 'Shift', '⇧'], [0x04, 'Alt', '⌥'], [0x08, 'Win', '⌘'],
+    [0x10, 'Right Ctrl', 'Right ⌃'], [0x20, 'Right Shift', 'Right ⇧'], [0x40, 'Right Alt', 'Right ⌥'], [0x80, 'Right Win', 'Right ⌘']];
+
+function shortcut_os() {
+    try {
+        const v = localStorage.getItem(SHORTCUT_OS_KEY);
+        if (v == 'win' || v == 'mac') {
+            return v;
+        }
+    } catch (e) {
+        // no storage
+    }
+    return /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '') ? 'mac' : 'win';
+}
+
+function shortcut_keys(usage) {
+    const u = parseInt(usage, 16) >>> 0;
+    const mods = (u >> 8) & 0xFF, key = u & 0xFF;
+    const mac = shortcut_os() == 'mac';
+    const parts = SHORTCUT_MODS.filter(([bit]) => mods & bit).map(([, w, m]) => mac ? m : w);
+    if (key) {
+        const ku = '0x000700' + key.toString(16).padStart(2, '0');
+        const slot = PK_SLOT[key];
+        const name = (slot && slot.label) || (usages[0][ku] && usages[0][ku]['name']) || ku;
+        parts.push(name);
+    }
+    return parts.join(mac ? '' : '+');
+}
+
+function shortcut_name(usage) {
+    const lists = shortcut_os() == 'mac' ? ['shortcut_mac', 'shortcut_win'] : ['shortcut_win', 'shortcut_mac'];
+    const first = usages[lists[0]][usage];
+    if (first) {
+        return first['name'];
+    }
+    return 'Shortcut ' + shortcut_keys(usage);
+}
+
+// the Windows / Mac switch and "make your own" in the picker's Shortcuts section
+function setup_shortcut_tools(modal_element) {
+    const sec = modal_element.querySelector('.pk-shortcut-sec');
+    if (!sec) {
+        return;
+    }
+    const win = sec.querySelector('.shortcut_usages'), mac = sec.querySelector('.shortcut_mac_usages');
+    const tools = sec.querySelector('.pk-shortcut-tools');
+    clear_children(tools);
+    const sw = md_element('div', { class: 'btn-group btn-group-sm', role: 'group', 'aria-label': 'Shortcuts for' });
+    const show = () => {
+        const os = shortcut_os();
+        win.classList.toggle('d-none', os != 'win');
+        mac.classList.toggle('d-none', os != 'mac');
+        sw.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.os == os));
+        sw.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.os == os ? 'true' : 'false'));
+        update();
+    };
+    for (const [os, label] of [['win', 'Windows'], ['mac', 'Mac']]) {
+        const b = md_element('button', { type: 'button', class: 'btn btn-outline-secondary', 'data-os': os }, label);
+        b.addEventListener('click', () => {
+            try {
+                localStorage.setItem(SHORTCUT_OS_KEY, os);
+            } catch (e) {
+                // no storage: until the page is closed
+            }
+            show();
+            pk_update_sections(modal_element);
+            set_mappings_ui_state();  // mapping names follow
+        });
+        sw.appendChild(b);
+    }
+    tools.appendChild(sw);
+    // make your own: modifiers + a key
+    const own = md_element('div', { class: 'pk-own' });
+    own.appendChild(md_element('span', {}, 'Make your own:'));
+    const checks = [];
+    for (const [bit, w, m] of SHORTCUT_MODS.slice(0, 4)) {
+        const id = modal_element.id + '_own_' + bit;
+        const wrap = md_element('span', { class: 'form-check form-check-inline me-1' });
+        const c = md_element('input', { type: 'checkbox', class: 'form-check-input', id, 'data-bit': bit });
+        const l = md_element('label', { class: 'form-check-label', for: id, 'data-w': w, 'data-m': m }, w);
+        c.addEventListener('change', () => update());
+        wrap.append(c, l);
+        own.appendChild(wrap);
+        checks.push([c, l]);
+    }
+    const key = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Key' });
+    key.appendChild(md_element('option', { value: '0' }, '(no key)'));
+    const keys = [];
+    for (let k = 0x04; k <= 0x1d; k++) keys.push(k);  // A-Z
+    for (let k = 0x1e; k <= 0x27; k++) keys.push(k);  // 1-0
+    for (let k = 0x3a; k <= 0x45; k++) keys.push(k);  // F1-F12
+    keys.push(0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x46, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f, 0x50, 0x51, 0x52);
+    for (const k of keys) {
+        const ku = '0x000700' + k.toString(16).padStart(2, '0');
+        key.appendChild(md_element('option', { value: String(k) }, (usages[0][ku] && usages[0][ku]['name']) || ku));
+    }
+    key.value = String(0x06);
+    key.addEventListener('change', () => update());
+    own.appendChild(key);
+    const use = md_element('button', { type: 'button', class: 'usage_button btn btn-sm btn-primary pk-own-use' });
+    own.appendChild(use);
+    tools.appendChild(own);
+    function update() {
+        const mac_os = shortcut_os() == 'mac';
+        let mods = 0;
+        for (const [c, l] of checks) {
+            l.textContent = mac_os ? l.dataset.m : l.dataset.w;
+            if (c.checked) {
+                mods |= parseInt(c.dataset.bit);
+            }
+        }
+        const k = parseInt(key.value);
+        const usage = '0xffea' + mods.toString(16).padStart(2, '0') + k.toString(16).padStart(2, '0');
+        // the picker swaps its buttons for fresh copies each time it opens: find the one there now
+        const use = own.querySelector('.pk-own-use');
+        use.setAttribute('data-hid-usage', usage);
+        use.title = usage;
+        use.disabled = !mods && !k;
+        use.textContent = 'Use ' + (mods || k ? shortcut_keys(usage) : '…');
+        use.dataset.search = 'shortcut make your own ' + use.textContent;
+    }
+    checks[0][0].checked = true;
+    show();
+}
+
 function pk_recent_key(side) {
     return 'truemap_recent_' + (side == 'source' ? 'source' : 'target');
 }
@@ -8162,11 +8307,11 @@ function pk_before_show(modal_element, side, mapping, element) {
     modal_element.querySelector('.pk-help-t').innerText = 'Hover over an option to see what it does.';
 }
 
-function pk_visible(button) {
+function pk_visible(button, upto = null) {
     if (button.classList.contains('d-none')) {
         return false;
     }
-    for (let e = button.parentElement; e && !e.classList.contains('pk-body'); e = e.parentElement) {
+    for (let e = button.parentElement; e && e != upto && !e.classList.contains('pk-body'); e = e.parentElement) {
         if (e.classList.contains('d-none')) {
             return false;
         }
@@ -8179,7 +8324,9 @@ function pk_update_sections(modal_element) {
     const jump = modal_element.querySelector('.pk-jump');
     clear_children(jump);
     modal_element.querySelectorAll('.pk-sec').forEach((sec) => {
-        const any = Array.from(sec.querySelectorAll('.usage_button')).some(pk_visible);
+        // visible within the section: the section's own hiding (from an earlier search) doesn't count,
+        // or a section hidden once would never come back
+        const any = Array.from(sec.querySelectorAll('.usage_button')).some((b) => pk_visible(b, sec));
         const recentSec = sec.classList.contains('pk-recent-sec');
         sec.classList.toggle('d-none', !any || (recentSec && searching));
         const more = sec.querySelector('.pk-more');

@@ -258,6 +258,9 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
   </ul>
   <h3>Pause remapping</h3>
   <p>Map a key to <strong>Pause remapping (on/off)</strong>. One press and everything passes through as it is (no mappings, macros or features), for when someone else uses the computer; press it again to turn your setup back on. Use a plain key or button for it (not a combo or tap-dance). Live test shows <em>Remapping paused</em> while it's on, and switching profile turns it off.</p>
+  <h3 id="shortcuts">Shortcuts and Apps &amp; system</h3>
+  <p>The output picker has a <strong>Shortcuts</strong> section: Copy (Ctrl+C), Paste, Cut, Undo, Redo, Select all, Save, Find, tabs, zoom, Alt+Tab, Win+L, the Snipping Tool, snapping windows and more, each one output. The board holds the modifier and the key together for as long as you hold the button, so no macro is used up. Switch the list between <strong>Windows</strong> and <strong>Mac</strong> (⌘C, ⌘V, Spotlight, screenshots…); mappings are named for the one you pick (the same keys can mean different things: Win+L locks a PC, ⌘L is the address bar on a Mac). Anything not in the list: <strong>Make your own</strong> (tick Ctrl / Shift / Alt / Win, pick a key, <em>Use</em>). Shortcuts work in macro steps too, and in every device type with a keyboard.</p>
+  <p><strong>Apps &amp; system</strong>: Calculator, Mail, media player, This PC, web browser, lock screen, the browser keys (back, forward, refresh, home, search, favourites, stop), brightness up and down, eject, Sleep, Power and Wake, the keys keyboards have for these. They need the keyboard + mouse or a PowerMic device type; foot pedal mode leaves them out, because PowerScribe wants the pedal to be the only media-key part. Shortcuts and these need the firmware from 26 November 2026 or later.</p>
   <h3>Working on several mappings at once</h3>
   <ul>
     <li>Tick the box next to a row's number. <b>Shift-click</b> another box to tick everything in between. <span class="path">Select all</span> (in the toolbar) ticks every mapping shown, so filter by port or layer first to tick just those; <span class="path">Select all N</span> in the bar ticks every mapping.</li>
@@ -419,7 +422,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
   <h3>Moving macros to another profile</h3>
   <p>Under the builder, <strong>Copy this macro</strong> or <strong>Copy all macros</strong>, switch profile, then <strong>Paste</strong>. One macro goes into the macro you have selected; “all” go into the same macro numbers, so mappings that use them keep working. Names and repeat-while-held come along. The copy is kept in this browser until you copy something else. Click <span class="path">Save to device</span> after pasting.</p>
   <h3>Macro or two mappings?</h3>
-  <p>For a shortcut like Ctrl+C you <em>can</em> make two mappings (wheel click → Left Ctrl and wheel click → C). A macro is cleaner: one action per press, it shows up by name, and the keys go out in the right order. Use a macro.</p>
+  <p>Neither, for a shortcut like Ctrl+C: pick it under <a href="#shortcuts">Shortcuts</a> (one output, held as long as the key, no macro used). Keep macros for sequences (several steps, text, waits).</p>
   <div class="warn"><p>If a macro does nothing: check it isn't empty, that it's actually mapped to the key (the key turns gold), that the mapping is on the right port and layer, and that no other mapping on the same key overrides it. Live test shows what goes out.</p></div>
   <p><span class="path">Macro step duration</span> (All settings) sets how long each step is held. Raise it if a program misses keys.</p>
 </section>
@@ -435,7 +438,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
 <!-- ============================================================ -->
 <section class="doc" id="examples">
   <h2><span class="n">12</span>Examples</h2>
-  <p class="lead">Ready-made setups under Macros → Examples.</p>
+  <p class="lead">Ready-made setups under Macros → Examples: the examples from <a href="https://github.com/jfedor2/hid-remapper">HID Remapper</a>, which TrueMap is built on (swapping mouse buttons, caps lock as Ctrl, mouse jiggler, gamepad adapters, tap-hold, expressions and more).</p>
   <p>Load one to see how something is built, then change it. Loading an example replaces what's on the page (not the board) until you save, so export your setup first if you want to keep it.</p>
 </section>
 
