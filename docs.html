@@ -468,7 +468,6 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
   </ul>
   <h3>Memory</h3>
   <p>Under the parts list, <span class="path">Memory</span> shows how much of the board's memory is in use right now, the most it has needed since it started, and how much has never been touched. It updates every few seconds while Settings is open. The red line marks where the board starts restarting on Save and profile switches instead of applying them in place (20 KB left). If it says <i>Getting full</i> or <i>Nearly full</i>, switch off parts you don't use and restart the board.</p>
-  <p><span class="path">Input slots</span> below it counts the buttons, keys and axes your mappings read: each takes one of 800 slots. A typical setup uses well under 200. If it ever runs out, it says how many inputs were left out; remove mappings, layers or expressions you don't use.</p>
   <p>Keyboards that report every key at once (NKRO, most gaming keyboards) are stored compactly, as one entry for the whole key block, so they use a fraction of the memory they used to.</p>
   <h3>All settings</h3>
   <div class="tbl"><table>
@@ -677,7 +676,6 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>Automatic profile rules</td><td>8 per board</td></tr>
     <tr><td>Part switches (Parts of each device)</td><td>16 per board</td></tr>
     <tr><td>Board name</td><td>24 characters</td></tr>
-    <tr><td>Inputs the mappings can read</td><td>800 (buttons, keys and axes; shown under Settings → Input slots)</td></tr>
     <tr><td>Memory (Feather / MeisterConverter)</td><td>about 125 / 123 KB; Save restarts the board when under 20 KB is left</td></tr>
     <tr><td>Profile name</td><td>20 characters</td></tr>
     <tr><td>Lightings</td><td>8 per profile; up to 12 messages each, 63 bytes typed per message, sent as up to 1023</td></tr>

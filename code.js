@@ -7060,18 +7060,12 @@ function render_health(box) {
 async function read_board_memory() {
     try {
         await board_cmd(GET_MEMORY);
-        const [total, in_use, peak, tight, slots_used, slots_max, slots_missed, slots_magic] =
-            await read_config_feature([UINT32, UINT32, UINT32, UINT32, UINT16, UINT16, UINT16, UINT8]);
+        const [total, in_use, peak, tight] = await read_config_feature([UINT32, UINT32, UINT32, UINT32]);
         // older firmware doesn't know this command and answers with whatever came before
         if (total < 16384 || total > 524288 || in_use > total || peak > total || in_use > peak || tight == 0 || tight >= total) {
             return null;
         }
-        const m = { total, in_use, peak, tight };
-        // firmware without input slot counts leaves leftovers here
-        if (slots_magic == 0x53 && slots_max > 0 && slots_used <= slots_max) {
-            m.slots = { used: slots_used, max: slots_max, missed: slots_missed };
-        }
-        return m;
+        return { total, in_use, peak, tight };
     } catch (e) {
         return null;
     }
@@ -7117,26 +7111,6 @@ function render_memory() {
         bad: 'Nearly full: Save and profile switches restart the board instead of applying in place. Switch off parts you don\'t use (above) and restart the board.',
     };
     el.appendChild(md_element('p', { class: 'md-board-p mb-0 md-mem-say ' + level }, say[level] + ' Updates every few seconds while Settings is open; the line marks where restarts begin (' + kb(m.tight) + ' left).'));
-    if (m.slots) {
-        const s = m.slots;
-        const slevel = s.missed > 0 ? 'bad' : (s.used >= 0.85 * s.max ? 'warn' : 'ok');
-        const sbar = md_element('div', { class: 'md-mem-bar ' + slevel, role: 'img', 'aria-label': s.used + ' of ' + s.max + ' input slots in use' });
-        const snow = md_element('div', { class: 'md-mem-now' });
-        snow.style.width = Math.min(100, (100 * s.used) / s.max) + '%';
-        sbar.appendChild(snow);
-        el.appendChild(md_element('h3', { class: 'md-board-lbl mt-3' }, 'Input slots'));
-        const shead = md_element('div', { class: 'md-mem-head' });
-        shead.appendChild(md_element('span', { class: 'md-mem-big' }, String(s.used)));
-        shead.appendChild(md_element('span', { class: 'md-mem-of' }, 'of ' + s.max + ' in use'));
-        el.appendChild(shead);
-        el.appendChild(sbar);
-        const ssay = {
-            ok: 'Each button, key or axis the mappings read takes one slot.',
-            warn: 'Nearly out of slots. Fewer mappings, layers or expressions free them.',
-            bad: s.missed + ' input' + (s.missed == 1 ? '' : 's') + ' left out because the slots ran out: some mappings won\'t work. Remove mappings, layers or expressions you don\'t use.',
-        };
-        el.appendChild(md_element('p', { class: 'md-board-p mb-0 md-mem-say ' + slevel }, ssay[slevel]));
-    }
 }
 
 async function poll_board_memory() {
