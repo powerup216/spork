@@ -398,6 +398,7 @@ async function device_opened() {
     await load_board_info();
     update_connection_pill();
     render_board_settings();
+    render_key_features_card();  // lighting: Try it needs the open board
     return true;
 }
 
@@ -825,6 +826,10 @@ async function save_to_device() {
         switch (persist_config_return_code) {
             case PERSIST_CONFIG_SUCCESS:
                 page_from_file = false;
+                if (Object.keys(light_note).length) {
+                    light_note = {};  // "not saved yet" no longer true
+                    render_key_features_card();
+                }
                 if ((running_device_type !== null) && (config['our_descriptor_number'] != running_device_type)) {
                     running_device_type = null;
                     restart_after_save = 'Saved. The board is restarting as the new device type.';
@@ -1070,6 +1075,7 @@ function set_ui_state() {
     set_expressions_ui_state();
     set_quirks_ui_state();
     setup_usages_modals();
+    render_key_features_card();  // also when Settings is already showing
 }
 
 function set_port_badge(button_element, port) {
@@ -1965,6 +1971,9 @@ function readable_target_usage_name(usage) {
             const preview = mb_groups(m).map((g) => g.type == 'text' ? g.text.replace(/\n/g, '⏎') : g.type == 'pause' ? '⏸' : mb_step_label(g.steps[0])).join(' ');
             return 'Macro ' + (i + 1) + ' (' + (preview.length > 24 ? preview.slice(0, 23) + '…' : preview) + ')';
         }
+    }
+    if (typeof usage == 'string' && /^0xffe7002[0-7]$/i.test(usage) && typeof config != 'undefined') {
+        return light_name(parseInt(usage, 16) - LIGHT_USAGE);
     }
     return (usage in usages[config['our_descriptor_number']]) ? usages[config['our_descriptor_number']][usage]['name'] : usage;
 }
@@ -5901,6 +5910,7 @@ const WHEEL_KINDS = { 0: 'turns (wheel, tilt)', 1: 'jog (wraps 0-255)', 2: 'dial
 const KNOWN_DEVICES = [
     ['0b33:0020', 'Contour ShuttleXpress'], ['0b33:0030', 'Contour ShuttlePRO v2'], ['046d:c08b', 'Logitech G502'],
     ['046d:c07e', 'Logitech G402'], ['05f3:00ff', 'Foot pedal (3Key)'],
+    ['3842:2608', 'EVGA Z15 (US)'], ['3842:260e', 'EVGA Z15 (ISO)'], ['3842:260a', 'EVGA Z20 (US)'], ['3842:2610', 'EVGA Z20 (UK)'],
 ];
 
 let board_info = { name: '', version: '', rules: [], devices: [], parts: [], part_rules: [] };
@@ -5933,6 +5943,7 @@ function default_v21() {
         safety: { ...SAFETY_DEFAULTS },  // stuck keys, auto-scroll stop, Esc stops macros
         macro_speeds: {},     // macro index -> ms per step
         key_guards: [],       // { usage, port, hold_ms, double_ms }
+        lights: [],           // lighting 1-8 (null = none): { name, auto, kind: 'z15' | 'custom', z15, msgs }
     };
 }
 
@@ -5983,6 +5994,7 @@ function extras_encode_v21(x) {
             rec(X_KEY_GUARD, [...x_le32(parseInt(g.usage, 16)), g.port || 0, ...x_le16(g.hold_ms || 0), ...x_le16(g.double_ms || 0)]);
         }
     }
+    out.push(...lights_encode(x));
     return out;
 }
 
@@ -5991,6 +6003,7 @@ function extras_decode_v21(bytes, x) {
     x.scroll_lock = default_v21().scroll_lock;
     const u16 = (p) => bytes[p] | (bytes[p + 1] << 8);
     const u32 = (p) => (bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16) | (bytes[p + 3] << 24)) >>> 0;
+    const lights = { msgs: [], names: {}, auto: 0 };
     for (let pos = 0; pos + 2 <= bytes.length;) {
         const type = bytes[pos], len = bytes[pos + 1], p = pos + 2;
         pos += 2 + len;
@@ -5998,6 +6011,22 @@ function extras_decode_v21(bytes, x) {
             break;
         }
         switch (type) {
+            case X_LIGHT_MSG:
+                if (len >= 9) {
+                    lights.msgs.push({ slot: bytes[p] & 0x07, feature: !!(bytes[p] & 0x80), vid: u16(p + 1), pid: u16(p + 3), itf: bytes[p + 5], id: bytes[p + 6], total: u16(p + 7),
+                        bytes: Array.from(bytes.slice(p + 9, p + len)) });
+                }
+                break;
+            case X_LIGHT_NAME:
+                if (len >= 1) {
+                    lights.names[bytes[p] & 0x07] = new TextDecoder().decode(Uint8Array.from(bytes.slice(p + 1, p + len)));
+                }
+                break;
+            case X_LIGHT_AUTO:
+                if (len >= 1) {
+                    lights.auto = bytes[p];
+                }
+                break;
             case X_SCROLL_LOCK:
                 x.scroll_lock = { horizontal: !!(bytes[p] & 1), invert: !!(bytes[p] & 2), start_speed: bytes[p + 1], per_line: [0, 1, 2, 3, 4].map((i) => u16(p + 2 + i * 2)) };
                 break;
@@ -6027,7 +6056,338 @@ function extras_decode_v21(bytes, x) {
                 break;
         }
     }
+    lights_decode(lights, x);
     return x;
+}
+
+// ---------------------------------------------------------------------------
+// Lighting: messages the board sends to devices plugged into it (an RGB
+// keyboard's colour or effect). Saved per profile as records; sent by a key
+// ("Send lighting N"), or by themselves when the profile loads and when the
+// device is plugged in. The EVGA Z15/Z20 preset builds the bytes OpenRGB sends;
+// "Custom" takes any device's bytes as they are.
+
+const X_LIGHT_MSG = 18, X_LIGHT_AUTO = 19, X_LIGHT_NAME = 20;
+const LIGHT_TEST_CLEAR = 85, LIGHT_TEST_APPEND = 86, LIGHT_RUN = 87, GET_LIGHT_STATUS = 88;
+const LIGHT_SLOTS = 8, LIGHT_TEST_SLOT = 8, LIGHT_MAX_BYTES = 63, LIGHT_MAX_TOTAL = 1023, LIGHT_MAX_MSGS = 12, LIGHT_MAGIC = 0x4C;
+const LIGHT_USAGE = 0xFFE70020;
+const EVGA_VID = 0x3842;
+const Z15_MODELS = { 0x2608: 'EVGA Z15 (US)', 0x260E: 'EVGA Z15 (ISO)', 0x260A: 'EVGA Z20 (US)', 0x2610: 'EVGA Z20 (UK)' };
+// mode values, colour counts and directions as in OpenRGB's EVGA keyboard driver
+const Z15_EFFECTS = [
+    { id: 'static', name: 'One colour', mode: 1, colors: [1, 1], speed: false },
+    { id: 'breathing', name: 'Breathing', mode: 2, colors: [1, 2], speed: true },
+    { id: 'flashing', name: 'Flashing', mode: 3, colors: [2, 7], speed: true },
+    { id: 'spiral', name: 'Spiral', mode: 4, colors: [7, 7], speed: true, dirs: { right: ['Clockwise', 0], left: ['Anticlockwise', 1] } },
+    { id: 'rainbow', name: 'Rainbow wave', mode: 5, colors: [3, 7], speed: true, slowest: 0x3E,
+        dirs: { right: ['To the right', 2], left: ['To the left', 3], up: ['Upwards', 0], down: ['Downwards', 1] } },
+    { id: 'star', name: 'Starry night', mode: 6, colors: [0, 0], speed: true },
+    { id: 'typing', name: 'Keys light up as you type', mode: 7, trigger: 0, colors: [1, 7], speed: true },
+    { id: 'single', name: 'The key pressed lights up', mode: 7, trigger: 1, colors: [1, 7], speed: false },
+    { id: 'around', name: 'The keys around the one pressed light up', mode: 7, trigger: 2, colors: [1, 7], speed: false },
+    { id: 'off', name: 'Off', mode: 1, colors: [0, 0], speed: false },
+];
+const Z15_PALETTE = ['#ff0000', '#ff8000', '#ffff00', '#00ff00', '#00ffff', '#0000ff', '#ff00ff'];
+
+function z15_default(pid = 0x2608) {
+    return { pid, effect: 'static', colors: ['#ff0000'], brightness: 255, speed: 50, direction: 'right', save: false };
+}
+
+function light_default(kind = 'z15') {
+    return { name: '', auto: false, kind, z15: z15_default(light_plugged_z15() || 0x2608), msgs: [light_msg_default()] };
+}
+
+function light_msg_default() {
+    return { vid: 0, pid: 0, itf: 0, feature: true, id: 0, total: 0, hex: '' };
+}
+
+function light_plugged_z15() {
+    const p = (typeof board_info != 'undefined' && board_info.parts || []).find((p) => p.vid == EVGA_VID && p.pid in Z15_MODELS);
+    return p ? p.pid : 0;
+}
+
+const hex_rgb = (h) => [1, 3, 5].map((i) => parseInt((h || '#000000').slice(i, i + 2), 16) || 0);
+const rgb_hex = (r, g, b) => '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
+
+function z15_effect(id) {
+    return Z15_EFFECTS.find((e) => e.id == id) || Z15_EFFECTS[0];
+}
+
+// speed as OpenRGB has it: 100 slowest ... 5 fastest (rainbow: 62 slowest)
+function z15_speed_from_step(e, step) {
+    const slowest = e.slowest || 100;
+    return Math.round(slowest - (step - 1) * (slowest - 5) / 9);
+}
+
+function z15_step_from_speed(e, speed) {
+    const slowest = e.slowest || 100;
+    return Math.max(1, Math.min(10, Math.round(1 + (slowest - speed) * 9 / (slowest - 5))));
+}
+
+function z15_colors(z) {
+    const e = z15_effect(z.effect);
+    const n = Math.max(e.colors[0], Math.min(e.colors[1], (z.colors || []).length || e.colors[0]));
+    const out = [];
+    for (let i = 0; i < n; i++) {
+        out.push((z.colors || [])[i] || Z15_PALETTE[i % Z15_PALETTE.length]);
+    }
+    return out;
+}
+
+const trim_zeros = (a) => { let n = a.length; while (n > 0 && a[n - 1] == 0) { n--; } return a.slice(0, n); };
+
+// the reports OpenRGB sends for a mode: report 6 (start again from the stored modes), report 7
+// with the mode, report 7 with its colours; and report 4 to keep it in the keyboard
+function z15_messages(z) {
+    const e = z15_effect(z.effect);
+    const colors = z15_colors(z).map(hex_rgb);
+    const bright = e.id == 'off' ? 0 : Math.max(0, Math.min(255, z.brightness | 0));
+    const dir = e.dirs ? (e.dirs[z.direction] || Object.values(e.dirs)[0])[1] : (e.trigger !== undefined ? e.trigger : 0);
+    const mode = new Array(136).fill(0);
+    mode.splice(0, 4, 0x07, 0xEA, 0x02, 0x0C);
+    mode[8] = e.mode;
+    mode[9] = dir;
+    const col = new Array(136).fill(0);
+    col.splice(0, 4, 0x07, 0xEA, 0x02, 0x0C + e.mode);
+    col[8] = 0x80;  // all keys
+    const speed = (e.speed ? (z.speed || 50) : 50) * (e.mode == 7 ? 10 : 100);
+    col[24] = speed & 0xFF;
+    col[25] = speed >> 8;
+    col[26] = colors.length;
+    const fill = (at) => colors.forEach(([r, g, b], i) => col.splice(at + i * 4, 4, bright, r, g, b));
+    switch (e.mode) {
+        case 1:
+            if (e.id == 'off') {
+                col.splice(24, 4, 0, 0, 0, 0);
+            } else {
+                fill(24);
+            }
+            break;
+        case 2:
+            colors.forEach(([r, g, b], i) => col.splice(26 + i * 5, 5, 0x0A, bright, r, g, b));
+            break;
+        case 3:
+            col[27] = 0x0A;
+            col[28] = 0x0A;
+            col[29] = 0xFF;
+            fill(33);
+            break;
+        case 4:
+            col[11] = dir;
+            fill(27);
+            break;
+        case 5:
+            col[12] = dir;
+            fill(27);
+            break;
+        case 6:
+            col[3]++;
+            col[26] = bright;
+            break;
+        case 7:
+            col[3]--;
+            col[12] = dir;
+            fill(27);
+            break;
+    }
+    for (const m of [mode, col]) {
+        let c = 0;
+        for (let i = 8; i < 136; i++) {
+            c = (c - m[i]) & 0xFF;
+        }
+        m[7] = c;
+    }
+    const msg = (id, total, bytes) => ({ vid: EVGA_VID, pid: z.pid, itf: 1, feature: true, id, total, bytes });
+    const out = [msg(6, 791, [0xEA, 0x02]), msg(7, 135, trim_zeros(mode.slice(1))), msg(7, 135, trim_zeros(col.slice(1)))];
+    if (z.save) {
+        out.push(msg(4, 16, [0xEA, 0x02, 0x12]));
+    }
+    return out;
+}
+
+// messages read back from a board: a Z15 preset again if they are exactly what it makes
+function z15_from_messages(msgs) {
+    if (!(msgs.length == 3 || msgs.length == 4) || msgs.some((m) => m.vid != EVGA_VID || !(m.pid in Z15_MODELS) || m.pid != msgs[0].pid || m.itf != 1 || !m.feature)) {
+        return null;
+    }
+    if (msgs[1].id != 7 || msgs[2].id != 7) {
+        return null;
+    }
+    const mode = [7, ...msgs[1].bytes];
+    const col = [7, ...msgs[2].bytes];
+    while (col.length < 136) {
+        col.push(0);
+    }
+    const mv = mode[8] || 0, dir = mode[9] || 0;
+    let e = Z15_EFFECTS.find((x) => x.mode == mv && (mv != 7 || x.trigger == dir) && x.id != 'off');
+    if (!e) {
+        return null;
+    }
+    const z = z15_default(msgs[0].pid);
+    z.save = msgs.length == 4;
+    const rgb = (at, n) => { const out = []; for (let i = 0; i < n; i++) { out.push(rgb_hex(col[at + i * 4 + 1], col[at + i * 4 + 2], col[at + i * 4 + 3])); } return out; };
+    const speed = (col[24] | (col[25] << 8)) / (mv == 7 ? 10 : 100);
+    if (e.speed) {
+        z.speed = Math.round(speed);
+    }
+    if (e.dirs) {
+        z.direction = Object.keys(e.dirs).find((k) => e.dirs[k][1] == dir) || 'right';
+    }
+    if (mv == 1) {
+        if (col[24] == 0 && col[25] == 0 && col[26] == 0 && col[27] == 0) {
+            e = z15_effect('off');
+            z.brightness = 255;
+        } else {
+            z.brightness = col[24];
+            z.colors = rgb(24, 1);
+        }
+    } else if (mv == 2) {
+        const n = col[31] == 0x0A ? 2 : 1;
+        z.brightness = col[27];
+        z.colors = [];
+        for (let i = 0; i < n; i++) {
+            z.colors.push(rgb_hex(col[28 + i * 5], col[29 + i * 5], col[30 + i * 5]));
+        }
+    } else if (mv == 3) {
+        z.brightness = col[33];
+        z.colors = rgb(33, col[26]);
+    } else if (mv == 6) {
+        z.brightness = col[26];
+        z.colors = [];
+    } else {
+        z.brightness = col[27];
+        z.colors = rgb(27, col[26]);
+    }
+    z.effect = e.id;
+    // only if it builds back exactly the same
+    const again = z15_messages(z);
+    const same = again.length == msgs.length && again.every((m, i) => m.id == msgs[i].id && m.total == msgs[i].total && m.bytes.join() == msgs[i].bytes.join());
+    return same ? z : null;
+}
+
+function light_hex_bytes(hex) {
+    const parts = String(hex || '').trim().split(/[\s,;:]+/).filter((s) => s);
+    const out = [];
+    for (let p of parts) {
+        p = p.replace(/^0x/i, '');
+        if (!/^[0-9a-f]+$/i.test(p)) {
+            return null;
+        }
+        if (p.length > 2) {
+            if (p.length % 2) {
+                return null;
+            }
+            for (let i = 0; i < p.length; i += 2) {
+                out.push(parseInt(p.slice(i, i + 2), 16));
+            }
+        } else {
+            out.push(parseInt(p, 16));
+        }
+    }
+    return out;
+}
+
+const light_bytes_hex = (b) => b.map((v) => v.toString(16).padStart(2, '0')).join(' ');
+
+// the messages a lighting sends, or an error in words
+function light_messages(l) {
+    if (l.kind == 'z15') {
+        return { msgs: z15_messages(l.z15) };
+    }
+    const msgs = [];
+    for (const [i, m] of (l.msgs || []).entries()) {
+        const bytes = light_hex_bytes(m.hex);
+        const n = 'Message ' + (i + 1) + ': ';
+        if (bytes == null) {
+            return { error: n + 'the bytes should be hex, like "ea 02 0c"' };
+        }
+        if (!m.vid && !m.pid) {
+            return { error: n + 'pick the device' };
+        }
+        if (bytes.length == 0 && !m.total) {
+            return { error: n + 'type the bytes to send' };
+        }
+        if (bytes.length > LIGHT_MAX_BYTES) {
+            return { error: n + 'up to ' + LIGHT_MAX_BYTES + ' bytes (set "send as" to make it longer with zeros)' };
+        }
+        if ((m.total || 0) > LIGHT_MAX_TOTAL) {
+            return { error: n + 'up to ' + LIGHT_MAX_TOTAL + ' bytes in all' };
+        }
+        msgs.push({ vid: m.vid, pid: m.pid, itf: m.itf, feature: !!m.feature, id: m.id || 0, total: m.total || 0, bytes });
+    }
+    if (msgs.length == 0) {
+        return { error: 'Add a message' };
+    }
+    if (msgs.length > LIGHT_MAX_MSGS) {
+        return { error: 'Up to ' + LIGHT_MAX_MSGS + ' messages' };
+    }
+    return { msgs };
+}
+
+function light_records(l, slot) {
+    const out = [];
+    const r = light_messages(l);
+    for (const m of r.msgs || []) {
+        const p = [slot | (m.feature ? 0x80 : 0), ...x_le16(m.vid), ...x_le16(m.pid), m.itf & 0xFF, m.id & 0xFF, ...x_le16(m.total || 0), ...m.bytes];
+        out.push(X_LIGHT_MSG, p.length, ...p);
+    }
+    return out;
+}
+
+function lights_encode(x) {
+    const out = [];
+    let auto = 0;
+    (x.lights || []).forEach((l, slot) => {
+        if (!l || slot >= LIGHT_SLOTS) {
+            return;
+        }
+        out.push(...light_records(l, slot));
+        if (l.name) {
+            const name = [...new TextEncoder().encode(l.name.slice(0, 24))];
+            out.push(X_LIGHT_NAME, 1 + name.length, slot, ...name);
+        }
+        if (l.auto) {
+            auto |= 1 << slot;
+        }
+    });
+    if (auto) {
+        out.push(X_LIGHT_AUTO, 1, auto);
+    }
+    return out;
+}
+
+function lights_decode(found, x) {
+    const lights = [];
+    for (let slot = 0; slot < LIGHT_SLOTS; slot++) {
+        const msgs = found.msgs.filter((m) => m.slot == slot);
+        if (!msgs.length && !found.names[slot]) {
+            lights.push(null);
+            continue;
+        }
+        const l = light_default('custom');
+        l.name = found.names[slot] || '';
+        l.auto = !!(found.auto & (1 << slot));
+        const z = z15_from_messages(msgs);
+        if (z) {
+            l.kind = 'z15';
+            l.z15 = z;
+        } else {
+            l.msgs = msgs.map((m) => ({ vid: m.vid, pid: m.pid, itf: m.itf, feature: m.feature, id: m.id, total: m.total, hex: light_bytes_hex(m.bytes) }));
+            if (!l.msgs.length) {
+                l.msgs = [light_msg_default()];
+            }
+        }
+        lights.push(l);
+    }
+    while (lights.length && lights[lights.length - 1] == null) {
+        lights.pop();
+    }
+    x.lights = lights;
+}
+
+function light_name(slot) {
+    const l = (x21().lights || [])[slot];
+    return 'Send lighting ' + (slot + 1) + (l && l.name ? ': ' + l.name : '');
 }
 
 function wheel_key_name(usage) {
@@ -6104,7 +6464,10 @@ async function board_cmd(command, fields = []) {
 
 async function load_board_info() {
     board_info = { name: '', version: '', rules: [], devices: [], parts: [], part_rules: [] };
+    light_supported = null;
+    light_note = {};
     if (device == null || !device_v21()) {
+        light_supported = device == null ? null : false;
         return;
     }
     await board_cmd(FIRMWARE_INFO);
@@ -6126,6 +6489,11 @@ async function load_board_info() {
         board_info.recovered = (await read_board_state()).recovered;
     } catch (e) {
         board_info.recovered = null;
+    }
+    try {
+        light_supported = (await light_status()) != null;
+    } catch (e) {
+        light_supported = false;
     }
 }
 
@@ -6999,6 +7367,313 @@ function render_key_features_v21(box, sec, check, num) {
     safe.appendChild(s2);
     check(safe, 'kf_esc_macro', 'Esc stops a macro that is running', sf.esc_stops_macros, (v) => { sf.esc_stops_macros = v; });
     safe.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'At power-up: hold 1–8 for a second to start in that profile, Esc for 2 s for safe start (everything passes through), Backspace for 3 s to undo the last save.'));
+
+    render_lighting(sec, check, num);
+}
+
+// ---- Settings: Key features → Lighting
+
+let light_supported = null;  // null = not asked yet, else true / false for the open board
+let light_note = {};         // slot -> what the last "Try it" did
+
+async function light_status() {
+    await board_cmd(GET_LIGHT_STATUS);
+    const [sent, no_device, last, auto, magic] = await read_config_feature([UINT16, UINT16, UINT8, UINT8, UINT8]);
+    return magic == LIGHT_MAGIC ? { sent, no_device, last, auto } : null;
+}
+
+async function light_try(slot) {
+    const l = x21().lights[slot];
+    const r = light_messages(l);
+    if (r.error) {
+        light_note[slot] = r.error;
+        render_key_features_card();
+        return;
+    }
+    await profile_action(async () => {
+        const before = await light_status();
+        light_supported = before != null;
+        if (!light_supported) {
+            light_note[slot] = 'This board needs newer TrueMap firmware for lighting.';
+            return;
+        }
+        const recs = light_records(l, 0);
+        await board_cmd(LIGHT_TEST_CLEAR);
+        for (let i = 0; i < recs.length; i += EXTRAS_BYTES_IN_PACKET) {
+            const chunk = recs.slice(i, i + EXTRAS_BYTES_IN_PACKET);
+            await board_cmd(LIGHT_TEST_APPEND, [[UINT8, chunk.length], ...chunk.map((b) => [UINT8, b])]);
+        }
+        await board_cmd(LIGHT_RUN, [[UINT8, LIGHT_TEST_SLOT]]);
+        await new Promise((res) => setTimeout(res, 300 + r.msgs.length * 20));
+        const after = await light_status();
+        const sent = after.sent - before.sent, missing = after.no_device - before.no_device;
+        light_note[slot] = missing && !sent ? 'Nothing sent: the device isn\'t plugged into the board (or not on that interface).'
+            : 'Sent ' + sent + ' message' + (sent == 1 ? '' : 's') + (missing ? '; ' + missing + ' for a device that isn\'t plugged in.' : '.') + ' Not saved yet: Save to device keeps it.';
+    });
+    render_key_features_card();
+}
+
+function render_lighting(sec, check, num) {
+    const x = x21();
+    const lights = x.lights;
+    const s = sec('Lighting');
+    s.appendChild(md_element('p', { class: 'md-board-p' },
+        'Colours and effects for an RGB keyboard or other device plugged into the board. Put "Send lighting 1–8" on a key (outputs under TrueMap), or let one go out by itself when this profile starts and whenever its device is plugged in, so each profile can have its own colour. The EVGA Z15 and Z20 are built in; "Any device" sends bytes you copy from OpenRGB or the maker\'s app.'));
+    const parts = board_info.parts || [];
+    lights.forEach((l, slot) => {
+        if (!l) {
+            return;
+        }
+        const card = md_element('div', { class: 'md-light', id: 'light_' + slot });
+        const head = md_element('div', { class: 'md-kf-row md-light-head' });
+        head.appendChild(md_element('span', { class: 'md-kf-name' }, 'Lighting ' + (slot + 1)));
+        const name = md_element('input', { type: 'text', class: 'form-control form-control-sm md-light-name', maxlength: '24', placeholder: 'Name (e.g. Night red)', 'aria-label': 'Lighting ' + (slot + 1) + ' name' });
+        name.value = l.name || '';
+        name.addEventListener('change', () => { l.name = name.value.trim(); });
+        head.appendChild(name);
+        const kind = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Lighting ' + (slot + 1) + ' device kind' });
+        kind.appendChild(md_element('option', { value: 'z15' }, 'EVGA Z15 / Z20'));
+        kind.appendChild(md_element('option', { value: 'custom' }, 'Any device (bytes)'));
+        kind.value = l.kind;
+        kind.addEventListener('change', () => {
+            if (kind.value == 'custom' && l.kind == 'z15' && (!l.msgs || !l.msgs.some((m) => m.hex))) {
+                // start from what the Z15 preset sends, to change by hand
+                l.msgs = z15_messages(l.z15).map((m) => ({ vid: m.vid, pid: m.pid, itf: m.itf, feature: m.feature, id: m.id, total: m.total, hex: light_bytes_hex(m.bytes) }));
+            }
+            l.kind = kind.value;
+            render_key_features_card();
+        });
+        head.appendChild(kind);
+        card.appendChild(head);
+
+        if (l.kind == 'z15') {
+            render_light_z15(card, l, slot);
+        } else {
+            render_light_custom(card, l, slot, parts, num);
+        }
+
+        const auto = md_element('div', { class: 'md-kf-row' });
+        check(auto, 'light_auto_' + slot, 'Send it by itself when this profile starts and when the device is plugged in', l.auto, (v) => { l.auto = v; });
+        card.appendChild(auto);
+        const used = config['mappings'].filter((m) => (m['target_usage'] || '').toLowerCase() == xu(LIGHT_USAGE + slot)).length;
+        const r = light_messages(l);
+        const info = md_element('p', { class: 'md-board-p mb-1' }, (r.error ? '⚠ ' + r.error + '. ' : '') +
+            (used ? 'On ' + used + ' key' + (used == 1 ? '' : 's') + '.' : 'No key sends it yet: map a key to "Send lighting ' + (slot + 1) + '".'));
+        card.appendChild(info);
+        if (light_note[slot]) {
+            card.appendChild(md_element('p', { class: 'md-board-p mb-1 md-light-note', role: 'status' }, light_note[slot]));
+        }
+        const btns = md_element('div', { class: 'md-board-btns' });
+        const tryb = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary' }, 'Try it');
+        tryb.disabled = device == null || light_supported === false;
+        tryb.title = device == null ? 'Open the board first' : light_supported === false ? 'Needs newer TrueMap firmware' : 'Send it to the device now (not saved)';
+        tryb.addEventListener('click', () => light_try(slot));
+        const del = md_element('button', { type: 'button', class: 'btn btn-sm btn-link text-danger' }, 'Remove');
+        del.addEventListener('click', () => {
+            lights[slot] = null;
+            while (lights.length && lights[lights.length - 1] == null) {
+                lights.pop();
+            }
+            delete light_note[slot];
+            render_key_features_card();
+        });
+        btns.append(tryb, del);
+        card.appendChild(btns);
+        s.appendChild(card);
+    });
+    const free = [...Array(LIGHT_SLOTS).keys()].find((i) => !lights[i]);
+    const add = md_element('div', { class: 'md-board-btns' });
+    if (free !== undefined) {
+        const b = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', id: 'light_add' }, '+ Lighting');
+        b.addEventListener('click', () => {
+            lights[free] = light_default(light_plugged_z15() || !parts.length ? 'z15' : 'custom');
+            render_key_features_card();
+        });
+        add.appendChild(b);
+    }
+    s.appendChild(add);
+    if (light_supported === false && device != null) {
+        s.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'This board needs newer TrueMap firmware to send lighting.'));
+    }
+}
+
+function render_light_z15(card, l, slot) {
+    const z = l.z15;
+    const e = z15_effect(z.effect);
+    const row1 = md_element('div', { class: 'md-kf-row' });
+    const model = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Keyboard model' });
+    const plugged = light_plugged_z15();
+    for (const [pid, nm] of Object.entries(Z15_MODELS)) {
+        model.appendChild(md_element('option', { value: pid }, nm + (plugged == pid ? ' (plugged in)' : '')));
+    }
+    model.value = String(z.pid);
+    model.addEventListener('change', () => { z.pid = parseInt(model.value); render_key_features_card(); });
+    row1.appendChild(model);
+    const eff = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Effect' });
+    for (const x of Z15_EFFECTS) {
+        eff.appendChild(md_element('option', { value: x.id }, x.name));
+    }
+    eff.value = e.id;
+    eff.addEventListener('change', () => {
+        const ne = z15_effect(eff.value);
+        z.effect = ne.id;
+        z.colors = z15_colors(z);
+        if (ne.dirs && !ne.dirs[z.direction]) {
+            z.direction = Object.keys(ne.dirs)[0];
+        }
+        if (ne.speed) {
+            z.speed = z15_speed_from_step(ne, z15_step_from_speed(e, z.speed || 50));
+        }
+        render_key_features_card();
+    });
+    row1.appendChild(eff);
+    card.appendChild(row1);
+    if (e.colors[1] > 0) {
+        const row = md_element('div', { class: 'md-kf-row' });
+        row.appendChild(md_element('span', {}, e.colors[1] > 1 ? 'Colours' : 'Colour'));
+        const colors = z15_colors(z);
+        colors.forEach((c, i) => {
+            const pick = md_element('input', { type: 'color', class: 'form-control form-control-color md-light-color', 'aria-label': 'Colour ' + (i + 1) });
+            pick.value = c;
+            pick.addEventListener('change', () => { const cs = z15_colors(z); cs[i] = pick.value; z.colors = cs; });
+            row.appendChild(pick);
+        });
+        if (e.colors[1] > e.colors[0]) {
+            if (colors.length < e.colors[1]) {
+                const more = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', 'aria-label': 'Add a colour' }, '+');
+                more.addEventListener('click', () => { const cs = z15_colors(z); cs.push(Z15_PALETTE[cs.length % Z15_PALETTE.length]); z.colors = cs; render_key_features_card(); });
+                row.appendChild(more);
+            }
+            if (colors.length > e.colors[0]) {
+                const less = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', 'aria-label': 'Remove the last colour' }, '−');
+                less.addEventListener('click', () => { const cs = z15_colors(z); cs.pop(); z.colors = cs; render_key_features_card(); });
+                row.appendChild(less);
+            }
+        }
+        card.appendChild(row);
+    }
+    if (e.id != 'off') {
+        const row = md_element('div', { class: 'md-kf-row' });
+        const g1 = md_element('span', { class: 'md-light-slider' });
+        g1.appendChild(md_element('label', { for: 'light_bright_' + slot }, 'Brightness'));
+        const br = md_element('input', { type: 'range', class: 'form-range md-light-range', id: 'light_bright_' + slot, min: '0', max: '100', step: '5' });
+        br.value = String(Math.round((z.brightness ?? 255) * 100 / 255));
+        const bv = md_element('span', { class: 'md-light-val' }, br.value + '%');
+        br.addEventListener('input', () => { bv.textContent = br.value + '%'; z.brightness = Math.round(parseInt(br.value) * 255 / 100); });
+        g1.append(br, bv);
+        row.appendChild(g1);
+        if (e.speed) {
+            const g2 = md_element('span', { class: 'md-light-slider' });
+            g2.appendChild(md_element('label', { for: 'light_speed_' + slot }, 'Speed'));
+            const sp = md_element('input', { type: 'range', class: 'form-range md-light-range', id: 'light_speed_' + slot, min: '1', max: '10', step: '1' });
+            sp.value = String(z15_step_from_speed(e, z.speed || 50));
+            const sv = md_element('span', { class: 'md-light-val' }, sp.value + '/10');
+            sp.addEventListener('input', () => { sv.textContent = sp.value + '/10'; z.speed = z15_speed_from_step(e, parseInt(sp.value)); });
+            g2.append(sp, sv);
+            row.appendChild(g2);
+        }
+        if (e.dirs) {
+            const dir = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Direction' });
+            for (const [k, [label]] of Object.entries(e.dirs)) {
+                dir.appendChild(md_element('option', { value: k }, label));
+            }
+            dir.value = e.dirs[z.direction] ? z.direction : Object.keys(e.dirs)[0];
+            dir.addEventListener('change', () => { z.direction = dir.value; });
+            row.appendChild(dir);
+        }
+        card.appendChild(row);
+    }
+    const save = md_element('div', { class: 'md-kf-row' });
+    const id = 'light_save_' + slot;
+    const wrap = md_element('div', { class: 'form-check' });
+    const b = md_element('input', { type: 'checkbox', class: 'form-check-input', id });
+    b.checked = !!z.save;
+    b.addEventListener('change', () => { z.save = b.checked; });
+    wrap.append(b, md_element('label', { class: 'form-check-label', for: id }, 'Also keep it in the keyboard (it then looks like this on other computers too; writes the keyboard\'s memory each time)'));
+    save.appendChild(wrap);
+    card.appendChild(save);
+}
+
+function render_light_custom(card, l, slot, parts, num) {
+    const devs = [];
+    for (const p of parts) {
+        if (!devs.some((d) => d.vid == p.vid && d.pid == p.pid)) {
+            devs.push({ vid: p.vid, pid: p.pid, itfs: parts.filter((q) => q.vid == p.vid && q.pid == p.pid).map((q) => q.itf) });
+        }
+    }
+    const vp = (vid, pid) => vid.toString(16).padStart(4, '0') + ':' + pid.toString(16).padStart(4, '0');
+    l.msgs = l.msgs && l.msgs.length ? l.msgs : [light_msg_default()];
+    l.msgs.forEach((m, i) => {
+        const box = md_element('div', { class: 'md-light-msg' });
+        const row = md_element('div', { class: 'md-kf-row' });
+        row.appendChild(md_element('span', { class: 'md-kf-name' }, (i + 1) + '.'));
+        const dev = md_element('input', { type: 'text', class: 'form-control form-control-sm md-light-vp', placeholder: 'VID:PID', 'aria-label': 'Device (VID:PID)', list: 'light_devs_' + slot + '_' + i });
+        dev.value = m.vid || m.pid ? vp(m.vid, m.pid) : '';
+        const dl = md_element('datalist', { id: 'light_devs_' + slot + '_' + i });
+        for (const d of devs) {
+            dl.appendChild(md_element('option', { value: vp(d.vid, d.pid) }, device_name(d.vid, d.pid)));
+        }
+        dev.addEventListener('change', () => {
+            const mm = dev.value.trim().match(/^([0-9a-f]{1,4})\s*[:\s]\s*([0-9a-f]{1,4})$/i);
+            if (mm) {
+                m.vid = parseInt(mm[1], 16);
+                m.pid = parseInt(mm[2], 16);
+                dev.value = vp(m.vid, m.pid);
+            } else {
+                dev.value = m.vid || m.pid ? vp(m.vid, m.pid) : '';
+            }
+            render_key_features_card();
+        });
+        row.append(dev, dl);
+        const known = devs.find((d) => d.vid == m.vid && d.pid == m.pid);
+        row.appendChild(md_element('span', { class: 'md-light-dev' }, m.vid || m.pid ? device_name(m.vid, m.pid) + (known ? ' (plugged in)' : '') : ''));
+        const itf = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'USB interface' });
+        const itfs = new Set([...(known ? known.itfs : []), 0, 1, 2, 3, m.itf != 255 ? m.itf : 0]);
+        for (const n of [...itfs].sort((a, b) => a - b)) {
+            itf.appendChild(md_element('option', { value: String(n) }, 'Interface ' + n + (known && known.itfs.includes(n) ? ' ✓' : '')));
+        }
+        itf.appendChild(md_element('option', { value: '255' }, 'Every interface'));
+        itf.value = String(m.itf);
+        itf.addEventListener('change', () => { m.itf = parseInt(itf.value); });
+        row.appendChild(itf);
+        box.appendChild(row);
+        const row2 = md_element('div', { class: 'md-kf-row' });
+        const type = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Report type' });
+        type.appendChild(md_element('option', { value: 'f' }, 'Feature report'));
+        type.appendChild(md_element('option', { value: 'o' }, 'Output report'));
+        type.value = m.feature ? 'f' : 'o';
+        type.addEventListener('change', () => { m.feature = type.value == 'f'; });
+        row2.appendChild(type);
+        row2.appendChild(md_element('span', {}, 'report ID'));
+        row2.appendChild(num(m.id || 0, 0, 255, (v) => { m.id = v; }, 'Report ID'));
+        row2.appendChild(md_element('span', {}, 'send as'));
+        row2.appendChild(num(m.total || 0, 0, LIGHT_MAX_TOTAL, (v) => { m.total = v; render_key_features_card(); }, 'Bytes to send after the report ID'));
+        row2.appendChild(md_element('span', {}, 'bytes (0 = only these; the rest are zeros)'));
+        if (l.msgs.length > 1) {
+            const del = md_element('button', { type: 'button', class: 'btn btn-sm btn-link text-danger', 'aria-label': 'Remove message ' + (i + 1) }, '✕');
+            del.addEventListener('click', () => { l.msgs.splice(i, 1); render_key_features_card(); });
+            row2.appendChild(del);
+        }
+        box.appendChild(row2);
+        const bytes = md_element('input', { type: 'text', class: 'form-control form-control-sm md-light-hex', placeholder: 'Bytes after the report ID, in hex: ea 02 0c …', 'aria-label': 'Message ' + (i + 1) + ' bytes', spellcheck: 'false' });
+        bytes.value = m.hex || '';
+        bytes.addEventListener('change', () => {
+            const b = light_hex_bytes(bytes.value);
+            m.hex = b ? light_bytes_hex(b) : bytes.value;
+            render_key_features_card();
+        });
+        box.appendChild(bytes);
+        card.appendChild(box);
+    });
+    if (l.msgs.length < LIGHT_MAX_MSGS) {
+        const b = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary mb-1' }, '+ Message');
+        b.addEventListener('click', () => {
+            const last = l.msgs[l.msgs.length - 1] || light_msg_default();
+            l.msgs.push({ ...light_msg_default(), vid: last.vid, pid: last.pid, itf: last.itf, feature: last.feature, id: last.id });
+            render_key_features_card();
+        });
+        card.appendChild(b);
+    }
 }
 
 function v21_setup() {
@@ -7079,6 +7754,11 @@ const PK_HELP = {
     '0xffe7000f': 'Everything passes through as it is (no mappings, macros or features) until you press it again. For when someone else uses the computer',
     '0xffe70010': 'Stops a macro that is typing (Esc does too, unless switched off in Settings → Key features)',
     '0xffe70011': 'Types "Profile 2 Night reading" (the profile in use) into wherever the cursor is',
+    '0xffe70020': 'Sends lighting 1 (Key features → Lighting) to the device it is for, e.g. the keyboard\'s colour',
+    '0xffe70021': 'Sends lighting 2 to the device it is for', '0xffe70022': 'Sends lighting 3 to the device it is for',
+    '0xffe70023': 'Sends lighting 4 to the device it is for', '0xffe70024': 'Sends lighting 5 to the device it is for',
+    '0xffe70025': 'Sends lighting 6 to the device it is for', '0xffe70026': 'Sends lighting 7 to the device it is for',
+    '0xffe70027': 'Sends lighting 8 to the device it is for',
     '0x00000000': 'Sends nothing: the key is switched off',
 };
 function pk_help(usage, name) {

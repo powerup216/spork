@@ -529,6 +529,22 @@ hr { border-color: var(--line); opacity: 1; }
 .md-kf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.85rem; }
 .md-kf-num { width: 84px; text-align: right; }
 .md-kf-name { min-width: 64px; font-weight: 600; color: var(--bone); }
+.md-light { border: 1px solid var(--line, rgba(255,255,255,0.12)); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+.md-light-head { gap: 8px; }
+.md-light { min-width: 0; max-width: 100%; }
+.md-light select, .md-light .md-light-hex { max-width: 100%; min-width: 0; }
+.md-light .md-kf-row > * { min-width: 0; }
+.md-light-name { width: 220px; max-width: 100%; }
+.md-light-color { width: 40px; height: 30px; padding: 2px; }
+.md-light-range { width: 130px; }
+.md-light-slider { display: inline-flex; align-items: center; gap: 6px; }
+.md-light-val { min-width: 40px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.md-light-msg { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px dashed var(--line, rgba(255,255,255,0.12)); }
+.md-light-vp { width: 120px; font-family: ui-monospace, monospace; }
+.md-light-dev { color: var(--muted); font-size: 0.8rem; }
+.md-light-hex { font-family: ui-monospace, monospace; font-size: 0.8rem; }
+.md-light-note { color: var(--lightbox); }
+@media (max-width: 640px) { .md-light-name { width: 100%; } .md-light-range { width: 100px; } }
 .md-kf-grid { display: flex; flex-direction: column; gap: 6px; }
 .md-kf-sub { margin: 4px 0 0; font-size: 0.8rem; font-weight: 600; color: var(--bone); }
 .md-kf-list { margin: 0; padding-left: 18px; font-size: 0.85rem; }

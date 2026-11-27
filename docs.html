@@ -375,6 +375,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>Layer outputs</td><td>See <a href="#layers">Layers</a>.</td></tr>
     <tr><td>Restart the board</td><td>Restarts it, as if replugged.</td></tr>
     <tr><td>Restart into firmware update mode</td><td>The board shows up as a USB drive for a new firmware file.</td></tr>
+    <tr><td>Send lighting 1–8</td><td>Sets the lights of the device it's for, e.g. the keyboard's colour. See <a href="#lighting">Lighting</a>.</td></tr>
   </table></div>
 </section>
 
@@ -494,9 +495,22 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>Scroll lock</td><td>Five speeds (mouse movement per scroll line; smaller = faster), which speed it starts at, sideways movement scrolls sideways, reverse direction.</td></tr>
     <tr><td>Pointer and scrolling</td><td>Precision speed %, fast scroll ×, and per port: pointer speed % (10–400), acceleration (0–10) and debounce ms for buttons that double-click by themselves.</td></tr>
     <tr><td>Back to the base layer</td><td>Seconds without input before layers reset (0 = never).</td></tr>
+    <tr><td>Lighting</td><td>Colours and effects for an RGB keyboard or other device plugged into the board (below).</td></tr>
     <tr><td>On this profile</td><td>Every combo, tap dance, cycle, wheel-as-keys and per-key hold time, with Remove buttons.</td></tr>
   </table></div>
   <div class="tip"><p>Scroll lock too twitchy on a high-DPI mouse? Raise the numbers for speeds 1–5 (more movement per line). Too slow? Lower them, or start at a higher speed.</p></div>
+
+  <h3 id="lighting">Lighting (RGB keyboards)</h3>
+  <p>The board can set the lights of a device plugged into it, such as an RGB keyboard. The computer's lighting app (OpenRGB, EVGA Unleashed) can't reach a keyboard behind the board, so the board sends the colours itself. Each profile has up to 8 lightings. Click <span class="path">+ Lighting</span> in <span class="path">Settings → Key features → Lighting</span>.</p>
+  <ul>
+    <li><strong>EVGA Z15 / Z20:</strong> pick the model (the one plugged in is marked), an effect, colours, brightness, speed and direction. Effects: one colour, breathing (1–2 colours), flashing (2–7), spiral, rainbow wave, starry night, keys light up as you type, the key pressed lights up, the keys around it light up, and off. The board sends exactly what OpenRGB sends.</li>
+    <li><strong>Any device (bytes):</strong> for other devices, type the messages yourself. For each one: the device (VID:PID; the ones plugged in are offered), its USB interface (or every interface), feature or output report, the report ID, the bytes in hex, and optionally <em>send as</em> N bytes (the rest is filled with zeros, for devices that want long messages). Switching a Z15 lighting to "Any device" starts from its bytes, to change by hand.</li>
+    <li><strong>Try it</strong> sends it to the device straight away without saving, and says how many messages went out (or that the device isn't plugged in).</li>
+    <li><strong>Send it by itself</strong>: tick <span class="path">Send it by itself when this profile starts and when the device is plugged in</span> and the profile carries its own colour: switch profile and the keyboard follows. Plugging in some other device doesn't send it again.</li>
+    <li><strong>On a key:</strong> map a key to <em>Send lighting 1–8</em> (outputs under TrueMap). The output shows the lighting's name, e.g. "Send lighting 1: Night red".</li>
+    <li><strong>Also keep it in the keyboard</strong> (Z15) makes it the keyboard's own setting, so it looks the same plugged into another computer. It writes the keyboard's memory every time it's sent, so leave it off for lighting that changes often.</li>
+  </ul>
+  <div class="tip"><p>Finding the bytes for another device: OpenRGB's source has a driver for most RGB devices (the bytes each mode sends), or record what the maker's app sends with Wireshark and USBPcap. Messages go out in order, a moment apart; up to 12 per lighting. Needs the firmware from 26 November 2026 or later.</p></div>
 </section>
 
 <!-- ============================================================ -->
@@ -514,6 +528,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <li>The side bar lists the profiles on the board, so you can see which one is in use.</li>
     <li><strong>A key that types the profile's name</strong>: the output <em>Type the profile name</em> types e.g. “Profile 2 Night reading” wherever the cursor is.</li>
     <li><strong>Each profile has a colour</strong> for the board's light; see <a href="#firmware">Firmware</a>.</li>
+    <li><strong>An RGB keyboard can follow the profile:</strong> a lighting set to send by itself goes out when the profile starts; see <a href="#lighting">Lighting</a>.</li>
   </ul>
 </section>
 
@@ -639,6 +654,8 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>The page loaded the board's settings over mine</td><td>Settings load as soon as the board opens. Turn that off for the board in Settings → Board. Settings from an imported file or an example are never replaced.</td></tr>
     <tr><td>A key keeps going as if held down</td><td>The wireless receiver lost the key's release. The board lets go of it after 30 s by itself; set a shorter time in Settings → Key features → Safety nets.</td></tr>
     <tr><td>The page asks "Leave site?" when closing</td><td>The page has changes the board doesn't have yet. Click Save to device first, or leave to throw them away.</td></tr>
+    <tr><td>Lighting: Try it says nothing was sent</td><td>The device isn't plugged into the board, or not on that interface. For the Z15, check the model (US / ISO, Z15 / Z20) matches.</td></tr>
+    <tr><td>The keyboard's colour goes back after a while</td><td>Tick <span class="path">Send it by itself</span> so it's sent again whenever the keyboard is plugged in or the profile starts, or <span class="path">Also keep it in the keyboard</span>.</td></tr>
     <tr><td>"Needs the latest firmware"</td><td>Update the board (section 17). The settings stay on the page and in saved files meanwhile.</td></tr>
   </table></div>
 </section>
@@ -656,6 +673,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>Board name</td><td>24 characters</td></tr>
     <tr><td>Memory (Feather / MeisterConverter)</td><td>about 125 / 123 KB; Save restarts the board when under 20 KB is left</td></tr>
     <tr><td>Profile name</td><td>20 characters</td></tr>
+    <tr><td>Lightings</td><td>8 per profile; up to 12 messages each, 63 bytes typed per message, sent as up to 1023</td></tr>
     <tr><td>Scroll lock speeds</td><td>5</td></tr>
     <tr><td>Test without sending</td><td>Turns off after 2 minutes without the page</td></tr>
     <tr><td>Safe start</td><td>Esc held 2 s, within 8 s of power-up</td></tr>

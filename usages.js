@@ -711,6 +711,14 @@ const micdrop_target_usages = {
     "0xffe7000f": { 'name': 'Pause remapping (on/off)', 'class': 'micdrop' },
     "0xffe70010": { 'name': 'Stop the running macro', 'class': 'micdrop' },
     "0xffe70011": { 'name': 'Type the profile name', 'class': 'micdrop' },
+    "0xffe70020": { 'name': 'Send lighting 1', 'class': 'micdrop' },
+    "0xffe70021": { 'name': 'Send lighting 2', 'class': 'micdrop' },
+    "0xffe70022": { 'name': 'Send lighting 3', 'class': 'micdrop' },
+    "0xffe70023": { 'name': 'Send lighting 4', 'class': 'micdrop' },
+    "0xffe70024": { 'name': 'Send lighting 5', 'class': 'micdrop' },
+    "0xffe70025": { 'name': 'Send lighting 6', 'class': 'micdrop' },
+    "0xffe70026": { 'name': 'Send lighting 7', 'class': 'micdrop' },
+    "0xffe70027": { 'name': 'Send lighting 8', 'class': 'micdrop' },
 };
 Object.assign(common_target_usages, micdrop_target_usages);
 
