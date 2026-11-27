@@ -7446,19 +7446,25 @@ function render_lighting(sec, check, num) {
         head.appendChild(kind);
         card.appendChild(head);
 
+        // the line under it: problems in words, and which keys send it; text fields update it
+        // in place (redrawing the card on a field's change would eat the click that caused it)
+        const info = md_element('p', { class: 'md-board-p mb-1 md-light-info' });
+        const info_update = () => {
+            const used = config['mappings'].filter((m) => (m['target_usage'] || '').toLowerCase() == xu(LIGHT_USAGE + slot)).length;
+            const r = light_messages(l);
+            info.textContent = (r.error ? '⚠ ' + r.error + '. ' : '') +
+                (used ? 'On ' + used + ' key' + (used == 1 ? '' : 's') + '.' : 'No key sends it yet: map a key to "Send lighting ' + (slot + 1) + '".');
+        };
+        info_update();
         if (l.kind == 'z15') {
             render_light_z15(card, l, slot);
         } else {
-            render_light_custom(card, l, slot, parts, num);
+            render_light_custom(card, l, slot, parts, num, info_update);
         }
 
         const auto = md_element('div', { class: 'md-kf-row' });
         check(auto, 'light_auto_' + slot, 'Send it by itself when this profile starts and when the device is plugged in', l.auto, (v) => { l.auto = v; });
         card.appendChild(auto);
-        const used = config['mappings'].filter((m) => (m['target_usage'] || '').toLowerCase() == xu(LIGHT_USAGE + slot)).length;
-        const r = light_messages(l);
-        const info = md_element('p', { class: 'md-board-p mb-1' }, (r.error ? '⚠ ' + r.error + '. ' : '') +
-            (used ? 'On ' + used + ' key' + (used == 1 ? '' : 's') + '.' : 'No key sends it yet: map a key to "Send lighting ' + (slot + 1) + '".'));
         card.appendChild(info);
         if (light_note[slot]) {
             card.appendChild(md_element('p', { class: 'md-board-p mb-1 md-light-note', role: 'status' }, light_note[slot]));
@@ -7594,7 +7600,7 @@ function render_light_z15(card, l, slot) {
     card.appendChild(save);
 }
 
-function render_light_custom(card, l, slot, parts, num) {
+function render_light_custom(card, l, slot, parts, num, changed) {
     const devs = [];
     for (const p of parts) {
         if (!devs.some((d) => d.vid == p.vid && d.pid == p.pid)) {
@@ -7613,6 +7619,34 @@ function render_light_custom(card, l, slot, parts, num) {
         for (const d of devs) {
             dl.appendChild(md_element('option', { value: vp(d.vid, d.pid) }, device_name(d.vid, d.pid)));
         }
+        row.append(dev, dl);
+        const devName = md_element('span', { class: 'md-light-dev' });
+        row.appendChild(devName);
+        const itf = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'USB interface' });
+        itf.addEventListener('change', () => { m.itf = parseInt(itf.value); });
+        row.appendChild(itf);
+        // the device's name and its interfaces, kept up to date in place
+        const show_device = () => {
+            const known = devs.find((d) => d.vid == m.vid && d.pid == m.pid);
+            devName.textContent = m.vid || m.pid ? device_name(m.vid, m.pid) + (known ? ' (plugged in)' : '') : '';
+            clear_children(itf);
+            const itfs = new Set([...(known ? known.itfs : []), 0, 1, 2, 3, m.itf != 255 ? m.itf : 0]);
+            for (const n of [...itfs].sort((a, b) => a - b)) {
+                itf.appendChild(md_element('option', { value: String(n) }, 'Interface ' + n + (known && known.itfs.includes(n) ? ' ✓' : '')));
+            }
+            itf.appendChild(md_element('option', { value: '255' }, 'Every interface'));
+            itf.value = String(m.itf);
+        };
+        show_device();
+        dev.addEventListener('input', () => {
+            const mm = dev.value.trim().match(/^([0-9a-f]{4})\s*[:\s]\s*([0-9a-f]{4})$/i);
+            if (mm) {
+                m.vid = parseInt(mm[1], 16);
+                m.pid = parseInt(mm[2], 16);
+                show_device();
+                changed();
+            }
+        });
         dev.addEventListener('change', () => {
             const mm = dev.value.trim().match(/^([0-9a-f]{1,4})\s*[:\s]\s*([0-9a-f]{1,4})$/i);
             if (mm) {
@@ -7622,20 +7656,9 @@ function render_light_custom(card, l, slot, parts, num) {
             } else {
                 dev.value = m.vid || m.pid ? vp(m.vid, m.pid) : '';
             }
-            render_key_features_card();
+            show_device();
+            changed();
         });
-        row.append(dev, dl);
-        const known = devs.find((d) => d.vid == m.vid && d.pid == m.pid);
-        row.appendChild(md_element('span', { class: 'md-light-dev' }, m.vid || m.pid ? device_name(m.vid, m.pid) + (known ? ' (plugged in)' : '') : ''));
-        const itf = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'USB interface' });
-        const itfs = new Set([...(known ? known.itfs : []), 0, 1, 2, 3, m.itf != 255 ? m.itf : 0]);
-        for (const n of [...itfs].sort((a, b) => a - b)) {
-            itf.appendChild(md_element('option', { value: String(n) }, 'Interface ' + n + (known && known.itfs.includes(n) ? ' ✓' : '')));
-        }
-        itf.appendChild(md_element('option', { value: '255' }, 'Every interface'));
-        itf.value = String(m.itf);
-        itf.addEventListener('change', () => { m.itf = parseInt(itf.value); });
-        row.appendChild(itf);
         box.appendChild(row);
         const row2 = md_element('div', { class: 'md-kf-row' });
         const type = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Report type' });
@@ -7647,7 +7670,7 @@ function render_light_custom(card, l, slot, parts, num) {
         row2.appendChild(md_element('span', {}, 'report ID'));
         row2.appendChild(num(m.id || 0, 0, 255, (v) => { m.id = v; }, 'Report ID'));
         row2.appendChild(md_element('span', {}, 'send as'));
-        row2.appendChild(num(m.total || 0, 0, LIGHT_MAX_TOTAL, (v) => { m.total = v; render_key_features_card(); }, 'Bytes to send after the report ID'));
+        row2.appendChild(num(m.total || 0, 0, LIGHT_MAX_TOTAL, (v) => { m.total = v; changed(); }, 'Bytes to send after the report ID'));
         row2.appendChild(md_element('span', {}, 'bytes (0 = only these; the rest are zeros)'));
         if (l.msgs.length > 1) {
             const del = md_element('button', { type: 'button', class: 'btn btn-sm btn-link text-danger', 'aria-label': 'Remove message ' + (i + 1) }, '✕');
@@ -7657,10 +7680,15 @@ function render_light_custom(card, l, slot, parts, num) {
         box.appendChild(row2);
         const bytes = md_element('input', { type: 'text', class: 'form-control form-control-sm md-light-hex', placeholder: 'Bytes after the report ID, in hex: ea 02 0c …', 'aria-label': 'Message ' + (i + 1) + ' bytes', spellcheck: 'false' });
         bytes.value = m.hex || '';
+        // checked as you type, so nothing moves when you click away (that would lose the click)
+        bytes.addEventListener('input', () => {
+            m.hex = bytes.value;
+            changed();
+        });
         bytes.addEventListener('change', () => {
             const b = light_hex_bytes(bytes.value);
             m.hex = b ? light_bytes_hex(b) : bytes.value;
-            render_key_features_card();
+            bytes.value = m.hex;
         });
         box.appendChild(bytes);
         card.appendChild(box);
