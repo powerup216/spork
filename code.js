@@ -3104,7 +3104,7 @@ function kb_key_clicked(usage) {
         mapping['source_port'] = port;
         set_mappings_ui_state();
     }
-    md_select(mapping, true);
+    md_open(mapping);
 }
 
 // Expressions behind a direction key, in the saved (x1000) form. The first is the
@@ -3170,7 +3170,7 @@ function dir_key_clicked(dir) {
         const m = wheel_keys_mapping(xu(dir.axis), port, kind, a);
         if (m) {
             set_mappings_ui_state();
-            md_select(m, true);
+            md_open(m);
         }
         return;
     }
@@ -3212,12 +3212,7 @@ function dir_key_clicked(dir) {
         mapping = config['mappings'][config['mappings'].length - 1];
         set_mappings_ui_state();
     }
-    selected_mapping = mapping;
-    md_refresh();
-    const row = mapping_row(mapping);
-    if (row) {
-        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
+    md_open(mapping);
 }
 
 // the port a mapping's input listens to; for an expression made by a direction key,
@@ -3390,7 +3385,7 @@ function md_refresh() {
         chip.dataset.usage = m['source_usage'];
         chip.appendChild(md_element('b', {}, String(i + 1)));
         chip.appendChild(document.createTextNode('source_name' in m ? m['source_name'] : readable_usage_name(m['source_usage'])));
-        chip.addEventListener('click', () => md_select(m, true));
+        chip.addEventListener('click', () => md_open(m));
         other.appendChild(chip);
     });
     // rows
@@ -3460,6 +3455,26 @@ function md_refresh_soon() {
     }
     md_refresh_pending = true;
     setTimeout(() => { md_refresh_pending = false; md_refresh(); }, 0);
+}
+
+// a click on the diagram: open "What should it send?" for that mapping right
+// away, and leave the page where it is (on the diagram)
+function md_open(mapping) {
+    const y = window.scrollY;
+    selected_mapping = mapping;
+    md_refresh();
+    const row = mapping_row(mapping);
+    if (!row) {
+        return;
+    }
+    show_usage_modal(mapping, 'target', row)();
+    const keep = () => window.scrollTo({ top: y, behavior: 'instant' });
+    const el = document.getElementById('target_usage_modal');
+    el.addEventListener('hidden.bs.modal', () => {
+        keep();
+        // rows redrawn after the pick can move focus or layout: hold the place a moment longer
+        setTimeout(keep, 0);
+    }, { once: true });
 }
 
 function md_select(mapping, scroll = false) {
@@ -7045,12 +7060,18 @@ function render_health(box) {
 async function read_board_memory() {
     try {
         await board_cmd(GET_MEMORY);
-        const [total, in_use, peak, tight] = await read_config_feature([UINT32, UINT32, UINT32, UINT32]);
+        const [total, in_use, peak, tight, slots_used, slots_max, slots_missed, slots_magic] =
+            await read_config_feature([UINT32, UINT32, UINT32, UINT32, UINT16, UINT16, UINT16, UINT8]);
         // older firmware doesn't know this command and answers with whatever came before
         if (total < 16384 || total > 524288 || in_use > total || peak > total || in_use > peak || tight == 0 || tight >= total) {
             return null;
         }
-        return { total, in_use, peak, tight };
+        const m = { total, in_use, peak, tight };
+        // firmware without input slot counts leaves leftovers here
+        if (slots_magic == 0x53 && slots_max > 0 && slots_used <= slots_max) {
+            m.slots = { used: slots_used, max: slots_max, missed: slots_missed };
+        }
+        return m;
     } catch (e) {
         return null;
     }
@@ -7096,6 +7117,26 @@ function render_memory() {
         bad: 'Nearly full: Save and profile switches restart the board instead of applying in place. Switch off parts you don\'t use (above) and restart the board.',
     };
     el.appendChild(md_element('p', { class: 'md-board-p mb-0 md-mem-say ' + level }, say[level] + ' Updates every few seconds while Settings is open; the line marks where restarts begin (' + kb(m.tight) + ' left).'));
+    if (m.slots) {
+        const s = m.slots;
+        const slevel = s.missed > 0 ? 'bad' : (s.used >= 0.85 * s.max ? 'warn' : 'ok');
+        const sbar = md_element('div', { class: 'md-mem-bar ' + slevel, role: 'img', 'aria-label': s.used + ' of ' + s.max + ' input slots in use' });
+        const snow = md_element('div', { class: 'md-mem-now' });
+        snow.style.width = Math.min(100, (100 * s.used) / s.max) + '%';
+        sbar.appendChild(snow);
+        el.appendChild(md_element('h3', { class: 'md-board-lbl mt-3' }, 'Input slots'));
+        const shead = md_element('div', { class: 'md-mem-head' });
+        shead.appendChild(md_element('span', { class: 'md-mem-big' }, String(s.used)));
+        shead.appendChild(md_element('span', { class: 'md-mem-of' }, 'of ' + s.max + ' in use'));
+        el.appendChild(shead);
+        el.appendChild(sbar);
+        const ssay = {
+            ok: 'Each button, key or axis the mappings read takes one slot.',
+            warn: 'Nearly out of slots. Fewer mappings, layers or expressions free them.',
+            bad: s.missed + ' input' + (s.missed == 1 ? '' : 's') + ' left out because the slots ran out: some mappings won\'t work. Remove mappings, layers or expressions you don\'t use.',
+        };
+        el.appendChild(md_element('p', { class: 'md-board-p mb-0 md-mem-say ' + slevel }, ssay[slevel]));
+    }
 }
 
 async function poll_board_memory() {
