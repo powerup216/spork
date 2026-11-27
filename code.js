@@ -6003,7 +6003,7 @@ function extras_decode_v21(bytes, x) {
     x.scroll_lock = default_v21().scroll_lock;
     const u16 = (p) => bytes[p] | (bytes[p + 1] << 8);
     const u32 = (p) => (bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16) | (bytes[p + 3] << 24)) >>> 0;
-    const lights = { msgs: [], names: {}, auto: 0 };
+    const lights = { msgs: [], names: {}, auto: 0, lamps: [] };
     for (let pos = 0; pos + 2 <= bytes.length;) {
         const type = bytes[pos], len = bytes[pos + 1], p = pos + 2;
         pos += 2 + len;
@@ -6015,6 +6015,11 @@ function extras_decode_v21(bytes, x) {
                 if (len >= 9) {
                     lights.msgs.push({ slot: bytes[p] & 0x07, feature: !!(bytes[p] & 0x80), vid: u16(p + 1), pid: u16(p + 3), itf: bytes[p + 5], id: bytes[p + 6], total: u16(p + 7),
                         bytes: Array.from(bytes.slice(p + 9, p + len)) });
+                }
+                break;
+            case X_LIGHT_LAMP:
+                if (len >= 10) {
+                    lights.lamps.push({ slot: bytes[p] & 0x07, vid: u16(p + 1), pid: u16(p + 3), mode: bytes[p + 5], r: bytes[p + 6], g: bytes[p + 7], b: bytes[p + 8], i: bytes[p + 9] });
                 }
                 break;
             case X_LIGHT_NAME:
@@ -6067,7 +6072,7 @@ function extras_decode_v21(bytes, x) {
 // device is plugged in. The EVGA Z15/Z20 preset builds the bytes OpenRGB sends;
 // "Custom" takes any device's bytes as they are.
 
-const X_LIGHT_MSG = 18, X_LIGHT_AUTO = 19, X_LIGHT_NAME = 20;
+const X_LIGHT_MSG = 18, X_LIGHT_AUTO = 19, X_LIGHT_NAME = 20, X_LIGHT_LAMP = 21;
 const LIGHT_TEST_CLEAR = 85, LIGHT_TEST_APPEND = 86, LIGHT_RUN = 87, GET_LIGHT_STATUS = 88;
 const LIGHT_SLOTS = 8, LIGHT_TEST_SLOT = 8, LIGHT_MAX_BYTES = 63, LIGHT_MAX_TOTAL = 1023, LIGHT_MAX_MSGS = 12, LIGHT_MAGIC = 0x4C;
 const LIGHT_USAGE = 0xFFE70020;
@@ -6094,7 +6099,17 @@ function z15_default(pid = 0x2608) {
 }
 
 function light_default(kind = 'z15') {
-    return { name: '', auto: false, kind, z15: z15_default(light_plugged_z15() || 0x2608), msgs: [light_msg_default()] };
+    return { name: '', auto: false, kind, z15: z15_default(light_plugged_z15() || 0x2608), msgs: [light_msg_default()], lamp: lamp_default() };
+}
+
+// a Dynamic Lighting device: the board works out the messages from the device itself
+function lamp_default() {
+    const p = light_lamp_parts()[0];
+    return { vid: p ? p.vid : 0, pid: p ? p.pid : 0, mode: 'color', color: '#ff0000', brightness: 255 };
+}
+
+function light_lamp_parts() {
+    return (typeof board_info != 'undefined' && board_info.parts || []).filter((p) => p.lamps);
 }
 
 function light_msg_default() {
@@ -6291,6 +6306,9 @@ const light_bytes_hex = (b) => b.map((v) => v.toString(16).padStart(2, '0')).joi
 
 // the messages a lighting sends, or an error in words
 function light_messages(l) {
+    if (l.kind == 'lamp') {
+        return { msgs: [], lamp: true };
+    }
     if (l.kind == 'z15') {
         return { msgs: z15_messages(l.z15) };
     }
@@ -6326,6 +6344,13 @@ function light_messages(l) {
 
 function light_records(l, slot) {
     const out = [];
+    if (l.kind == 'lamp') {
+        const m = l.lamp || lamp_default();
+        const [r, g, b] = hex_rgb(m.color);
+        const p = [slot, ...x_le16(m.vid || 0), ...x_le16(m.pid || 0), m.mode == 'device' ? 1 : 0, r, g, b, Math.max(0, Math.min(255, m.brightness ?? 255))];
+        out.push(X_LIGHT_LAMP, p.length, ...p);
+        return out;
+    }
     const r = light_messages(l);
     for (const m of r.msgs || []) {
         const p = [slot | (m.feature ? 0x80 : 0), ...x_le16(m.vid), ...x_le16(m.pid), m.itf & 0xFF, m.id & 0xFF, ...x_le16(m.total || 0), ...m.bytes];
@@ -6360,7 +6385,8 @@ function lights_decode(found, x) {
     const lights = [];
     for (let slot = 0; slot < LIGHT_SLOTS; slot++) {
         const msgs = found.msgs.filter((m) => m.slot == slot);
-        if (!msgs.length && !found.names[slot]) {
+        const lamp = (found.lamps || []).find((m) => m.slot == slot);
+        if (!msgs.length && !lamp && !found.names[slot]) {
             lights.push(null);
             continue;
         }
@@ -6368,7 +6394,10 @@ function lights_decode(found, x) {
         l.name = found.names[slot] || '';
         l.auto = !!(found.auto & (1 << slot));
         const z = z15_from_messages(msgs);
-        if (z) {
+        if (lamp) {
+            l.kind = 'lamp';
+            l.lamp = { vid: lamp.vid, pid: lamp.pid, mode: lamp.mode == 1 ? 'device' : 'color', color: rgb_hex(lamp.r, lamp.g, lamp.b), brightness: lamp.i };
+        } else if (z) {
             l.kind = 'z15';
             l.z15 = z;
         } else {
@@ -6494,6 +6523,14 @@ async function load_board_info() {
         light_supported = (await light_status()) != null;
     } catch (e) {
         light_supported = false;
+    }
+    light_fix_parts();
+}
+
+// older firmware sends leftovers where the lamp count would be
+function light_fix_parts() {
+    for (const p of board_info.parts || []) {
+        p.lamps = light_supported ? (p.lamps_raw || 0) : 0;
     }
 }
 
@@ -6862,6 +6899,7 @@ function render_board_v21() {
     refresh.addEventListener('click', () => profile_action(async () => {
         await load_plugged_devices();
         await load_parts();
+        light_fix_parts();
         board_memory = await read_board_memory();
         render_board_v21();
     }));
@@ -7080,7 +7118,7 @@ function part_kind_label(k) {
         0x00010006: 'Keyboard', 0x00010007: 'Keypad', 0x00010002: 'Mouse', 0x00010001: 'Pointer',
         0x00010004: 'Joystick', 0x00010005: 'Gamepad', 0x00010008: 'Multi-axis controller', 0x00010080: 'Power and sleep keys',
         0x000c0001: 'Media keys', 0x000d0001: 'Pen', 0x000d0002: 'Pen', 0x000d0004: 'Touch screen', 0x000d0005: 'Touchpad',
-        0x000b0005: 'Phone keys', 0x000b0001: 'Phone keys', 0x00010000: 'Other',
+        0x000b0005: 'Phone keys', 0x000b0001: 'Phone keys', 0x00010000: 'Other', 0x00590001: 'Lighting (Dynamic Lighting)',
     };
     if (k in names) {
         return names[k];
@@ -7104,12 +7142,13 @@ async function load_parts() {
     board_info.part_rules = [];
     for (let i = 0; i < 32; i++) {
         await board_cmd(GET_PART, [[UINT8, i]]);
-        const [count, index, vid, pid, itf, port, state, inputs, k0, k1, k2] =
-            await read_config_feature([UINT8, UINT8, UINT16, UINT16, UINT8, UINT8, UINT8, UINT16, UINT32, UINT32, UINT32]);
+        const [count, index, vid, pid, itf, port, state, inputs, k0, k1, k2, lamps] =
+            await read_config_feature([UINT8, UINT8, UINT16, UINT16, UINT8, UINT8, UINT8, UINT16, UINT32, UINT32, UINT32, UINT16]);
         if (i >= count || index != i) {
             break;
         }
-        board_info.parts.push({ vid, pid, itf, port, state, inputs, kinds: [k0 >>> 0, k1 >>> 0, k2 >>> 0] });
+        // lamps: Dynamic Lighting devices (0xFFFF = count not read yet); only firmware with lighting sends it
+        board_info.parts.push({ vid, pid, itf, port, state, inputs, kinds: [k0 >>> 0, k1 >>> 0, k2 >>> 0], lamps_raw: lamps });
     }
     for (let i = 0; i < NPART_RULES; i++) {
         await board_cmd(BOARD_GET_PART_RULE, [[UINT8, i]]);
@@ -7404,10 +7443,11 @@ async function light_try(slot) {
             await board_cmd(LIGHT_TEST_APPEND, [[UINT8, chunk.length], ...chunk.map((b) => [UINT8, b])]);
         }
         await board_cmd(LIGHT_RUN, [[UINT8, LIGHT_TEST_SLOT]]);
-        await new Promise((res) => setTimeout(res, 300 + r.msgs.length * 20));
+        await new Promise((res) => setTimeout(res, 300 + Math.max(2, r.msgs.length) * 20));
         const after = await light_status();
         const sent = after.sent - before.sent, missing = after.no_device - before.no_device;
-        light_note[slot] = missing && !sent ? 'Nothing sent: the device isn\'t plugged into the board (or not on that interface).'
+        light_note[slot] = !missing && !sent ? 'The device hasn\'t said how many lights it has yet; it goes out as soon as it does.'
+            : missing && !sent ? 'Nothing sent: the device isn\'t plugged into the board (or not on that interface).'
             : 'Sent ' + sent + ' message' + (sent == 1 ? '' : 's') + (missing ? '; ' + missing + ' for a device that isn\'t plugged in.' : '.') + ' Not saved yet: Save to device keeps it.';
     });
     render_key_features_card();
@@ -7418,7 +7458,7 @@ function render_lighting(sec, check, num) {
     const lights = x.lights;
     const s = sec('Lighting');
     s.appendChild(md_element('p', { class: 'md-board-p' },
-        'Colours and effects for an RGB keyboard or other device plugged into the board. Put "Send lighting 1–8" on a key (outputs under TrueMap), or let one go out by itself when this profile starts and whenever its device is plugged in, so each profile can have its own colour. The EVGA Z15 and Z20 are built in; "Any device" sends bytes you copy from OpenRGB or the maker\'s app.'));
+        'Colours and effects for an RGB keyboard or other device plugged into the board. Put "Send lighting 1–8" on a key (outputs under TrueMap), or let one go out by itself when this profile starts and whenever its device is plugged in, so each profile can have its own colour. Devices made for Windows Dynamic Lighting work by themselves (the board reads how from the device); the EVGA Z15 and Z20 are built in; "Any device" sends bytes you type.'));
     const parts = board_info.parts || [];
     lights.forEach((l, slot) => {
         if (!l) {
@@ -7432,6 +7472,7 @@ function render_lighting(sec, check, num) {
         name.addEventListener('change', () => { l.name = name.value.trim(); });
         head.appendChild(name);
         const kind = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Lighting ' + (slot + 1) + ' device kind' });
+        kind.appendChild(md_element('option', { value: 'lamp' }, 'Dynamic Lighting device (no codes)'));
         kind.appendChild(md_element('option', { value: 'z15' }, 'EVGA Z15 / Z20'));
         kind.appendChild(md_element('option', { value: 'custom' }, 'Any device (bytes)'));
         kind.value = l.kind;
@@ -7456,7 +7497,9 @@ function render_lighting(sec, check, num) {
                 (used ? 'On ' + used + ' key' + (used == 1 ? '' : 's') + '.' : 'No key sends it yet: map a key to "Send lighting ' + (slot + 1) + '".');
         };
         info_update();
-        if (l.kind == 'z15') {
+        if (l.kind == 'lamp') {
+            render_light_lamp(card, l, slot);
+        } else if (l.kind == 'z15') {
             render_light_z15(card, l, slot);
         } else {
             render_light_custom(card, l, slot, parts, num, info_update);
@@ -7492,7 +7535,7 @@ function render_lighting(sec, check, num) {
     if (free !== undefined) {
         const b = md_element('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', id: 'light_add' }, '+ Lighting');
         b.addEventListener('click', () => {
-            lights[free] = light_default(light_plugged_z15() || !parts.length ? 'z15' : 'custom');
+            lights[free] = light_default(light_lamp_parts().length && !light_plugged_z15() ? 'lamp' : (light_plugged_z15() || !parts.length ? 'z15' : 'custom'));
             render_key_features_card();
         });
         add.appendChild(b);
@@ -7501,6 +7544,74 @@ function render_lighting(sec, check, num) {
     if (light_supported === false && device != null) {
         s.appendChild(md_element('p', { class: 'md-board-p mb-0' }, 'This board needs newer TrueMap firmware to send lighting.'));
     }
+}
+
+function render_light_lamp(card, l, slot) {
+    const m = l.lamp = l.lamp || lamp_default();
+    const lamp_parts = light_lamp_parts();
+    const vp = (vid, pid) => vid.toString(16).padStart(4, '0') + ':' + pid.toString(16).padStart(4, '0');
+    const row1 = md_element('div', { class: 'md-kf-row' });
+    const dev = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Dynamic Lighting device' });
+    dev.appendChild(md_element('option', { value: '0:0' }, 'Every Dynamic Lighting device plugged in'));
+    const seen = new Set();
+    for (const p of lamp_parts) {
+        const key = p.vid + ':' + p.pid;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        const n = lamp_parts.filter((q) => q.vid == p.vid && q.pid == p.pid).reduce((a, q) => a + (q.lamps == 0xFFFF ? 0 : q.lamps), 0);
+        dev.appendChild(md_element('option', { value: key }, device_name(p.vid, p.pid) + (n ? ' (' + n + ' lamps)' : ' (reading its lamps…)')));
+    }
+    const cur = m.vid + ':' + m.pid;
+    if (!seen.has(cur) && cur != '0:0') {
+        dev.appendChild(md_element('option', { value: cur }, device_name(m.vid, m.pid) + ' (not plugged in)'));
+    }
+    dev.value = cur;
+    dev.addEventListener('change', () => {
+        const [v, p] = dev.value.split(':').map((x) => parseInt(x));
+        m.vid = v;
+        m.pid = p;
+    });
+    row1.appendChild(dev);
+    const mode = md_element('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'What to do' });
+    mode.appendChild(md_element('option', { value: 'color' }, 'All its lights one colour'));
+    mode.appendChild(md_element('option', { value: 'device' }, 'Back to its own effects'));
+    mode.value = m.mode;
+    mode.addEventListener('change', () => { m.mode = mode.value; render_key_features_card(); });
+    row1.appendChild(mode);
+    card.appendChild(row1);
+    if (m.mode == 'color') {
+        const row = md_element('div', { class: 'md-kf-row' });
+        const g0 = md_element('span', { class: 'md-light-slider' });
+        g0.appendChild(md_element('span', {}, 'Colour'));
+        const pick = md_element('input', { type: 'color', class: 'form-control form-control-color md-light-color', 'aria-label': 'Colour' });
+        pick.value = m.color || '#ff0000';
+        pick.addEventListener('change', () => { m.color = pick.value; });
+        g0.appendChild(pick);
+        row.appendChild(g0);
+        const g1 = md_element('span', { class: 'md-light-slider' });
+        g1.appendChild(md_element('label', { for: 'light_bright_' + slot }, 'Brightness'));
+        const br = md_element('input', { type: 'range', class: 'form-range md-light-range', id: 'light_bright_' + slot, min: '0', max: '100', step: '5' });
+        br.value = String(Math.round((m.brightness ?? 255) * 100 / 255));
+        const bv = md_element('span', { class: 'md-light-val' }, br.value + '%');
+        br.addEventListener('input', () => { bv.textContent = br.value + '%'; m.brightness = Math.round(parseInt(br.value) * 255 / 100); });
+        g1.append(br, bv);
+        row.appendChild(g1);
+        card.appendChild(row);
+    }
+    const help = md_element('p', { class: 'md-board-p mb-1' }, lamp_parts.length ? 'The board reads from the device how to set its lights, so no codes are needed.'
+        : (device == null ? 'Open the board to see which plugged-in devices support Dynamic Lighting.' : 'No Dynamic Lighting device is plugged into the board right now (newer RGB keyboards and mice made for Windows Dynamic Lighting are). '));
+    if (device != null) {
+        const refresh = md_element('button', { type: 'button', class: 'btn btn-sm btn-link px-0 align-baseline' }, 'Refresh the list');
+        refresh.addEventListener('click', () => profile_action(async () => {
+            await load_parts();
+            light_fix_parts();
+            render_key_features_card();
+        }));
+        help.appendChild(refresh);
+    }
+    card.appendChild(help);
 }
 
 function render_light_z15(card, l, slot) {

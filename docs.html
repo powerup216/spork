@@ -503,6 +503,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
   <h3 id="lighting">Lighting (RGB keyboards)</h3>
   <p>The board can set the lights of a device plugged into it, such as an RGB keyboard. The computer's lighting app (OpenRGB, EVGA Unleashed) can't reach a keyboard behind the board, so the board sends the colours itself. Each profile has up to 8 lightings. Click <span class="path">+ Lighting</span> in <span class="path">Settings → Key features → Lighting</span>.</p>
   <ul>
+    <li><strong>Dynamic Lighting device (no codes):</strong> newer RGB keyboards, mice and other gear made for Windows Dynamic Lighting describe their lights in a standard way, so the board reads from the device itself how many lights it has and how to set them. Pick the device (or every one plugged in) and either a colour and brightness for all its lights, or "back to its own effects". Plugged in after you opened the board? Click <span class="path">Refresh the list</span>. Their Parts show up as "Lighting (Dynamic Lighting)".</li>
     <li><strong>EVGA Z15 / Z20:</strong> pick the model (the one plugged in is marked), an effect, colours, brightness, speed and direction. Effects: one colour, breathing (1–2 colours), flashing (2–7), spiral, rainbow wave, starry night, keys light up as you type, the key pressed lights up, the keys around it light up, and off. The board sends exactly what OpenRGB sends.</li>
     <li><strong>Any device (bytes):</strong> for other devices, type the messages yourself. For each one: the device (VID:PID; the ones plugged in are offered), its USB interface (or every interface), feature or output report, the report ID, the bytes in hex, and optionally <em>send as</em> N bytes (the rest is filled with zeros, for devices that want long messages). Switching a Z15 lighting to "Any device" starts from its bytes, to change by hand.</li>
     <li><strong>Try it</strong> sends it to the device straight away without saving, and says how many messages went out (or that the device isn't plugged in).</li>
@@ -510,7 +511,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <li><strong>On a key:</strong> map a key to <em>Send lighting 1–8</em> (outputs under TrueMap). The output shows the lighting's name, e.g. "Send lighting 1: Night red".</li>
     <li><strong>Also keep it in the keyboard</strong> (Z15) makes it the keyboard's own setting, so it looks the same plugged into another computer. It writes the keyboard's memory every time it's sent, so leave it off for lighting that changes often.</li>
   </ul>
-  <div class="tip"><p>Finding the bytes for another device: OpenRGB's source has a driver for most RGB devices (the bytes each mode sends), or record what the maker's app sends with Wireshark and USBPcap. Messages go out in order, a moment apart; up to 12 per lighting. Needs the firmware from 26 November 2026 or later.</p></div>
+  <div class="tip"><p>Not sure whether a device supports Dynamic Lighting? Plug it into the board, open it and add a lighting: if it supports it, it's in the Dynamic Lighting list. Otherwise, OpenRGB's source has the bytes for most RGB devices, to type under "Any device". Messages go out in order, a moment apart; up to 12 per lighting. Needs the firmware from 26 November 2026 or later.</p></div>
 </section>
 
 <!-- ============================================================ -->
@@ -654,6 +655,7 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
     <tr><td>The page loaded the board's settings over mine</td><td>Settings load as soon as the board opens. Turn that off for the board in Settings → Board. Settings from an imported file or an example are never replaced.</td></tr>
     <tr><td>A key keeps going as if held down</td><td>The wireless receiver lost the key's release. The board lets go of it after 30 s by itself; set a shorter time in Settings → Key features → Safety nets.</td></tr>
     <tr><td>The page asks "Leave site?" when closing</td><td>The page has changes the board doesn't have yet. Click Save to device first, or leave to throw them away.</td></tr>
+    <tr><td>Dynamic Lighting: the device isn't in the list</td><td>Click Refresh the list after plugging it in. If it still isn't there, it doesn't support Dynamic Lighting (HID LampArray); use "Any device" or a preset.</td></tr>
     <tr><td>Lighting: Try it says nothing was sent</td><td>The device isn't plugged into the board, or not on that interface. For the Z15, check the model (US / ISO, Z15 / Z20) matches.</td></tr>
     <tr><td>The keyboard's colour goes back after a while</td><td>Tick <span class="path">Send it by itself</span> so it's sent again whenever the keyboard is plugged in or the profile starts, or <span class="path">Also keep it in the keyboard</span>.</td></tr>
     <tr><td>"Needs the latest firmware"</td><td>Update the board (section 17). The settings stay on the page and in saved files meanwhile.</td></tr>
