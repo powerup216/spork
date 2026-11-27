@@ -7881,6 +7881,67 @@ const PK_ICONS = {
     '0x00010030': '↔', '0x00010031': '↕', '0x00010038': '⇕', '0x000c0238': '⇔',
     '0x000c00e9': '+', '0x000c00ea': '−', '0x000c00e2': '⊘', '0x000b002f': '🎙︎', '0x000c00cd': '⏯︎', '0x000c00b7': '⏹︎', '0x000c00b5': '⏭︎', '0x000c00b6': '⏮︎',
 };
+// Apps & system
+const PK_FUNCTION_ICONS = {
+    '0x000c0192': '÷', '0x000c018a': '✉︎', '0x000c0183': '♫', '0x000c0194': '▤', '0x000c0196': '◎', '0x000c019e': '🔒︎',
+    '0x000c0221': '⌕', '0x000c0223': '⌂', '0x000c0224': '←', '0x000c0225': '→', '0x000c0226': '✕', '0x000c0227': '↻', '0x000c022a': '☆',
+    '0x000c006f': '☀︎', '0x000c0070': '☼', '0x000c00b8': '⏏︎', '0x00010082': '☾', '0x00010081': '⏻', '0x00010083': '☀︎',
+};
+// shortcuts, by what they do (first match in the name)
+const PK_SHORTCUT_ICONS = [
+    [/^copy/i, '⧉'], [/^paste/i, '⎘'], [/^cut/i, '✂︎'], [/^undo/i, '↶'], [/^redo/i, '↷'], [/^select all/i, '⬚'], [/^save/i, '⤓'],
+    [/replace/i, '⇄'], [/^find|spotlight/i, '⌕'], [/^print/i, '⎙'], [/^new tab|^new$|^new /i, '+'], [/^open/i, '⤒'], [/reopen/i, '↺'],
+    [/^close|^quit/i, '✕'], [/^hide/i, '◌'], [/^minimi/i, '▁'], [/^maximi/i, '▢'], [/^next tab/i, '⇥'], [/^previous tab/i, '⇤'],
+    [/address bar/i, '⌗'], [/bookmark/i, '☆'], [/downloads/i, '⤓'], [/private/i, '◐'], [/refresh/i, '↻'], [/^bold/i, 'B'], [/^italic/i, 'I'],
+    [/^underline/i, 'U'], [/^zoom in/i, '⊕'], [/^zoom out/i, '⊖'], [/zoom/i, '⊙'], [/delete word/i, '⌫'], [/^start of/i, '⇱'], [/^end of/i, '⇲'],
+    [/^switch/i, '⇆'], [/task manager|force quit/i, '⊘'], [/show desktop/i, '▭'], [/^lock/i, '🔒︎'], [/screenshot/i, '⛶'], [/file explorer/i, '▤'],
+    [/^settings/i, '⚙︎'], [/^run/i, '▶︎'], [/task view|mission control/i, '▦'], [/clipboard/i, '⎘'], [/emoji/i, '☺︎'], [/voice/i, '🎙︎'],
+    [/left/i, '◧'], [/right/i, '◨'],
+];
+// TrueMap's own outputs and the rest, by code
+function pk_icon_for(usage, name, where) {
+    const u = parseInt(usage, 16) >>> 0;
+    const page = u >>> 16, low = u & 0xFFFF;
+    const n = name || '';
+    if (where == 'function') {
+        return PK_FUNCTION_ICONS[usage.toLowerCase()] || '◆';
+    }
+    if (where == 'shortcut' || where == 'shortcut_mac') {
+        const hit = PK_SHORTCUT_ICONS.find(([re]) => re.test(n));
+        return hit ? hit[1] : '⌨︎';
+    }
+    switch (page) {
+        case 0xffe4:
+            return /stop/i.test(n) ? '⏹︎' : /up/i.test(n) ? '⇡' : '⇣';
+        case 0xffe5:
+            return (low >> 8) == 1 ? '◫' : '①';
+        case 0xffe6:
+            return '◫';
+        case 0xffe7: {
+            if (low >= 0x20 && low <= 0x27) {
+                return '✦';
+            }
+            const special = { 0x01: '↻', 0x02: 'Aa', 0x03: '⟲', 0x04: '⤓', 0x05: '✎', 0x06: '🔒︎', 0x07: '⇕', 0x08: '⇕', 0x09: '»', 0x0a: '«',
+                0x0b: '◎', 0x0c: '◎', 0x0d: '⇊', 0x0e: '❷', 0x0f: '⏸︎', 0x10: '⏹︎', 0x11: '¶' };
+            return special[low] || '◆';
+        }
+        case 0xfff1:
+            return '◫';
+        case 0xfffa:
+            return low == 9 ? '▷' : low == 10 ? '◁' : '◉';
+        case 0xfff2:
+            return '≫';
+        case 0xfff3:
+            return 'ƒ';
+        case 0xfff4:
+            return '⌁';
+        case 0xfff5:
+            return '#';
+        case 0xfff6:
+            return '∿';
+    }
+    return null;
+}
 const PK_DICTATION_ICONS = { 'record': '●', 'dictate': '●', 'rewind': '⏪︎', 'fast forward': '⏩︎', 'forward': '⏩︎', 'play': '⏯︎', 'previous field': '⇤', 'tab back': '⇤', 'next field': '⇥', 'tab forward': '⇥', 'enter': '↵', 'pedal left': 'L', 'pedal middle': 'M', 'pedal right': 'R' };
 
 const PK_HELP = {
@@ -8037,7 +8098,13 @@ function pk_place(containers, button, usage, name, cls) {
     }
     if (where == 'micdrop') {
         button.classList.add('pk-card');
-        button.appendChild(md_element('b', {}, name));
+        const title = md_element('b', {});
+        const ic = pk_icon_for(usage, name, where);
+        if (ic) {
+            title.appendChild(md_element('span', { class: 'pk-ic', 'aria-hidden': 'true' }, ic));
+        }
+        title.appendChild(document.createTextNode(name));
+        button.appendChild(title);
         const help = pk_help(usage, name);
         if (help) {
             button.appendChild(md_element('span', {}, help));
@@ -8046,7 +8113,7 @@ function pk_place(containers, button, usage, name, cls) {
         containers['micdrop'].appendChild(button);
         return;
     }
-    let icon = PK_ICONS[usage.toLowerCase()];
+    let icon = PK_ICONS[usage.toLowerCase()] || ((where == 'powermic') ? null : pk_icon_for(usage, name, where));
     if (!icon && where == 'powermic') {
         const n = name.toLowerCase();
         const key = Object.keys(PK_DICTATION_ICONS).find((k) => n.includes(k));

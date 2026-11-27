@@ -745,6 +745,7 @@ a { text-decoration-color: rgba(212, 175, 55, 0.4); text-underline-offset: 2px; 
 .pk-card { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid #24242A; background: #141417; color: var(--bone); text-align: left; }
 .pk-card b { font-size: 13px; font-weight: 600; }
 .pk-card span { font-size: 12px; color: #8F8A80; line-height: 1.35; }
+.pk-card b .pk-ic { color: var(--lightbox); font-size: 13px; margin-right: 7px; }
 .pk-more summary { color: #CFCAC0; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
 .pk-more summary:hover { color: #F5DC94; }
 .pk-searching .pk-kb { gap: 0; }
