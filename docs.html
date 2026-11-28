@@ -591,6 +591,8 @@ footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
   <p><span class="path">Settings → Board → Device health</span> counts, per device since the board started: how often it was plugged in (or reconnected), its reports, reports it never declared, and presses debounce dropped. Below it, the keys that bounce most, and the last 5 restarts after a freeze or crash with their codes. A device that reconnects often points at a cable, hub or weak receiver; a key that bounces a lot is wearing out. If a saved profile is ever damaged, the board starts in the next good one and says so here.</p>
   <h3>Safe start</h3>
   <p>If a mapping ever locks you out (say, every key is remapped), <strong>hold <kbd>Esc</kbd> for 2 seconds within 8 seconds of plugging the board in</strong>. It starts with every mapping off until the next restart. Your saved settings aren't touched, so open the configurator and fix the setup.</p>
+  <p>The board also does this by itself after <strong>3 crashes in a row</strong> (each within a minute of starting). The page then says "Safe start after crashes in a row", and the crashes are listed under Device health. Restart the board, or unplug it and plug it back in, to bring the mappings back.</p>
+  <p>If the board's stack ever runs too deep, it restarts on purpose before anything gets overwritten, and the crash list shows "ran out of stack".</p>
 </section>
 
 <!-- ============================================================ -->

@@ -6697,7 +6697,9 @@ function render_board_state() {
         return;
     }
     const chip = (text, cls = '') => box.appendChild(md_element('span', { class: 'md-state-chip' + (cls ? ' ' + cls : '') }, text));
-    if (st.flags & 0x0080) {
+    if (st.flags & 0x0800) {
+        chip('Safe start after crashes in a row: mappings off until restart. See Restarts after a freeze or crash in Settings.', 'warn');
+    } else if (st.flags & 0x0080) {
         chip('Safe start: mappings off until restart', 'warn');
     }
     if (st.flags & 0x0040) {
@@ -7034,7 +7036,7 @@ function render_health(box) {
         box.appendChild(md_element('h3', { class: 'md-board-lbl mt-3' }, 'Restarts after a freeze or crash'));
         const ul = md_element('ul', { class: 'md-health-list' });
         for (const c of h.crashes) {
-            ul.appendChild(md_element('li', {}, '#' + c.seq + ' ' + (c.kind == 2 ? 'froze' : 'crashed') + ': kind ' + c.kind + ', step ' + c.stage + ', at ' + hex(c.pc) + ', from ' + hex(c.lr)));
+            ul.appendChild(md_element('li', {}, '#' + c.seq + ' ' + (c.kind == 2 ? 'froze' : c.kind == 3 ? 'ran out of stack' : 'crashed') + ': kind ' + c.kind + ', step ' + c.stage + ', at ' + hex(c.pc) + ', from ' + hex(c.lr)));
         }
         box.appendChild(ul);
         box.appendChild(md_element('p', { class: 'md-board-p' }, 'Newest first. If these keep coming, send the codes.'));
